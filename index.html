@@ -3,417 +3,371 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>김성래 관리 포털</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<title>김성래 포털</title>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080E1A;--surface:#0F1B2D;--card:#131E35;--border:#1E2F47;
+  --blue:#3B82F6;--blue-l:rgba(59,130,246,.12);
+  --gold:#F0B429;--green:#10B981;--red:#EF4444;
+  --text:#E2EAF4;--muted:#617898;--hint:#243450;
+}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.wrap{max-width:980px;margin:0 auto;padding:28px 24px 60px}
 
-:root {
-  --bg:       #080E1A;
-  --surface:  #0F1B2D;
-  --card:     #152033;
-  --border:   #1E2F47;
-  --blue:     #3B82F6;
-  --blue-l:   rgba(59,130,246,.12);
-  --gold:     #F0B429;
-  --gold-l:   rgba(240,180,41,.1);
-  --green:    #10B981;
-  --red:      #EF4444;
-  --text:     #E2EAF4;
-  --muted:    #617898;
-  --hint:     #3A5070;
-}
+/* 상단 */
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.site-name{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.5px}
+.today-text{font-size:13px;color:var(--muted)}
+.today-text strong{color:var(--text)}
 
-body {
-  font-family: 'Pretendard', -apple-system, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  line-height: 1.5;
+/* 앱 링크 */
+.app-links{display:flex;gap:10px;margin-bottom:20px}
+.app-link{
+  flex:1;display:flex;align-items:center;gap:10px;padding:13px 18px;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  text-decoration:none;color:var(--text);font-size:13px;font-weight:600;
+  transition:border-color .15s;
 }
+.app-link:hover{border-color:var(--blue)}
+.app-link .sub{font-size:11px;color:var(--muted);font-weight:400;margin-top:2px}
 
-/* ── 헤더 ── */
-header {
-  padding: 32px 40px 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-.logo {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: .5px;
-  color: var(--muted);
-}
-.greeting h1 {
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--text);
-  line-height: 1.2;
-}
-.greeting .sub {
-  font-size: 13px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-.date-badge {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-size: 13px;
-  color: var(--muted);
-  text-align: right;
-}
-.date-badge strong { color: var(--text); display: block; font-size: 15px; }
+/* 메인 그리드 */
+.grid{display:grid;grid-template-columns:1fr 1.4fr;gap:16px}
+@media(max-width:680px){.grid{grid-template-columns:1fr}.app-links{flex-direction:column}}
 
-/* ── 메인 그리드 ── */
-main {
-  padding: 32px 40px 60px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  max-width: 1100px;
-}
+/* 카드 */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px}
+.card-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
 
-/* ── 카드 공통 ── */
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 28px;
-  position: relative;
-  overflow: hidden;
-  transition: border-color .2s;
+/* Tasks 탭 */
+.tasks-tab-bar{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px}
+.tasks-tab{
+  background:var(--surface);border:1px solid var(--border);border-radius:7px;
+  padding:4px 12px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;
+  font-family:inherit;transition:all .15s;
 }
-.card:hover { border-color: var(--hint); }
-.card-accent {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  border-radius: 16px 16px 0 0;
-}
-.card-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: .8px;
-  margin-bottom: 16px;
-  text-transform: uppercase;
-}
-.stat-row {
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-.stat { flex: 1; min-width: 100px; }
-.stat .value {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.stat .value.gold { color: var(--gold); }
-.stat .value.green { color: var(--green); }
-.stat .value.red { color: var(--red); }
-.stat .value.blue { color: var(--blue); }
-.stat .label {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 4px;
-}
+.tasks-tab.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue)}
 
-/* ── 앱 바로가기 카드 ── */
-.app-card {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-  cursor: pointer;
+/* 투두 입력 */
+.todo-input-row{display:flex;gap:8px;margin-bottom:10px}
+.todo-input{
+  flex:1;background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);
+  font-family:inherit;outline:none;min-width:0;
 }
-.app-card .app-icon {
-  font-size: 32px;
-  margin-bottom: 12px;
-}
-.app-card .app-name {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-.app-card .app-desc {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.6;
-}
-.app-card .go-btn {
-  margin-top: 20px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: opacity .15s;
-}
-.app-card .go-btn:hover { opacity: .8; }
+.todo-input:focus{border-color:var(--blue)}
+.todo-input::placeholder{color:var(--muted)}
+.add-btn{background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.add-btn:hover{opacity:.85}
 
-/* ── 전체 너비 카드 ── */
-.full { grid-column: 1 / -1; }
+/* 투두 아이템 */
+.todo-list{display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto}
+.todo-item{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;
+  background:var(--surface);border-radius:8px;border:1px solid transparent;transition:border-color .1s}
+.todo-item:hover{border-color:var(--border)}
+.todo-cb{
+  width:17px;height:17px;border-radius:5px;border:2px solid var(--border);
+  background:none;cursor:pointer;flex-shrink:0;appearance:none;margin-top:1px;
+  display:grid;place-items:center;transition:all .15s;
+}
+.todo-cb:checked{background:var(--green);border-color:var(--green)}
+.todo-cb:checked::after{content:'✓';color:#fff;font-size:10px;font-weight:800}
+.todo-text{flex:1;font-size:13px;line-height:1.4}
+.todo-text.done{text-decoration:line-through;color:var(--muted)}
+.todo-notes{font-size:11px;color:var(--muted);margin-top:2px}
+.del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:15px;
+  padding:1px 3px;border-radius:3px;transition:color .1s;flex-shrink:0}
+.del-btn:hover{color:var(--red)}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:16px 0}
+.spin{text-align:center;padding:16px;color:var(--muted);font-size:12px}
 
-/* ── 구분선 ── */
-.divider {
-  width: 1px;
-  background: var(--border);
-  align-self: stretch;
-  margin: 0 4px;
+/* 캘린더 */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cal-title-text{font-size:15px;font-weight:700}
+.cal-nav{background:none;border:1px solid var(--border);color:var(--text);
+  border-radius:7px;padding:5px 11px;cursor:pointer;font-size:14px;font-family:inherit}
+.cal-nav:hover{background:var(--hint)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-dow{text-align:center;font-size:10px;font-weight:600;color:var(--muted);padding:3px 0 7px;letter-spacing:.4px}
+.cal-dow:first-child{color:#F87171}
+.cal-dow:last-child{color:#60A5FA}
+.cal-day{
+  aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  padding-top:6px;border-radius:8px;font-size:12px;cursor:default;position:relative;
+  transition:background .1s;
 }
-
-/* ── 로딩 ── */
-.loading {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  height: 32px;
+.cal-day.other{color:var(--hint)}
+.cal-day.sun{color:#F87171}
+.cal-day.sat{color:#60A5FA}
+.cal-day.today{background:var(--blue);color:#fff!important;font-weight:700}
+.cal-day:not(.other):not(.today):hover{background:var(--hint)}
+.cal-dot{
+  width:4px;height:4px;border-radius:50%;background:var(--gold);
+  margin-top:3px;flex-shrink:0;
 }
-.dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--hint);
-  animation: pulse .8s ease-in-out infinite;
+.cal-day.today .cal-dot{background:#fff}
+.cal-events-popup{
+  display:none;position:absolute;top:110%;left:50%;transform:translateX(-50%);
+  background:#1A2744;border:1px solid var(--border);border-radius:8px;
+  padding:8px 12px;min-width:160px;max-width:220px;z-index:100;
+  font-size:11px;line-height:1.6;color:var(--text);white-space:normal;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
 }
-.dot:nth-child(2) { animation-delay: .15s; }
-.dot:nth-child(3) { animation-delay: .3s; }
-@keyframes pulse {
-  0%, 100% { opacity: .3; transform: scale(.8); }
-  50% { opacity: 1; transform: scale(1.2); }
-}
-
-/* ── 최근 계약 리스트 ── */
-.recent-list { margin-top: 16px; }
-.recent-item {
-  display: flex;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-  gap: 12px;
-}
-.recent-item:last-child { border-bottom: none; }
-.ri-badge {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--blue-l);
-  color: var(--blue);
-  white-space: nowrap;
-}
-.ri-name { font-size: 13px; font-weight: 600; flex: 1; }
-.ri-sub { font-size: 11px; color: var(--muted); }
-.ri-pr { font-size: 13px; font-weight: 600; color: var(--gold); white-space: nowrap; }
-
-/* ── 모바일 ── */
-@media (max-width: 700px) {
-  header { padding: 24px 20px 0; flex-direction: column; gap: 16px; }
-  main { padding: 20px; grid-template-columns: 1fr; }
-  .full { grid-column: 1; }
-}
+.cal-day:hover .cal-events-popup{display:block}
+.ev-item{padding:2px 0;border-bottom:1px solid var(--border)}
+.ev-item:last-child{border:none}
+.ev-time{color:var(--muted);font-size:10px}
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<header>
-  <div class="greeting">
-    <div class="logo">KIM SEONGLAE · PERSONAL HUB</div>
-    <h1 id="greet">안녕하세요 😊</h1>
-    <div class="sub" id="sub-date">데이터를 불러오는 중...</div>
+  <div class="top-bar">
+    <div class="site-name">KIM SEONGLAE · PORTAL</div>
+    <div class="today-text"><strong id="today-str"></strong></div>
   </div>
-  <div class="date-badge">
-    <strong id="today-date">—</strong>
-    <span id="today-day">—</span>
+
+  <div class="app-links">
+    <a class="app-link" href="https://s2ongrae.github.io/gaegyebu" target="_blank">
+      <span style="font-size:20px">📒</span>
+      <div><div>가계부</div><div class="sub">수입 · 지출 · 투자 · 자산</div></div>
+    </a>
+    <a class="app-link" href="https://s2ongrae.github.io/insurance-manager" target="_blank">
+      <span style="font-size:20px">🏦</span>
+      <div><div>보험관리툴</div><div class="sub">계약 · 보장분석 · 고객관리</div></div>
+    </a>
   </div>
-</header>
 
-<main>
+  <div class="grid">
 
-  <!-- 가계부 요약 -->
-  <div class="card" id="card-budget">
-    <div class="card-accent" style="background:linear-gradient(90deg,#3B82F6,#60A5FA)"></div>
-    <div class="card-label">💰 이번 달 가계부</div>
-    <div id="budget-body" class="loading">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <!-- 왼쪽: Tasks + 투두 -->
+    <div>
+      <div class="card">
+        <div class="card-title">
+          <span>✅ 할 일</span>
+          <span id="sync-status" style="font-size:10px;color:var(--muted)"></span>
+        </div>
+        <div class="tasks-tab-bar" id="tab-bar">
+          <div class="tasks-tab on" data-list="" onclick="selectList(this, '')">내 Tasks</div>
+        </div>
+        <div class="todo-input-row">
+          <input class="todo-input" id="todo-inp" placeholder="할 일 추가 후 Enter..."
+            onkeydown="if(event.key==='Enter')addTask()">
+          <button class="add-btn" onclick="addTask()">추가</button>
+        </div>
+        <div class="todo-list" id="todo-list"><div class="spin">불러오는 중...</div></div>
+      </div>
     </div>
-  </div>
 
-  <!-- 보험 요약 -->
-  <div class="card" id="card-ins">
-    <div class="card-accent" style="background:linear-gradient(90deg,#F0B429,#FCD34D)"></div>
-    <div class="card-label">🏦 보험 관리</div>
-    <div id="ins-body" class="loading">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <!-- 오른쪽: 캘린더 -->
+    <div>
+      <div class="card">
+        <div class="cal-header">
+          <button class="cal-nav" onclick="changeMonth(-1)">‹</button>
+          <div class="cal-title-text" id="cal-title"></div>
+          <button class="cal-nav" onclick="changeMonth(1)">›</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
     </div>
+
   </div>
-
-  <!-- 가계부 바로가기 -->
-  <a class="card app-card" href="https://s2ongrae.github.io/gaegyebu" target="_blank">
-    <div class="card-accent" style="background:#1E2F47"></div>
-    <div class="app-icon">📒</div>
-    <div class="app-name">가계부</div>
-    <div class="app-desc">수입·지출·저축 관리<br>투자 현황 · 자산 추적 · AI 검색</div>
-    <div class="go-btn" style="background:var(--blue-l);color:var(--blue)">열기 →</div>
-  </a>
-
-  <!-- 보험관리툴 바로가기 -->
-  <a class="card app-card" href="https://s2ongrae.github.io/insurance-manager" target="_blank">
-    <div class="card-accent" style="background:#1E2F47"></div>
-    <div class="app-icon">🏦</div>
-    <div class="app-name">보험관리툴</div>
-    <div class="app-desc">계약 관리 · 보장 분석<br>고객 링크 · PDF 제안서 분석</div>
-    <div class="go-btn" style="background:var(--gold-l);color:var(--gold)">열기 →</div>
-  </a>
-
-  <!-- 최근 계약 -->
-  <div class="card full">
-    <div class="card-accent" style="background:linear-gradient(90deg,#10B981,#34D399)"></div>
-    <div class="card-label">📋 최근 계약 (완료 기준)</div>
-    <div id="recent-body" class="loading">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    </div>
-  </div>
-
-</main>
+</div>
 
 <script>
-const GAEGYEBU_URL  = 'https://script.google.com/macros/s/AKfycbwqGsImpdwXuJpRha0ICCqF1YCnxERJSxZ6jIIyqkwVflK2Qxpp_Ep70_4IX1R0xQU/exec';
-const INSURANCE_URL = 'https://script.google.com/macros/s/AKfycbwk3rTz0_G5wo4DTFJoI3nftVAs4iNoL9ywBRHJZVw_MyfywEZ21_gxgltLnj9up2Lyjw/exec';
+// ★ 여기에 배포 후 받은 URL 넣으세요
+const PORTAL_URL = 'YOUR_PORTAL_GAS_URL_HERE';
 
-const won = n => (n||0).toLocaleString('ko-KR');
-const DAYS = ['일','월','화','수','목','금','토'];
+const DAYS_KO   = ['일','월','화','수','목','금','토'];
+const MONTHS_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+const now       = new Date();
 
-function initDate() {
-  const now = new Date();
-  const m = now.getMonth()+1, d = now.getDate();
-  const h = now.getHours();
-  const greetText = h<6?'밤이 깊었네요 🌙':h<12?'좋은 아침이에요 ☀️':h<18?'좋은 오후예요 😊':'수고 많으셨어요 🌆';
-  document.getElementById('greet').textContent = greetText;
-  document.getElementById('today-date').textContent = `${now.getFullYear()}년 ${m}월 ${d}일`;
-  document.getElementById('today-day').textContent = `${DAYS[now.getDay()]}요일`;
+// 날짜 표시
+document.getElementById('today-str').textContent =
+  `${now.getFullYear()}년 ${MONTHS_KO[now.getMonth()]} ${now.getDate()}일 ${DAYS_KO[now.getDay()]}요일`;
 
-  const ym = `${now.getFullYear()}.${String(m).padStart(2,'0')}`;
-  document.getElementById('sub-date').textContent = `${ym} 데이터 요약`;
+// ── Tasks ──────────────────────────────────────────
+let curListId = '';
+let taskLists = [];
+
+async function post(body) {
+  const r = await fetch(PORTAL_URL, {
+    method:'POST', headers:{'Content-Type':'text/plain'},
+    body: JSON.stringify(body)
+  });
+  return r.json();
 }
 
-// 가계부 데이터
-async function loadBudget() {
-  const el = document.getElementById('budget-body');
+async function loadTaskLists() {
   try {
-    const res  = await fetch(GAEGYEBU_URL + '?t=' + Date.now());
-    const data = await res.json();
-    const now  = new Date();
-    const ym   = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth()+1).padStart(2,'0')}`;
-    const month = (data.monthly||[]).find(m=>m.m===ym) || null;
-
-    if (!month) {
-      el.innerHTML = `<div style="color:var(--muted);font-size:13px">이번 달 데이터가 없어요</div>`;
-      return;
+    const d = await post({action:'getTaskLists'});
+    if (!d.ok) return;
+    taskLists = d.lists || [];
+    const bar = document.getElementById('tab-bar');
+    bar.innerHTML = '';
+    taskLists.forEach(l => {
+      const btn = document.createElement('div');
+      btn.className = 'tasks-tab' + (l.id === curListId ? ' on' : '');
+      btn.textContent = l.title;
+      btn.dataset.list = l.id;
+      btn.onclick = () => selectList(btn, l.id);
+      bar.appendChild(btn);
+    });
+    if (taskLists.length > 0 && !curListId) {
+      curListId = taskLists[0].id;
+      bar.firstChild?.classList.add('on');
     }
-    const income  = month.after  || month.before || 0;
-    const saved   = Math.round(income * 0.3); // 추정치가 없으면 표시 안 함
-    const txCount = month.k || 0;
-
-    el.innerHTML = `
-      <div class="stat-row">
-        <div class="stat">
-          <div class="value blue">${won(income)}원</div>
-          <div class="label">세후 수입</div>
-        </div>
-        <div class="divider"></div>
-        <div class="stat">
-          <div class="value">${won(month.before||0)}원</div>
-          <div class="label">세전 수입</div>
-        </div>
-        <div class="divider"></div>
-        <div class="stat">
-          <div class="value gold">${txCount}건</div>
-          <div class="label">계약 실적</div>
-        </div>
-      </div>
-      ${month.memo ? `<div style="margin-top:14px;padding:10px 14px;background:var(--blue-l);border-radius:8px;font-size:12px;color:var(--muted)">${month.memo}</div>` : ''}
-    `;
-  } catch(err) {
-    el.innerHTML = `<div style="color:var(--muted);font-size:12px">⚠️ 가계부 연결 실패</div>`;
-  }
+    loadTasks();
+  } catch(e) { showError(); }
 }
 
-// 보험 데이터
-async function loadInsurance() {
-  const el = document.getElementById('ins-body');
+function selectList(el, id) {
+  document.querySelectorAll('.tasks-tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  curListId = id;
+  loadTasks();
+}
+
+async function loadTasks() {
+  const el = document.getElementById('todo-list');
+  el.innerHTML = '<div class="spin">불러오는 중...</div>';
   try {
-    const res  = await fetch(INSURANCE_URL + '?t=' + Date.now());
-    const data = await res.json();
-    const contracts = data.contracts || [];
-    const done    = contracts.filter(c=>c.s==='계약완료');
-    const total   = done.reduce((s,c)=>s+(c.pr||0), 0);
-    const groups  = new Set(done.map(c=>c.g).filter(Boolean));
+    const d = await post({action:'getTasks', listId: curListId});
+    if (!d.ok) { el.innerHTML = `<div class="empty">⚠️ ${d.error||'연결 실패'}</div>`; return; }
+    renderTasks(d.tasks || []);
+  } catch(e) { el.innerHTML = '<div class="empty">⚠️ 연결 실패</div>'; }
+}
 
-    el.innerHTML = `
-      <div class="stat-row">
-        <div class="stat">
-          <div class="value gold">${won(total)}원</div>
-          <div class="label">월 총 보험료</div>
-        </div>
-        <div class="divider"></div>
-        <div class="stat">
-          <div class="value">${done.length}건</div>
-          <div class="label">완료 계약</div>
-        </div>
-        <div class="divider"></div>
-        <div class="stat">
-          <div class="value blue">${groups.size}팀</div>
-          <div class="label">고객 그룹</div>
-        </div>
+function renderTasks(tasks) {
+  const el = document.getElementById('todo-list');
+  const active = tasks.filter(t => !t.done);
+  const done   = tasks.filter(t =>  t.done);
+  const all    = [...active, ...done];
+  if (!all.length) { el.innerHTML = '<div class="empty">할 일이 없어요 😊</div>'; return; }
+  el.innerHTML = all.map(t => `
+    <div class="todo-item">
+      <input type="checkbox" class="todo-cb" ${t.done?'checked':''}
+        onchange="toggleTask('${t.id}',this)">
+      <div style="flex:1;min-width:0">
+        <div class="todo-text${t.done?' done':''}">${escHtml(t.title)}</div>
+        ${t.notes?`<div class="todo-notes">${escHtml(t.notes)}</div>`:''}
+        ${t.due?`<div class="todo-notes">📅 ${t.due.slice(0,10)}</div>`:''}
       </div>
-    `;
-  } catch(err) {
-    el.innerHTML = `<div style="color:var(--muted);font-size:12px">⚠️ 보험관리툴 연결 실패<br><span style="font-size:11px">Apps Script 재배포 후 URL 업데이트 필요</span></div>`;
-  }
+      <button class="del-btn" onclick="deleteTask('${t.id}')">×</button>
+    </div>`).join('');
 }
 
-// 최근 계약
-async function loadRecent() {
-  const el = document.getElementById('recent-body');
+async function addTask() {
+  const inp = document.getElementById('todo-inp');
+  const title = inp.value.trim();
+  if (!title) return;
+  inp.value = '';
+  setSyncStatus('저장 중...');
   try {
-    const res  = await fetch(INSURANCE_URL + '?t=' + Date.now());
-    const data = await res.json();
-    const done = (data.contracts||[])
-      .filter(c=>c.s==='계약완료')
-      .sort((a,b)=>b.d.localeCompare(a.d))
-      .slice(0,6);
-
-    if (!done.length) { el.innerHTML = `<div style="color:var(--muted);font-size:13px">계약 데이터 없음</div>`; return; }
-
-    el.innerHTML = `<div class="recent-list">${done.map(r=>`
-      <div class="recent-item">
-        <span class="ri-badge">${r.d}</span>
-        <div>
-          <div class="ri-name">${r.c} <span style="font-weight:400;color:var(--muted);font-size:11px">/ ${r.p}</span></div>
-          <div class="ri-sub">${r.co} · ${r.n}${r.g?` · <span style="color:var(--blue)">${r.g}</span>`:''}</div>
-        </div>
-        <div class="ri-pr">${(r.pr||0).toLocaleString()}원</div>
-      </div>`).join('')}
-    </div>`;
-  } catch(err) {
-    el.innerHTML = `<div style="color:var(--muted);font-size:12px">⚠️ 데이터 연결 실패</div>`;
-  }
+    await post({action:'addTask', listId: curListId, title});
+    await loadTasks();
+    setSyncStatus('저장됨 ✓');
+  } catch(e) { setSyncStatus('실패'); }
 }
 
-initDate();
-loadBudget();
-loadInsurance();
-loadRecent();
+async function toggleTask(taskId, cb) {
+  setSyncStatus('저장 중...');
+  try {
+    await post({action:'completeTask', listId: curListId, taskId});
+    await loadTasks();
+    setSyncStatus('저장됨 ✓');
+  } catch(e) { setSyncStatus('실패'); }
+}
+
+async function deleteTask(taskId) {
+  setSyncStatus('삭제 중...');
+  try {
+    await post({action:'deleteTask', listId: curListId, taskId});
+    await loadTasks();
+    setSyncStatus('삭제됨 ✓');
+  } catch(e) { setSyncStatus('실패'); }
+}
+
+function setSyncStatus(msg) {
+  document.getElementById('sync-status').textContent = msg;
+  setTimeout(()=>document.getElementById('sync-status').textContent='', 2500);
+}
+
+function escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function showError(){ document.getElementById('todo-list').innerHTML='<div class="empty">⚠️ PORTAL_URL을 설정해주세요</div>'; }
+
+// ── 캘린더 ─────────────────────────────────────────
+let calY = now.getFullYear(), calM = now.getMonth();
+let calEvents = {};
+
+async function loadCalEvents() {
+  const ym = `${calY}-${String(calM+1).padStart(2,'0')}`;
+  try {
+    const r = await fetch(PORTAL_URL + '?ym=' + ym + '&t=' + Date.now());
+    const d = await r.json();
+    if (d.ok) { calEvents = d.events || {}; renderCal(); }
+  } catch(e) {}
+}
+
+function renderCal() {
+  document.getElementById('cal-title').textContent = `${calY}년 ${MONTHS_KO[calM]}`;
+  const grid = document.getElementById('cal-grid');
+  let html = DAYS_KO.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+
+  const first   = new Date(calY, calM, 1).getDay();
+  const lastDay = new Date(calY, calM+1, 0).getDate();
+  const prevLast= new Date(calY, calM, 0).getDate();
+  const todayKey= `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+  for(let i=0;i<first;i++) html += `<div class="cal-day other">${prevLast-first+1+i}</div>`;
+
+  for(let d=1;d<=lastDay;d++){
+    const dow  = (first+d-1)%7;
+    const key  = `${calY}-${String(calM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const evs  = calEvents[key] || [];
+    const isToday = key===todayKey;
+    let cls = 'cal-day';
+    if(isToday) cls+=' today';
+    else if(dow===0) cls+=' sun';
+    else if(dow===6) cls+=' sat';
+
+    const dot = evs.length ? `<div class="cal-dot"></div>` : '';
+    const popup = evs.length ? `
+      <div class="cal-events-popup">
+        ${evs.map(ev=>`<div class="ev-item">
+          ${ev.time?`<div class="ev-time">${ev.time}</div>`:''}
+          <div>${ev.title}</div>
+        </div>`).join('')}
+      </div>` : '';
+
+    html += `<div class="${cls}">${d}${dot}${popup}</div>`;
+  }
+
+  const remain = 7 - ((first+lastDay)%7||7);
+  for(let i=1;i<=remain&&remain<7;i++) html+=`<div class="cal-day other">${i}</div>`;
+  grid.innerHTML = html;
+}
+
+function changeMonth(dir){
+  calM += dir;
+  if(calM<0){calM=11;calY--;}
+  if(calM>11){calM=0;calY++;}
+  calEvents = {};
+  renderCal();
+  loadCalEvents();
+}
+
+// ── 초기 로드 ──────────────────────────────────────
+if(PORTAL_URL === 'YOUR_PORTAL_GAS_URL_HERE'){
+  document.getElementById('todo-list').innerHTML = '<div class="empty">⚠️ PORTAL_URL을 설정해주세요<br><span style="font-size:11px">portal_code.gs 배포 후 URL 입력</span></div>';
+} else {
+  loadTaskLists();
+  loadCalEvents();
+}
+renderCal();
 </script>
 </body>
 </html>
