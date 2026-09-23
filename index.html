@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>김성래 관리 포털</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #080E1A;
+  --surface:  #0F1B2D;
+  --card:     #152033;
+  --border:   #1E2F47;
+  --blue:     #3B82F6;
+  --blue-l:   rgba(59,130,246,.12);
+  --gold:     #F0B429;
+  --gold-l:   rgba(240,180,41,.1);
+  --green:    #10B981;
+  --red:      #EF4444;
+  --text:     #E2EAF4;
+  --muted:    #617898;
+  --hint:     #3A5070;
+}
+
+body {
+  font-family: 'Pretendard', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ── 헤더 ── */
+header {
+  padding: 32px 40px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.logo {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  color: var(--muted);
+}
+.greeting h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.2;
+}
+.greeting .sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.date-badge {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: right;
+}
+.date-badge strong { color: var(--text); display: block; font-size: 15px; }
+
+/* ── 메인 그리드 ── */
+main {
+  padding: 32px 40px 60px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  max-width: 1100px;
+}
+
+/* ── 카드 공통 ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.card:hover { border-color: var(--hint); }
+.card-accent {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 16px 16px 0 0;
+}
+.card-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: .8px;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+.stat-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.stat { flex: 1; min-width: 100px; }
+.stat .value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.stat .value.gold { color: var(--gold); }
+.stat .value.green { color: var(--green); }
+.stat .value.red { color: var(--red); }
+.stat .value.blue { color: var(--blue); }
+.stat .label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── 앱 바로가기 카드 ── */
+.app-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.app-card .app-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+.app-card .app-name {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.app-card .app-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.app-card .go-btn {
+  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.app-card .go-btn:hover { opacity: .8; }
+
+/* ── 전체 너비 카드 ── */
+.full { grid-column: 1 / -1; }
+
+/* ── 구분선 ── */
+.divider {
+  width: 1px;
+  background: var(--border);
+  align-self: stretch;
+  margin: 0 4px;
+}
+
+/* ── 로딩 ── */
+.loading {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 32px;
+}
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--hint);
+  animation: pulse .8s ease-in-out infinite;
+}
+.dot:nth-child(2) { animation-delay: .15s; }
+.dot:nth-child(3) { animation-delay: .3s; }
+@keyframes pulse {
+  0%, 100% { opacity: .3; transform: scale(.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* ── 최근 계약 리스트 ── */
+.recent-list { margin-top: 16px; }
+.recent-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.recent-item:last-child { border-bottom: none; }
+.ri-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--blue-l);
+  color: var(--blue);
+  white-space: nowrap;
+}
+.ri-name { font-size: 13px; font-weight: 600; flex: 1; }
+.ri-sub { font-size: 11px; color: var(--muted); }
+.ri-pr { font-size: 13px; font-weight: 600; color: var(--gold); white-space: nowrap; }
+
+/* ── 모바일 ── */
+@media (max-width: 700px) {
+  header { padding: 24px 20px 0; flex-direction: column; gap: 16px; }
+  main { padding: 20px; grid-template-columns: 1fr; }
+  .full { grid-column: 1; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="greeting">
+    <div class="logo">KIM SEONGLAE · PERSONAL HUB</div>
+    <h1 id="greet">안녕하세요 😊</h1>
+    <div class="sub" id="sub-date">데이터를 불러오는 중...</div>
+  </div>
+  <div class="date-badge">
+    <strong id="today-date">—</strong>
+    <span id="today-day">—</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- 가계부 요약 -->
+  <div class="card" id="card-budget">
+    <div class="card-accent" style="background:linear-gradient(90deg,#3B82F6,#60A5FA)"></div>
+    <div class="card-label">💰 이번 달 가계부</div>
+    <div id="budget-body" class="loading">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+  </div>
+
+  <!-- 보험 요약 -->
+  <div class="card" id="card-ins">
+    <div class="card-accent" style="background:linear-gradient(90deg,#F0B429,#FCD34D)"></div>
+    <div class="card-label">🏦 보험 관리</div>
+    <div id="ins-body" class="loading">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+  </div>
+
+  <!-- 가계부 바로가기 -->
+  <a class="card app-card" href="https://s2ongrae.github.io/gaegyebu" target="_blank">
+    <div class="card-accent" style="background:#1E2F47"></div>
+    <div class="app-icon">📒</div>
+    <div class="app-name">가계부</div>
+    <div class="app-desc">수입·지출·저축 관리<br>투자 현황 · 자산 추적 · AI 검색</div>
+    <div class="go-btn" style="background:var(--blue-l);color:var(--blue)">열기 →</div>
+  </a>
+
+  <!-- 보험관리툴 바로가기 -->
+  <a class="card app-card" href="https://s2ongrae.github.io/insurance-manager" target="_blank">
+    <div class="card-accent" style="background:#1E2F47"></div>
+    <div class="app-icon">🏦</div>
+    <div class="app-name">보험관리툴</div>
+    <div class="app-desc">계약 관리 · 보장 분석<br>고객 링크 · PDF 제안서 분석</div>
+    <div class="go-btn" style="background:var(--gold-l);color:var(--gold)">열기 →</div>
+  </a>
+
+  <!-- 최근 계약 -->
+  <div class="card full">
+    <div class="card-accent" style="background:linear-gradient(90deg,#10B981,#34D399)"></div>
+    <div class="card-label">📋 최근 계약 (완료 기준)</div>
+    <div id="recent-body" class="loading">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const GAEGYEBU_URL  = 'https://script.google.com/macros/s/AKfycbwqGsImpdwXuJpRha0ICCqF1YCnxERJSxZ6jIIyqkwVflK2Qxpp_Ep70_4IX1R0xQU/exec';
+const INSURANCE_URL = 'https://script.google.com/macros/s/AKfycbwk3rTz0_G5wo4DTFJoI3nftVAs4iNoL9ywBRHJZVw_MyfywEZ21_gxgltLnj9up2Lyjw/exec';
+
+const won = n => (n||0).toLocaleString('ko-KR');
+const DAYS = ['일','월','화','수','목','금','토'];
+
+function initDate() {
+  const now = new Date();
+  const m = now.getMonth()+1, d = now.getDate();
+  const h = now.getHours();
+  const greetText = h<6?'밤이 깊었네요 🌙':h<12?'좋은 아침이에요 ☀️':h<18?'좋은 오후예요 😊':'수고 많으셨어요 🌆';
+  document.getElementById('greet').textContent = greetText;
+  document.getElementById('today-date').textContent = `${now.getFullYear()}년 ${m}월 ${d}일`;
+  document.getElementById('today-day').textContent = `${DAYS[now.getDay()]}요일`;
+
+  const ym = `${now.getFullYear()}.${String(m).padStart(2,'0')}`;
+  document.getElementById('sub-date').textContent = `${ym} 데이터 요약`;
+}
+
+// 가계부 데이터
+async function loadBudget() {
+  const el = document.getElementById('budget-body');
+  try {
+    const res  = await fetch(GAEGYEBU_URL + '?t=' + Date.now());
+    const data = await res.json();
+    const now  = new Date();
+    const ym   = `${String(now.getFullYear()).slice(2)}.${String(now.getMonth()+1).padStart(2,'0')}`;
+    const month = (data.monthly||[]).find(m=>m.m===ym) || null;
+
+    if (!month) {
+      el.innerHTML = `<div style="color:var(--muted);font-size:13px">이번 달 데이터가 없어요</div>`;
+      return;
+    }
+    const income  = month.after  || month.before || 0;
+    const saved   = Math.round(income * 0.3); // 추정치가 없으면 표시 안 함
+    const txCount = month.k || 0;
+
+    el.innerHTML = `
+      <div class="stat-row">
+        <div class="stat">
+          <div class="value blue">${won(income)}원</div>
+          <div class="label">세후 수입</div>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+          <div class="value">${won(month.before||0)}원</div>
+          <div class="label">세전 수입</div>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+          <div class="value gold">${txCount}건</div>
+          <div class="label">계약 실적</div>
+        </div>
+      </div>
+      ${month.memo ? `<div style="margin-top:14px;padding:10px 14px;background:var(--blue-l);border-radius:8px;font-size:12px;color:var(--muted)">${month.memo}</div>` : ''}
+    `;
+  } catch(err) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:12px">⚠️ 가계부 연결 실패</div>`;
+  }
+}
+
+// 보험 데이터
+async function loadInsurance() {
+  const el = document.getElementById('ins-body');
+  try {
+    const res  = await fetch(INSURANCE_URL + '?t=' + Date.now());
+    const data = await res.json();
+    const contracts = data.contracts || [];
+    const done    = contracts.filter(c=>c.s==='계약완료');
+    const total   = done.reduce((s,c)=>s+(c.pr||0), 0);
+    const groups  = new Set(done.map(c=>c.g).filter(Boolean));
+
+    el.innerHTML = `
+      <div class="stat-row">
+        <div class="stat">
+          <div class="value gold">${won(total)}원</div>
+          <div class="label">월 총 보험료</div>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+          <div class="value">${done.length}건</div>
+          <div class="label">완료 계약</div>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+          <div class="value blue">${groups.size}팀</div>
+          <div class="label">고객 그룹</div>
+        </div>
+      </div>
+    `;
+  } catch(err) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:12px">⚠️ 보험관리툴 연결 실패<br><span style="font-size:11px">Apps Script 재배포 후 URL 업데이트 필요</span></div>`;
+  }
+}
+
+// 최근 계약
+async function loadRecent() {
+  const el = document.getElementById('recent-body');
+  try {
+    const res  = await fetch(INSURANCE_URL + '?t=' + Date.now());
+    const data = await res.json();
+    const done = (data.contracts||[])
+      .filter(c=>c.s==='계약완료')
+      .sort((a,b)=>b.d.localeCompare(a.d))
+      .slice(0,6);
+
+    if (!done.length) { el.innerHTML = `<div style="color:var(--muted);font-size:13px">계약 데이터 없음</div>`; return; }
+
+    el.innerHTML = `<div class="recent-list">${done.map(r=>`
+      <div class="recent-item">
+        <span class="ri-badge">${r.d}</span>
+        <div>
+          <div class="ri-name">${r.c} <span style="font-weight:400;color:var(--muted);font-size:11px">/ ${r.p}</span></div>
+          <div class="ri-sub">${r.co} · ${r.n}${r.g?` · <span style="color:var(--blue)">${r.g}</span>`:''}</div>
+        </div>
+        <div class="ri-pr">${(r.pr||0).toLocaleString()}원</div>
+      </div>`).join('')}
+    </div>`;
+  } catch(err) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:12px">⚠️ 데이터 연결 실패</div>`;
+  }
+}
+
+initDate();
+loadBudget();
+loadInsurance();
+loadRecent();
+</script>
+</body>
+</html>
