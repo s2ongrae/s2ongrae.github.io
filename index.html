@@ -3,305 +3,312 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>김성래 포털</title>
+<title>KIM SEONGRAЕ · PORTAL</title>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#080E1A;--surface:#0F1B2D;--card:#131E35;--border:#1E2F47;
-  --blue:#3B82F6;--blue-l:rgba(59,130,246,.12);
-  --gold:#F0B429;--green:#10B981;--red:#EF4444;
-  --text:#E2EAF4;--muted:#617898;--hint:#243450;
+  --bg:#F0F4FF;
+  --surface:#FFFFFF;
+  --card:#FFFFFF;
+  --border:#DDE3F0;
+  --border2:#C8D1E8;
+  --blue:#3B7BF6;
+  --blue-l:#EEF3FF;
+  --blue-d:#2563EB;
+  --indigo:#4F46E5;
+  --green:#059669;
+  --green-l:#ECFDF5;
+  --red:#DC2626;
+  --red-l:#FEF2F2;
+  --gold:#D97706;
+  --gold-l:#FFFBEB;
+  --text:#0F172A;
+  --text2:#334155;
+  --muted:#64748B;
+  --hint:#94A3B8;
+  --shadow:0 1px 4px rgba(15,23,42,.08),0 4px 16px rgba(15,23,42,.06);
+  --shadow-md:0 4px 12px rgba(15,23,42,.12),0 8px 32px rgba(15,23,42,.08);
 }
-body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-.wrap{max-width:980px;margin:0 auto;padding:28px 24px 60px}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
 
-/* 상단 */
-.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-.site-name{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.5px}
-.today-text{font-size:13px;color:var(--muted)}
-.today-text strong{color:var(--text)}
-
-/* 앱 링크 */
-.app-links{display:flex;gap:10px;margin-bottom:20px}
+/* ── 헤더 ── */
+.header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:14px 32px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;
+}
+.brand{font-size:11px;font-weight:800;letter-spacing:2px;color:var(--muted)}
+.brand span{color:var(--blue)}
+.header-date{font-size:13px;color:var(--muted)}
+.header-date strong{color:var(--text)}
+.app-links{display:flex;gap:8px}
 .app-link{
-  flex:1;display:flex;align-items:center;gap:10px;padding:13px 18px;
-  background:var(--card);border:1px solid var(--border);border-radius:12px;
-  text-decoration:none;color:var(--text);font-size:13px;font-weight:600;
-  transition:border-color .15s;
+  display:flex;align-items:center;gap:7px;padding:7px 14px;
+  background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  text-decoration:none;color:var(--text2);font-size:12px;font-weight:600;
+  transition:all .15s;
 }
-.app-link:hover{border-color:var(--blue)}
-.app-link .sub{font-size:11px;color:var(--muted);font-weight:400;margin-top:2px}
+.app-link:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
 
-/* 메인 그리드 */
-.grid{display:grid;grid-template-columns:1fr 1.4fr;gap:16px}
-@media(max-width:680px){.grid{grid-template-columns:1fr}.app-links{flex-direction:column}}
+/* ── 메인 ── */
+.main{max-width:1200px;margin:0 auto;padding:24px 24px 60px}
 
-/* 카드 */
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px}
-.card-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+/* ── 캘린더 카드 ── */
+.cal-card{background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow);margin-bottom:20px}
+.cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.cal-title{font-size:20px;font-weight:800;color:var(--text)}
+.cal-nav-grp{display:flex;align-items:center;gap:8px}
+.cal-nav{
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  border-radius:8px;padding:6px 14px;font-size:14px;cursor:pointer;font-family:inherit;
+  transition:all .15s;
+}
+.cal-nav:hover{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d)}
+.cal-today-btn{
+  background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+}
+.cal-today-btn:hover{background:var(--blue-d)}
 
-/* Tasks 탭 */
-.tasks-tab-bar{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px}
+/* 요일 헤더 */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border-radius:10px;overflow:hidden}
+.cal-dow{
+  background:var(--bg);text-align:center;font-size:11px;font-weight:700;
+  color:var(--muted);padding:10px 4px;letter-spacing:.5px;
+}
+.cal-dow.sun{color:var(--red)}
+.cal-dow.sat{color:var(--blue)}
+
+/* 날짜 셀 */
+.cal-day{
+  background:var(--surface);min-height:110px;padding:8px;
+  cursor:pointer;transition:background .1s;position:relative;
+  display:flex;flex-direction:column;
+}
+.cal-day:hover{background:#F8FAFF}
+.cal-day.other{background:#FAFBFE}
+.cal-day.other .day-num{color:var(--hint)}
+.cal-day.today{background:var(--blue-l)}
+.cal-day.today .day-num{
+  background:var(--blue);color:#fff;width:26px;height:26px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;
+}
+.cal-day.sun .day-num{color:var(--red)}
+.cal-day.sat .day-num{color:var(--blue)}
+.cal-day.today.sun .day-num,.cal-day.today.sat .day-num{color:#fff}
+.day-num{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;width:26px;height:26px;display:flex;align-items:center;justify-content:center}
+.day-events{display:flex;flex-direction:column;gap:2px;flex:1;overflow:hidden}
+.day-ev{
+  font-size:10.5px;font-weight:500;padding:2px 5px;border-radius:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  cursor:pointer;transition:opacity .1s;line-height:1.4;
+}
+.day-ev:hover{opacity:.75}
+.day-ev.color-1{background:#FEE2E2;color:#991B1B}
+.day-ev.color-2{background:#FEF9C3;color:#854D0E}
+.day-ev.color-3{background:#DCFCE7;color:#166534}
+.day-ev.color-4{background:#DBEAFE;color:#1E40AF}
+.day-ev.color-5{background:#F3E8FF;color:#6B21A8}
+.day-ev.color-6{background:#FFE4E6;color:#9F1239}
+.day-ev.color-7{background:#FFF7ED;color:#9A3412}
+.day-ev.color-default{background:var(--blue-l);color:var(--blue-d)}
+.day-more{font-size:10px;color:var(--muted);padding:1px 4px}
+
+/* ── Tasks 섹션 ── */
+.tasks-card{background:var(--surface);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
+.tasks-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.tasks-title{font-size:16px;font-weight:700}
+.tasks-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-bottom:14px}
 .tasks-tab{
-  background:var(--surface);border:1px solid var(--border);border-radius:7px;
-  padding:4px 12px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;
-  font-family:inherit;transition:all .15s;
+  background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:5px 13px;font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;
+  white-space:nowrap;transition:all .15s;
 }
-.tasks-tab.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue)}
-
-/* 투두 입력 */
-.todo-input-row{display:flex;gap:8px;margin-bottom:10px}
-.todo-input{
-  flex:1;background:var(--surface);border:1px solid var(--border);
-  border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);
-  font-family:inherit;outline:none;min-width:0;
+.tasks-tab.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);font-weight:600}
+.task-input-row{display:flex;gap:8px;margin-bottom:12px}
+.task-input{
+  flex:1;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:9px 14px;font-size:13px;color:var(--text);
+  font-family:inherit;outline:none;transition:border-color .15s;
 }
-.todo-input:focus{border-color:var(--blue)}
-.todo-input::placeholder{color:var(--muted)}
-.add-btn{background:var(--blue);color:#fff;border:none;border-radius:8px;
-  padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
-.add-btn:hover{opacity:.85}
-
-/* 투두 아이템 */
-.todo-list{display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto}
-.todo-item{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;
-  background:var(--surface);border-radius:8px;border:1px solid transparent;transition:border-color .1s}
-.todo-item:hover{border-color:var(--border)}
-.todo-cb{
-  width:17px;height:17px;border-radius:5px;border:2px solid var(--border);
-  background:none;cursor:pointer;flex-shrink:0;appearance:none;margin-top:1px;
+.task-input:focus{border-color:var(--blue);background:#fff}
+.task-input::placeholder{color:var(--hint)}
+.add-btn{
+  background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+}
+.add-btn:hover{background:var(--blue-d)}
+.task-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+.task-item{
+  display:flex;align-items:flex-start;gap:10px;padding:11px 14px;
+  background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  transition:border-color .1s;
+}
+.task-item:hover{border-color:var(--border2)}
+.task-item.done-item{opacity:.6}
+.task-cb{
+  width:18px;height:18px;border-radius:5px;border:2px solid var(--border2);
+  background:#fff;cursor:pointer;flex-shrink:0;appearance:none;margin-top:1px;
   display:grid;place-items:center;transition:all .15s;
 }
-.todo-cb:checked{background:var(--green);border-color:var(--green)}
-.todo-cb:checked::after{content:'✓';color:#fff;font-size:10px;font-weight:800}
-.todo-text{flex:1;font-size:13px;line-height:1.4}
-.todo-text.done{text-decoration:line-through;color:var(--muted)}
-.todo-notes{font-size:11px;color:var(--muted);margin-top:2px}
-.del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:15px;
-  padding:1px 3px;border-radius:3px;transition:color .1s;flex-shrink:0}
+.task-cb:checked{background:var(--green);border-color:var(--green)}
+.task-cb:checked::after{content:'✓';color:#fff;font-size:10px;font-weight:800}
+.task-body{flex:1;min-width:0}
+.task-title{font-size:13px;font-weight:500;line-height:1.4}
+.task-title.done{text-decoration:line-through;color:var(--muted)}
+.task-note{font-size:11px;color:var(--muted);margin-top:2px}
+.del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:16px;padding:1px 3px;border-radius:4px;transition:color .1s;flex-shrink:0}
 .del-btn:hover{color:var(--red)}
-.empty{color:var(--muted);font-size:13px;text-align:center;padding:16px 0}
-.spin{text-align:center;padding:16px;color:var(--muted);font-size:12px}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 0;grid-column:1/-1}
+.spin{text-align:center;padding:24px;color:var(--muted);font-size:13px;grid-column:1/-1}
 
-/* 캘린더 */
-.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.cal-title-text{font-size:15px;font-weight:700}
-.cal-nav{background:none;border:1px solid var(--border);color:var(--text);
-  border-radius:7px;padding:5px 11px;cursor:pointer;font-size:14px;font-family:inherit}
-.cal-nav:hover{background:var(--hint)}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
-.cal-dow{text-align:center;font-size:10px;font-weight:600;color:var(--muted);padding:3px 0 7px;letter-spacing:.4px}
-.cal-dow:first-child{color:#F87171}
-.cal-dow:last-child{color:#60A5FA}
-.cal-day{
-  aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
-  padding-top:6px;border-radius:8px;font-size:12px;cursor:default;position:relative;
-  transition:background .1s;
+/* ── 모달 ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:200;align-items:center;justify-content:center;padding:20px}
+.overlay.on{display:flex}
+.modal{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:440px;box-shadow:var(--shadow-md);max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between}
+.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1}
+.modal-close:hover{color:var(--text)}
+.form-field{margin-bottom:14px}
+.form-field label{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px;letter-spacing:.4px;text-transform:uppercase}
+.form-field input,.form-field textarea,.form-field select{
+  width:100%;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);
+  font-family:inherit;outline:none;transition:border-color .15s;
 }
-.cal-day.other{color:var(--hint)}
-.cal-day.sun{color:#F87171}
-.cal-day.sat{color:#60A5FA}
-.cal-day.today{background:var(--blue);color:#fff!important;font-weight:700}
-.cal-day:not(.other):not(.today):hover{background:var(--hint)}
-.cal-dot{
-  width:4px;height:4px;border-radius:50%;background:var(--gold);
-  margin-top:3px;flex-shrink:0;
-}
-.cal-day.today .cal-dot{background:#fff}
-.cal-events-popup{
-  display:none;position:absolute;top:110%;left:50%;transform:translateX(-50%);
-  background:#1A2744;border:1px solid var(--border);border-radius:8px;
-  padding:8px 12px;min-width:160px;max-width:220px;z-index:100;
-  font-size:11px;line-height:1.6;color:var(--text);white-space:normal;
-  box-shadow:0 8px 24px rgba(0,0,0,.4);
-}
-.cal-day:hover .cal-events-popup{display:block}
-.ev-item{padding:2px 0;border-bottom:1px solid var(--border)}
-.ev-item:last-child{border:none}
-.ev-time{color:var(--muted);font-size:10px}
+.form-field input:focus,.form-field textarea:focus{border-color:var(--blue);background:#fff}
+.form-field textarea{resize:vertical;min-height:72px}
+.time-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.btn-cancel{background:var(--bg);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-cancel:hover{border-color:var(--border2)}
+.btn-submit{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.btn-submit:hover{background:var(--blue-d)}
+.ev-list-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px}
+.ev-del{background:none;border:none;color:var(--hint);cursor:pointer;font-size:14px;margin-left:auto;flex-shrink:0}
+.ev-del:hover{color:var(--red)}
+.ev-time-badge{font-size:10px;color:var(--muted);white-space:nowrap}
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.badge-blue{background:var(--blue-l);color:var(--blue-d)}
+.sync-txt{font-size:11px;color:var(--muted);transition:opacity .3s}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <div class="top-bar">
-    <div class="site-name">KIM SEONGLAE · PORTAL</div>
-    <div class="today-text"><strong id="today-str"></strong></div>
+<!-- 헤더 -->
+<header class="header">
+  <div style="display:flex;align-items:center;gap:24px">
+    <div class="brand">KIM SONG<span>RAE</span> · PORTAL</div>
+    <div class="app-links">
+      <a class="app-link" href="https://s2ongrae.github.io/gaegyebu" target="_blank">📒 가계부</a>
+      <a class="app-link" href="https://s2ongrae.github.io/insurance-manager" target="_blank">🏦 보험관리툴</a>
+    </div>
   </div>
-
-  <div class="app-links">
-    <a class="app-link" href="https://s2ongrae.github.io/gaegyebu" target="_blank">
-      <span style="font-size:20px">📒</span>
-      <div><div>가계부</div><div class="sub">수입 · 지출 · 투자 · 자산</div></div>
-    </a>
-    <a class="app-link" href="https://s2ongrae.github.io/insurance-manager" target="_blank">
-      <span style="font-size:20px">🏦</span>
-      <div><div>보험관리툴</div><div class="sub">계약 · 보장분석 · 고객관리</div></div>
-    </a>
+  <div style="display:flex;align-items:center;gap:16px">
+    <span class="sync-txt" id="sync-txt"></span>
+    <div class="header-date"><strong id="today-str"></strong></div>
   </div>
+</header>
 
-  <div class="grid">
+<!-- 메인 -->
+<div class="main">
 
-    <!-- 왼쪽: Tasks + 투두 -->
-    <div>
-      <div class="card">
-        <div class="card-title">
-          <span>✅ 할 일</span>
-          <span id="sync-status" style="font-size:10px;color:var(--muted)"></span>
-        </div>
-        <div class="tasks-tab-bar" id="tab-bar">
-          <div class="tasks-tab on" data-list="" onclick="selectList(this, '')">내 Tasks</div>
-        </div>
-        <div class="todo-input-row">
-          <input class="todo-input" id="todo-inp" placeholder="할 일 추가 후 Enter..."
-            onkeydown="if(event.key==='Enter')addTask()">
-          <button class="add-btn" onclick="addTask()">추가</button>
-        </div>
-        <div class="todo-list" id="todo-list"><div class="spin">불러오는 중...</div></div>
+  <!-- 캘린더 -->
+  <div class="cal-card">
+    <div class="cal-top">
+      <div class="cal-title" id="cal-title"></div>
+      <div class="cal-nav-grp">
+        <button class="cal-nav" onclick="changeMonth(-1)">‹ 이전</button>
+        <button class="cal-today-btn" onclick="goToday()">오늘</button>
+        <button class="cal-nav" onclick="changeMonth(1)">다음 ›</button>
       </div>
     </div>
+    <div class="cal-grid" id="cal-grid"></div>
+  </div>
 
-    <!-- 오른쪽: 캘린더 -->
-    <div>
-      <div class="card">
-        <div class="cal-header">
-          <button class="cal-nav" onclick="changeMonth(-1)">‹</button>
-          <div class="cal-title-text" id="cal-title"></div>
-          <button class="cal-nav" onclick="changeMonth(1)">›</button>
+  <!-- Tasks -->
+  <div class="tasks-card">
+    <div class="tasks-header">
+      <div class="tasks-title">✅ 할 일</div>
+      <span class="badge badge-blue" id="task-count"></span>
+    </div>
+    <div class="tasks-tabs" id="task-tabs"></div>
+    <div class="task-input-row">
+      <input class="task-input" id="task-inp" placeholder="할 일을 입력하고 Enter..."
+        onkeydown="if(event.key==='Enter')addTask()">
+      <button class="add-btn" onclick="addTask()">+ 추가</button>
+    </div>
+    <div class="task-list" id="task-list"><div class="spin">불러오는 중...</div></div>
+  </div>
+</div>
+
+<!-- 일정 모달 -->
+<div class="overlay" id="modal-day" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-day-title">일정</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-ev-list" style="margin-bottom:16px"></div>
+    <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:12px;letter-spacing:.5px">+ 새 일정 추가</div>
+      <div class="form-field">
+        <label>제목</label>
+        <input id="ev-title" placeholder="일정 제목">
+      </div>
+      <div class="form-field">
+        <label>시간 (비워두면 종일)</label>
+        <div class="time-row">
+          <input id="ev-start" type="time" placeholder="시작">
+          <input id="ev-end" type="time" placeholder="종료">
         </div>
-        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div class="form-field">
+        <label>메모</label>
+        <textarea id="ev-desc" placeholder="설명 (선택)"></textarea>
+      </div>
+      <div class="modal-btns">
+        <button class="btn-cancel" onclick="closeModal()">취소</button>
+        <button class="btn-submit" onclick="submitEvent()">저장</button>
       </div>
     </div>
-
   </div>
 </div>
 
 <script>
-// ★ 여기에 배포 후 받은 URL 넣으세요
 const PORTAL_URL = 'https://script.google.com/macros/s/AKfycbyRgHEowz3nDjluuYFpFbYFRnga5nh6A_O8xiQqumVHpvmnNRuhPDDdbv4TO8lOqjno/exec';
 
-const DAYS_KO   = ['일','월','화','수','목','금','토'];
-const MONTHS_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-const now       = new Date();
+const DAYS  = ['일','월','화','수','목','금','토'];
+const MONS  = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+const now   = new Date();
 
 // 날짜 표시
 document.getElementById('today-str').textContent =
-  `${now.getFullYear()}년 ${MONTHS_KO[now.getMonth()]} ${now.getDate()}일 ${DAYS_KO[now.getDay()]}요일`;
+  `${now.getFullYear()}년 ${MONS[now.getMonth()]} ${now.getDate()}일 ${DAYS[now.getDay()]}요일`;
 
-// ── Tasks ──────────────────────────────────────────
-let curListId = '';
-let taskLists = [];
-
+// GAS 통신
 async function post(body) {
-  const r = await fetch(PORTAL_URL, {
-    method:'POST', headers:{'Content-Type':'text/plain'},
-    body: JSON.stringify(body)
-  });
+  const r = await fetch(PORTAL_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(body)});
   return r.json();
 }
-
-async function loadTaskLists() {
-  try {
-    const d = await post({action:'getTaskLists'});
-    if (!d.ok) return;
-    taskLists = d.lists || [];
-    const bar = document.getElementById('tab-bar');
-    bar.innerHTML = '';
-    taskLists.forEach(l => {
-      const btn = document.createElement('div');
-      btn.className = 'tasks-tab' + (l.id === curListId ? ' on' : '');
-      btn.textContent = l.title;
-      btn.dataset.list = l.id;
-      btn.onclick = () => selectList(btn, l.id);
-      bar.appendChild(btn);
-    });
-    if (taskLists.length > 0 && !curListId) {
-      curListId = taskLists[0].id;
-      bar.firstChild?.classList.add('on');
-    }
-    loadTasks();
-  } catch(e) { showError(); }
+function setSyncTxt(msg, ms=2500) {
+  const el = document.getElementById('sync-txt');
+  el.textContent = msg;
+  if(ms) setTimeout(()=>el.textContent='', ms);
 }
 
-function selectList(el, id) {
-  document.querySelectorAll('.tasks-tab').forEach(t=>t.classList.remove('on'));
-  el.classList.add('on');
-  curListId = id;
-  loadTasks();
-}
-
-async function loadTasks() {
-  const el = document.getElementById('todo-list');
-  el.innerHTML = '<div class="spin">불러오는 중...</div>';
-  try {
-    const d = await post({action:'getTasks', listId: curListId});
-    if (!d.ok) { el.innerHTML = `<div class="empty">⚠️ ${d.error||'연결 실패'}</div>`; return; }
-    renderTasks(d.tasks || []);
-  } catch(e) { el.innerHTML = '<div class="empty">⚠️ 연결 실패</div>'; }
-}
-
-function renderTasks(tasks) {
-  const el = document.getElementById('todo-list');
-  const active = tasks.filter(t => !t.done);
-  const done   = tasks.filter(t =>  t.done);
-  const all    = [...active, ...done];
-  if (!all.length) { el.innerHTML = '<div class="empty">할 일이 없어요 😊</div>'; return; }
-  el.innerHTML = all.map(t => `
-    <div class="todo-item">
-      <input type="checkbox" class="todo-cb" ${t.done?'checked':''}
-        onchange="toggleTask('${t.id}',this)">
-      <div style="flex:1;min-width:0">
-        <div class="todo-text${t.done?' done':''}">${escHtml(t.title)}</div>
-        ${t.notes?`<div class="todo-notes">${escHtml(t.notes)}</div>`:''}
-        ${t.due?`<div class="todo-notes">📅 ${t.due.slice(0,10)}</div>`:''}
-      </div>
-      <button class="del-btn" onclick="deleteTask('${t.id}')">×</button>
-    </div>`).join('');
-}
-
-async function addTask() {
-  const inp = document.getElementById('todo-inp');
-  const title = inp.value.trim();
-  if (!title) return;
-  inp.value = '';
-  setSyncStatus('저장 중...');
-  try {
-    await post({action:'addTask', listId: curListId, title});
-    await loadTasks();
-    setSyncStatus('저장됨 ✓');
-  } catch(e) { setSyncStatus('실패'); }
-}
-
-async function toggleTask(taskId, cb) {
-  setSyncStatus('저장 중...');
-  try {
-    await post({action:'completeTask', listId: curListId, taskId});
-    await loadTasks();
-    setSyncStatus('저장됨 ✓');
-  } catch(e) { setSyncStatus('실패'); }
-}
-
-async function deleteTask(taskId) {
-  setSyncStatus('삭제 중...');
-  try {
-    await post({action:'deleteTask', listId: curListId, taskId});
-    await loadTasks();
-    setSyncStatus('삭제됨 ✓');
-  } catch(e) { setSyncStatus('실패'); }
-}
-
-function setSyncStatus(msg) {
-  document.getElementById('sync-status').textContent = msg;
-  setTimeout(()=>document.getElementById('sync-status').textContent='', 2500);
-}
-
-function escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
-function showError(){ document.getElementById('todo-list').innerHTML='<div class="empty">⚠️ PORTAL_URL을 설정해주세요</div>'; }
-
-// ── 캘린더 ─────────────────────────────────────────
+// ══════════════════════════════════
+// 캘린더
+// ══════════════════════════════════
 let calY = now.getFullYear(), calM = now.getMonth();
 let calEvents = {};
+let modalDate = '';
+
+const EV_COLORS = {
+  '1':'color-1','2':'color-2','3':'color-3','4':'color-4',
+  '5':'color-5','6':'color-6','7':'color-7',''  :'color-default'
+};
 
 async function loadCalEvents() {
   const ym = `${calY}-${String(calM+1).padStart(2,'0')}`;
@@ -313,58 +320,193 @@ async function loadCalEvents() {
 }
 
 function renderCal() {
-  document.getElementById('cal-title').textContent = `${calY}년 ${MONTHS_KO[calM]}`;
+  document.getElementById('cal-title').textContent = `${calY}년 ${MONS[calM]}`;
   const grid = document.getElementById('cal-grid');
-  let html = DAYS_KO.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+
+  let html = DAYS.map((d,i)=>`<div class="cal-dow${i===0?' sun':i===6?' sat':''}">${d}</div>`).join('');
 
   const first   = new Date(calY, calM, 1).getDay();
   const lastDay = new Date(calY, calM+1, 0).getDate();
   const prevLast= new Date(calY, calM, 0).getDate();
   const todayKey= `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 
-  for(let i=0;i<first;i++) html += `<div class="cal-day other">${prevLast-first+1+i}</div>`;
+  // 이전달 빈칸
+  for(let i=0;i<first;i++) {
+    const d = prevLast - first + 1 + i;
+    html += `<div class="cal-day other"><div class="day-num">${d}</div></div>`;
+  }
 
+  // 이번달
   for(let d=1;d<=lastDay;d++){
-    const dow  = (first+d-1)%7;
-    const key  = `${calY}-${String(calM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const evs  = calEvents[key] || [];
+    const dow = (first+d-1)%7;
+    const key = `${calY}-${String(calM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const evs = calEvents[key] || [];
     const isToday = key===todayKey;
     let cls = 'cal-day';
     if(isToday) cls+=' today';
-    else if(dow===0) cls+=' sun';
-    else if(dow===6) cls+=' sat';
+    if(dow===0) cls+=' sun';
+    if(dow===6) cls+=' sat';
 
-    const dot = evs.length ? `<div class="cal-dot"></div>` : '';
-    const popup = evs.length ? `
-      <div class="cal-events-popup">
-        ${evs.map(ev=>`<div class="ev-item">
-          ${ev.time?`<div class="ev-time">${ev.time}</div>`:''}
-          <div>${ev.title}</div>
-        </div>`).join('')}
-      </div>` : '';
+    const MAX_SHOW = 3;
+    const evHtml = evs.slice(0, MAX_SHOW).map(ev => {
+      const colorCls = EV_COLORS[ev.color] || 'color-default';
+      const timeStr  = ev.allDay ? '' : ev.time + ' ';
+      return `<div class="day-ev ${colorCls}" title="${ev.title}" onclick="event.stopPropagation();openModal('${key}',true)">${timeStr}${ev.title}</div>`;
+    }).join('');
+    const more = evs.length > MAX_SHOW ? `<div class="day-more">+${evs.length-MAX_SHOW}개</div>` : '';
 
-    html += `<div class="${cls}">${d}${dot}${popup}</div>`;
+    html += `<div class="${cls}" onclick="openModal('${key}')">
+      <div class="day-num">${d}</div>
+      <div class="day-events">${evHtml}${more}</div>
+    </div>`;
   }
 
+  // 다음달 빈칸
   const remain = 7 - ((first+lastDay)%7||7);
-  for(let i=1;i<=remain&&remain<7;i++) html+=`<div class="cal-day other">${i}</div>`;
+  for(let i=1;i<=remain&&remain<7;i++) {
+    html += `<div class="cal-day other"><div class="day-num">${i}</div></div>`;
+  }
+
   grid.innerHTML = html;
 }
 
-function changeMonth(dir){
+function changeMonth(dir) {
   calM += dir;
-  if(calM<0){calM=11;calY--;}
-  if(calM>11){calM=0;calY++;}
-  calEvents = {};
-  renderCal();
-  loadCalEvents();
+  if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;}
+  calEvents = {}; renderCal(); loadCalEvents();
 }
 
-// ── 초기 로드 ──────────────────────────────────────
-// URL 설정 완료 - 자동 로드
-loadTaskLists();
-loadCalEvents();
+function goToday() {
+  calY = now.getFullYear(); calM = now.getMonth();
+  calEvents = {}; renderCal(); loadCalEvents();
+}
+
+// 일정 모달
+function openModal(dateKey, skipFocus) {
+  modalDate = dateKey;
+  const [y,m,d] = dateKey.split('-');
+  document.getElementById('modal-day-title').textContent = `${parseInt(m)}월 ${parseInt(d)}일 일정`;
+  renderEvList(dateKey);
+  document.getElementById('ev-title').value = '';
+  document.getElementById('ev-start').value = '';
+  document.getElementById('ev-end').value = '';
+  document.getElementById('ev-desc').value = '';
+  document.getElementById('modal-day').classList.add('on');
+  if(!skipFocus) setTimeout(()=>document.getElementById('ev-title').focus(), 100);
+}
+
+function renderEvList(dateKey) {
+  const evs = calEvents[dateKey] || [];
+  const el  = document.getElementById('modal-ev-list');
+  if(!evs.length){ el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:4px 0">일정이 없어요</div>'; return; }
+  el.innerHTML = evs.map(ev=>`
+    <div class="ev-list-item">
+      <div>
+        ${ev.time?`<div class="ev-time-badge">${ev.time}</div>`:'<div class="ev-time-badge">종일</div>'}
+        <div style="font-size:13px;font-weight:500">${ev.title}</div>
+        ${ev.desc?`<div style="font-size:11px;color:var(--muted)">${ev.desc}</div>`:''}
+      </div>
+      <button class="ev-del" onclick="deleteEv('${ev.id}','${dateKey}')" title="삭제">✕</button>
+    </div>`).join('');
+}
+
+async function deleteEv(eventId, dateKey) {
+  if(!confirm('일정을 삭제할까요?')) return;
+  setSyncTxt('삭제 중...');
+  const d = await post({action:'deleteEvent', eventId});
+  if(d.ok){ delete calEvents[dateKey]; await loadCalEvents(); renderEvList(dateKey); setSyncTxt('삭제됨 ✓'); }
+  else setSyncTxt('실패: '+d.error);
+}
+
+async function submitEvent() {
+  const title = document.getElementById('ev-title').value.trim();
+  if(!title){ alert('제목을 입력해주세요'); return; }
+  setSyncTxt('저장 중...',0);
+  const d = await post({
+    action: 'createEvent',
+    date:   modalDate,
+    title,
+    startTime: document.getElementById('ev-start').value,
+    endTime:   document.getElementById('ev-end').value,
+    desc:      document.getElementById('ev-desc').value,
+    allDay:    !document.getElementById('ev-start').value
+  });
+  if(d.ok){ setSyncTxt('저장됨 ✓'); await loadCalEvents(); renderEvList(modalDate); document.getElementById('ev-title').value=''; }
+  else setSyncTxt('실패: '+d.error);
+}
+
+function closeModal(){ document.getElementById('modal-day').classList.remove('on'); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+// ══════════════════════════════════
+// Google Tasks
+// ══════════════════════════════════
+let curListId = '';
+
+async function loadTaskLists() {
+  try {
+    const d = await post({action:'getTaskLists'});
+    if(!d.ok) return;
+    const lists = d.lists || [];
+    const bar = document.getElementById('task-tabs');
+    bar.innerHTML = '';
+    lists.forEach((l,i)=>{
+      const btn = document.createElement('button');
+      btn.className = 'tasks-tab' + (i===0?' on':'');
+      btn.textContent = l.title;
+      btn.dataset.id  = l.id;
+      btn.onclick = () => { document.querySelectorAll('.tasks-tab').forEach(t=>t.classList.remove('on')); btn.classList.add('on'); curListId=l.id; loadTasks(); };
+      bar.appendChild(btn);
+    });
+    if(lists.length){ curListId=lists[0].id; loadTasks(); }
+  } catch(e) {}
+}
+
+async function loadTasks() {
+  const el = document.getElementById('task-list');
+  el.innerHTML = '<div class="spin">불러오는 중...</div>';
+  try {
+    const d = await post({action:'getTasks', listId:curListId});
+    if(!d.ok){ el.innerHTML=`<div class="empty">⚠️ ${d.error}</div>`; return; }
+    renderTasks(d.tasks||[]);
+  } catch(e){ el.innerHTML='<div class="empty">⚠️ 연결 실패</div>'; }
+}
+
+function renderTasks(tasks) {
+  const el    = document.getElementById('task-list');
+  const active = tasks.filter(t=>!t.done);
+  const done   = tasks.filter(t=> t.done);
+  document.getElementById('task-count').textContent = `${active.length}개 남음`;
+  const all = [...active,...done];
+  if(!all.length){ el.innerHTML='<div class="empty">할 일이 없어요 😊</div>'; return; }
+  el.innerHTML = all.map(t=>`
+    <div class="task-item${t.done?' done-item':''}">
+      <input type="checkbox" class="task-cb" ${t.done?'checked':''} onchange="toggleTask('${t.id}')">
+      <div class="task-body">
+        <div class="task-title${t.done?' done':''}">${esc(t.title)}</div>
+        ${t.notes?`<div class="task-note">${esc(t.notes)}</div>`:''}
+      </div>
+      <button class="del-btn" onclick="delTask('${t.id}')">×</button>
+    </div>`).join('');
+}
+
+async function addTask(){
+  const inp = document.getElementById('task-inp');
+  const title = inp.value.trim(); if(!title) return;
+  inp.value=''; setSyncTxt('저장 중...',0);
+  await post({action:'addTask', listId:curListId, title});
+  setSyncTxt('저장됨 ✓'); loadTasks();
+}
+
+async function toggleTask(id){ setSyncTxt('저장 중...',0); await post({action:'completeTask',listId:curListId,taskId:id}); setSyncTxt('저장됨 ✓'); loadTasks(); }
+async function delTask(id){ setSyncTxt('삭제 중...',0); await post({action:'deleteTask',listId:curListId,taskId:id}); setSyncTxt('삭제됨 ✓'); loadTasks(); }
+
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+// ── 초기 로드 ──
 renderCal();
+loadCalEvents();
+loadTaskLists();
 </script>
 </body>
 </html>
