@@ -179,7 +179,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 
 <script>
 // ★ 여기에 배포 후 받은 URL 넣으세요
-const PORTAL_URL = 'YOUR_PORTAL_GAS_URL_HERE';
+const PORTAL_URL = 'https://script.google.com/macros/s/AKfycbyRgHEowz3nDjluuYFpFbYFRnga5nh6A_O8xiQqumVHpvmnNRuhPDDdbv4TO8lOqjno/exec';
 
 const DAYS_KO   = ['일','월','화','수','목','금','토'];
 const MONTHS_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -361,12 +361,9 @@ function changeMonth(dir){
 }
 
 // ── 초기 로드 ──────────────────────────────────────
-if(PORTAL_URL === 'YOUR_PORTAL_GAS_URL_HERE'){
-  document.getElementById('todo-list').innerHTML = '<div class="empty">⚠️ PORTAL_URL을 설정해주세요<br><span style="font-size:11px">portal_code.gs 배포 후 URL 입력</span></div>';
-} else {
-  loadTaskLists();
-  loadCalEvents();
-}
+// URL 설정 완료 - 자동 로드
+loadTaskLists();
+loadCalEvents();
 renderCal();
 </script>
 </body>
