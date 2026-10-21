@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KIM SEONGRAЕ · PORTAL</title>
+<title>KIM SEONGRAE · PORTAL</title>
 <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -178,13 +178,14 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 
 <header class="header">
   <div style="display:flex;align-items:center;gap:20px">
-    <div class="brand">KIM SONG<span>RAE</span> · PORTAL</div>
+    <div class="brand">KIM SEONG<span>RAE</span> · PORTAL</div>
     <div class="app-links">
       <a class="app-link" href="https://s2ongrae.github.io/gaegyebu" target="_blank">📒 가계부</a>
       <a class="app-link" href="https://s2ongrae.github.io/insurance-manager" target="_blank">🏦 보험관리툴</a>
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:14px">
+    <button class="app-link" onclick="openSettings()" title="서버 주소·비밀 키 설정" style="cursor:pointer;font-family:inherit">⚙️ 서버</button>
     <span class="sync-badge" id="sync-txt"></span>
     <span style="font-size:13px;color:var(--muted)" id="today-str"></span>
   </div>
@@ -257,6 +258,28 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   </div></div>
 </div>
 
+<!-- 서버 설정 모달 -->
+<div class="overlay" id="modal-server" onclick="if(event.target===this)closeSettings()">
+  <div class="modal"><div class="modal-inner">
+    <div class="modal-head">
+      <div class="modal-title">⚙️ 서버 설정</div>
+      <button class="mclose" onclick="closeSettings()">✕</button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">서버 주소와 비밀 키는 <b>이 기기에만</b> 저장돼요. 코드에는 들어 있지 않아서 PC·폰마다 한 번씩 입력해야 해요. 비밀 키는 다른 사람에게 공유하지 마세요.</p>
+    <div class="ff"><label>Apps Script 웹 앱 주소</label><input id="srv-url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off"></div>
+    <div class="ff"><label>비밀 키</label><input id="srv-key" type="password" autocomplete="new-password"></div>
+    <div id="srv-msg" style="font-size:12px;line-height:1.5;margin-top:4px"></div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">🕘 이 기기 메모 체크포인트 <span style="font-weight:400">(합치기·복원 직전 상태, 최대 3개)</span></div>
+      <div id="srv-cps"></div>
+    </div>
+    <div class="mbtns">
+      <button class="mbtn-cancel" onclick="closeSettings()">닫기</button>
+      <button class="mbtn-ok" onclick="saveSettings()">연결 테스트 후 저장</button>
+    </div>
+  </div></div>
+</div>
+
 <!-- 메모 작성/편집 모달 -->
 <div class="overlay" id="modal-memo" onclick="if(event.target===this)closeMemo()">
   <div class="modal"><div class="modal-inner">
@@ -285,19 +308,40 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 </div>
 
 <script>
-const PORTAL_URL = 'https://script.google.com/macros/s/AKfycbyRgHEowz3nDjluuYFpFbYFRnga5nh6A_O8xiQqumVHpvmnNRuhPDDdbv4TO8lOqjno/exec';
+// 서버 주소·비밀 키는 이 기기에만 저장돼요 (코드에는 넣지 않아요) — ⚙️ 서버 설정에서 입력
+let PORTAL_URL = localStorage.getItem('portal_server_url') || '';
+let PORTAL_KEY = localStorage.getItem('portal_server_key') || '';
+function serverConfigured(){ return !!(PORTAL_URL && PORTAL_KEY); }
 
 const DAYS=['일','월','화','수','목','금','토'];
 const MONS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 const now = new Date();
 document.getElementById('today-str').textContent=`${now.getFullYear()}년 ${MONS[now.getMonth()]} ${now.getDate()}일 ${DAYS[now.getDay()]}요일`;
 
+async function serverCall(action, payload){
+  if(!serverConfigured()){ const e = new Error('서버 설정이 없어요'); e.code = 'noconfig'; throw e; }
+  const r = await fetch(PORTAL_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain'},
+    body: JSON.stringify(Object.assign({}, payload, {action: action, key: PORTAL_KEY}))   // 모든 요청에 비밀 키
+  });
+  let d;
+  try { d = await r.json(); } catch(_) { throw new Error('서버 응답을 읽을 수 없어요'); }
+  if(d && d.error === 'unauthorized'){ const e = new Error('비밀 키가 맞지 않아요'); e.code = 'unauthorized'; throw e; }
+  return d;
+}
+// 할 일·캘린더용: 호출하는 쪽이 d.ok 만 보면 되도록 예외 대신 {ok:false,...} 로 돌려줘요
 async function post(body){
-  const r=await fetch(PORTAL_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body)});
-  return r.json();
+  const action = body.action, rest = Object.assign({}, body); delete rest.action;
+  try { return await serverCall(action, rest); }
+  catch(e){
+    if(e.code === 'noconfig') return {ok:false, error:'서버 설정이 필요해요 (⚙️)', code:'noconfig'};
+    if(e.code === 'unauthorized'){ sync('비밀 키 오류 — ⚙️ 설정', 4000); return {ok:false, error:'비밀 키가 맞지 않아요 (⚙️ 설정)', code:'unauthorized'}; }
+    return {ok:false, error:'연결 실패'};
+  }
 }
 function sync(msg,ms=2500){const e=document.getElementById('sync-txt');e.textContent=msg;if(ms)setTimeout(()=>e.textContent='',ms);}
-function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 
 // ══════════════════════════════════════════
 // TASKS
@@ -308,7 +352,7 @@ renderTasks._cache=[];
 async function loadTaskLists(){
   try{
     const d=await post({action:'getTaskLists'});
-    if(!d.ok)return;
+    if(!d.ok){document.getElementById('task-list').innerHTML=`<div class="empty">⚠️ ${esc(d.error||'연결 실패')}</div>`;return;}
     const lists=d.lists||[];
     const bar=document.getElementById('task-tabs');
     bar.innerHTML='';
@@ -328,7 +372,7 @@ async function loadTasks(){
   el.innerHTML='<div class="spin">불러오는 중...</div>';
   try{
     const d=await post({action:'getTasks',listId:curListId});
-    if(!d.ok){el.innerHTML=`<div class="empty">⚠️ ${d.error}</div>`;return;}
+    if(!d.ok){el.innerHTML=`<div class="empty">⚠️ ${esc(d.error)}</div>`;return;}
     renderTasks(d.tasks||[]);
   }catch(e){el.innerHTML='<div class="empty">⚠️ 연결 실패</div>';}
 }
@@ -378,11 +422,8 @@ const EV_COLS=['ev-c0','ev-c1','ev-c2','ev-c3','ev-c4','ev-c5','ev-c6'];
 
 async function loadCalEvents(){
   const ym=`${calY}-${String(calM+1).padStart(2,'0')}`;
-  try{
-    const r=await fetch(PORTAL_URL+'?ym='+ym+'&t='+Date.now());
-    const d=await r.json();
-    if(d.ok){calEvents=d.events||{};renderCal();}
-  }catch(e){}
+  const d=await post({action:'getCalendarEvents',ym});
+  if(d.ok){calEvents=d.events||{};renderCal();}
 }
 
 function renderCal(){
@@ -397,7 +438,7 @@ function renderCal(){
     const key=`${calY}-${String(calM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const evs=calEvents[key]||[];
     let cls='cal-day';if(key===tk)cls+=' today';if(dow===0)cls+=' sun';if(dow===6)cls+=' sat';
-    const evHtml=evs.slice(0,3).map((ev,ei)=>`<div class="day-ev ${EV_COLS[ei%7]}" onclick="event.stopPropagation();openCal('${key}')">${ev.allDay?'':ev.time+' '}${ev.title}</div>`).join('');
+    const evHtml=evs.slice(0,3).map((ev,ei)=>`<div class="day-ev ${EV_COLS[ei%7]}" onclick="event.stopPropagation();openCal('${key}')">${ev.allDay?'':esc(ev.time)+' '}${esc(ev.title)}</div>`).join('');
     const more=evs.length>3?`<div class="day-more">+${evs.length-3}</div>`:'';
     h+=`<div class="${cls}" onclick="openCal('${key}')"><div class="dn">${d}</div>${evHtml}${more}</div>`;
   }
@@ -416,11 +457,11 @@ function openCal(key){
   const evs=calEvents[key]||[];
   document.getElementById('cal-ev-list').innerHTML=evs.length?evs.map(ev=>`
     <div class="ev-item-row">
-      <div><div style="font-size:10px;color:var(--muted)">${ev.allDay?'종일':ev.time}</div>
+      <div><div style="font-size:10px;color:var(--muted)">${ev.allDay?'종일':esc(ev.time)}</div>
         <div style="font-size:13px;font-weight:500">${esc(ev.title)}</div>
         ${ev.desc?`<div style="font-size:11px;color:var(--muted)">${esc(ev.desc)}</div>`:''}
       </div>
-      <button class="ev-del-btn" data-id="${ev.id}" data-key="${key}" onclick="delCalEv(this)">✕</button>
+      <button class="ev-del-btn" data-id="${esc(ev.id)}" data-key="${esc(key)}" onclick="delCalEv(this)">✕</button>
     </div>`).join(''):'<div style="color:var(--muted);font-size:13px;padding:4px">일정이 없어요</div>';
   document.getElementById('ev-title').value='';
   document.getElementById('ev-start').value='';
@@ -453,112 +494,380 @@ async function submitEvent(){
 }
 
 // ══════════════════════════════════════════
-// 메모 (Keep 스타일, Drive 백업)
+// 메모 (Keep 스타일) — 이 기기에 즉시 저장 + Drive 와 항목 단위 병합
 // ══════════════════════════════════════════
-let memos=[];
-let editIdx=-1;
-let selColor='mc-yellow';
-let memoSaveTimer=null;
+// <MEMO_CORE>
+// ── 병합 핵심 (화면·저장소와 무관한 순수 함수) ──
+const MEMO_COLORS = ['mc-yellow','mc-blue','mc-green','mc-pink','mc-purple','mc-white'];
+const MEMO_TOMB_KEEP_MS = 60 * 86400000;
+const isPlain = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const hasOwn  = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const isSafeKey = k => k !== '__proto__' && k !== 'constructor' && k !== 'prototype';
+const clipStr = (v, n) => String(v == null ? '' : v).slice(0, n);
 
-// 로드: Drive 우선, localStorage 보조
-async function loadMemos(){
-  // 먼저 localStorage로 즉시 표시
-  const local=localStorage.getItem('portal_memos_v2');
-  if(local){try{memos=JSON.parse(local);renderMemos();}catch(e){}}
+function stableStringify(v){
+  if(v === null || typeof v !== 'object'){ const s = JSON.stringify(v); return s === undefined ? 'null' : s; }
+  if(Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort()
+    .map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+}
+function hash53(str){
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for(let i = 0, ch; i < str.length; i++){
+    ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+const itemHash = v => hash53(stableStringify(v));
 
-  // Drive에서 최신 데이터 가져오기
-  try{
-    const r=await fetch(PORTAL_URL+'?action=getMemos&t='+Date.now());
-    const d=await r.json();
-    if(d.ok && d.memos){
-      memos=d.memos;
-      localStorage.setItem('portal_memos_v2',JSON.stringify(memos));
-      renderMemos();
-      document.getElementById('memo-sync').textContent=d.savedAt?'Drive 동기화됨':'';
+// 메모 모양 정리 (허용된 필드만, 색상은 허용 목록으로)
+function normMemo(m){
+  if(!isPlain(m)) return null;
+  return {
+    id: clipStr(m.id, 64).trim(), title: clipStr(m.title, 200), body: clipStr(m.body, 20000),
+    color: MEMO_COLORS.includes(m.color) ? m.color : 'mc-yellow',
+    pinned: m.pinned === true, updatedAt: clipStr(m.updatedAt, 40)
+  };
+}
+// 옛 메모(id 없음)에는 내용으로 만든 고정 id 를 붙여요 → 어느 기기에서든 같은 id 가 나와 중복되지 않아요
+function normalizeMemoList(arr){
+  const seen = {}, out = [];
+  (Array.isArray(arr) ? arr : []).forEach(raw => {
+    const m = normMemo(raw);
+    if(!m) return;
+    if(!m.id) m.id = 'm' + hash53(m.title + '|' + m.body + '|' + m.updatedAt);
+    let id = m.id, n = 1;
+    while(hasOwn(seen, id)) id = m.id + '-' + (++n);
+    m.id = id; seen[id] = true; out.push(m);
+  });
+  return out;
+}
+function normMemoTombs(t){
+  const o = {};
+  if(!isPlain(t)) return o;
+  Object.keys(t).forEach(k => { if(isSafeKey(k) && typeof t[k] === 'string') o[k] = t[k]; });
+  return o;
+}
+function makeMemoBase(list){
+  const b = {};
+  normalizeMemoList(list).forEach(m => { b[m.id] = itemHash(m); });
+  return b;
+}
+const sortedById = list => normalizeMemoList(list).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const sameMemoLists = (a, b) => stableStringify(sortedById(a)) === stableStringify(sortedById(b));
+
+// 3-way 병합.
+//  이 기기만 바꿈→내 값 / 서버만 바꿈→서버 값 / 새로 만든 건 항상 유지 /
+//  한쪽이 지우고 다른 쪽이 고쳤으면 고친 쪽 / 둘 다 바꿈→이 기기 값 /
+//  기준(base)이 없으면 서버 값(이 기기 이전 값은 체크포인트에 보관) /
+//  서버에 없는 항목은 지우지 않고 유지 — 단, 다른 기기가 "지웠다"는 삭제 기록이 있고
+//  이 기기에서 안 고친 항목이면 함께 삭제
+function mergeMemos(baseH, localArr, serverArr, tombsL, tombsS){
+  const hasBase = !!baseH;
+  const L = new Map(), S = new Map();
+  normalizeMemoList(localArr).forEach(m => L.set(m.id, m));
+  normalizeMemoList(serverArr).forEach(m => S.set(m.id, m));
+  const tombs = Object.assign({}, normMemoTombs(tombsS));
+  const tl = normMemoTombs(tombsL);
+  Object.keys(tl).forEach(k => { if(!hasOwn(tombs, k) || tl[k] > tombs[k]) tombs[k] = tl[k]; });
+  const now = new Date().toISOString(), limit = Date.now() - MEMO_TOMB_KEEP_MS;
+  const res = new Map(), deleted = [];
+  let conflicts = 0;
+  new Set([...L.keys(), ...S.keys()]).forEach(k => {
+    if(!isSafeKey(k)) return;
+    const l = L.get(k), s = S.get(k);
+    const hl = l ? itemHash(l) : null, hs = s ? itemHash(s) : null;
+    const hb = (hasBase && hasOwn(baseH, k)) ? baseH[k] : null;
+    if(!l){                                            // 서버에만 있음
+      if(hb !== null && hs === hb){ deleted.push(k); return; }   // 이 기기에서 지웠고 서버는 그대로 → 삭제 유지
+      res.set(k, s); return;
     }
-  }catch(e){}
+    if(!s){                                            // 이 기기에만 있음
+      if(hb !== null && hl === hb && hasOwn(tombs, k)) return;   // 다른 기기에서 지운 항목 → 여기서도 삭제
+      res.set(k, l); return;
+    }
+    if(hl === hs){ res.set(k, l); return; }
+    if(hb === null){ res.set(k, s); conflicts++; return; }
+    if(hl === hb){ res.set(k, s); return; }            // 서버만 바뀜
+    if(hs === hb){ res.set(k, l); return; }            // 이 기기만 바뀜
+    res.set(k, l); conflicts++;                        // 둘 다 바뀜
+  });
+  deleted.forEach(k => { tombs[k] = now; });
+  Object.keys(tombs).forEach(k => {
+    if(res.has(k) || Date.parse(tombs[k]) < limit) delete tombs[k];   // 다시 생겼거나 오래된 기록은 정리
+  });
+  // 순서: 서버에서 새로 온 메모(최신순) → 이 기기에서 보던 순서
+  const fromServer = [...res.keys()].filter(k => !L.has(k)).map(k => res.get(k))
+    .sort((a, b) => a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0);
+  const kept = [...L.keys()].filter(k => res.has(k)).map(k => res.get(k));
+  return { memos: fromServer.concat(kept), tombstones: tombs, conflicts };
+}
+// </MEMO_CORE>
+
+// ── 이 기기의 메모 상태 ──
+function lsGet(k, def){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+let memos = [];
+let memoTombs = {};
+let MEMO_BASE = lsGet('portal_memo_base', null);   // 마지막으로 Drive 와 맞춘 상태(메모별 해시)
+let editIdx = -1;
+let selColor = 'mc-yellow';
+let memoSaveTimer = null;
+let _memoQ = Promise.resolve();
+
+function memoStatus(msg, ms){
+  const e = document.getElementById('memo-sync');
+  e.textContent = msg;
+  if(ms) setTimeout(() => { if(e.textContent === msg) e.textContent = ''; }, ms);
+}
+function loadLocalMemos(){
+  const v3 = lsGet('portal_memos_v3', null);
+  memos = normalizeMemoList(v3 !== null ? v3 : lsGet('portal_memos_v2', []));   // v2 는 예전 형식(그대로 이어받음)
+  memoTombs = normMemoTombs(lsGet('portal_memo_tombs', {}));
+}
+function saveLocalMemos(){ lsSet('portal_memos_v3', memos); lsSet('portal_memo_tombs', memoTombs); }
+function commitMemoBase(hashes, rev){ MEMO_BASE = {rev: rev, hashes: hashes, at: new Date().toISOString()}; lsSet('portal_memo_base', MEMO_BASE); }
+function newMemoId(){
+  const a = new Uint8Array(6); crypto.getRandomValues(a);
+  return 'm' + Date.now().toString(36) + Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// 저장: Drive + localStorage 동시
-async function persistMemos(){
-  localStorage.setItem('portal_memos_v2',JSON.stringify(memos)); // 즉시 로컬 저장
-  clearTimeout(memoSaveTimer);
-  memoSaveTimer=setTimeout(async()=>{
-    try{
-      const d=await post({action:'saveMemos',memos});
-      if(d.ok){
-        document.getElementById('memo-sync').textContent=`Drive 저장됨 ✓`;
-        setTimeout(()=>document.getElementById('memo-sync').textContent='',3000);
-      }
-    }catch(e){document.getElementById('memo-sync').textContent='Drive 저장 실패';}
-  },1000);
+// 체크포인트: 합치기·복원 직전의 이 기기 메모를 최대 3개까지 보관
+function saveMemoCheckpoint(label){
+  try {
+    const snap = JSON.stringify({label: label, at: new Date().toISOString(), memos: memos, tombs: memoTombs});
+    if(snap.length > 1500000) return;
+    const idx = lsGet('portal_mcp_index', []);
+    const id = 'portal_mcp_' + Date.now();
+    localStorage.setItem(id, snap);
+    idx.push(id);
+    while(idx.length > 3) localStorage.removeItem(idx.shift());
+    lsSet('portal_mcp_index', idx);
+  } catch(e) { /* 저장 공간이 부족하면 건너뜀 */ }
 }
+function listMemoCheckpoints(){
+  return lsGet('portal_mcp_index', []).map(id => {
+    try { const o = JSON.parse(localStorage.getItem(id)); return {id: id, label: o.label, at: o.at, n: (o.memos || []).length}; }
+    catch(e) { return null; }
+  }).filter(Boolean).reverse();
+}
+
+// ── 동기화 (요청이 겹치면 순서대로 하나씩) ──
+function syncMemos(opts){
+  const p = _memoQ.then(() => _syncMemosOnce(opts || {}));
+  _memoQ = p.catch(() => {});
+  return p;
+}
+async function _syncMemosOnce(opts){
+  const res = {ok: false, changedLocal: false, conflicts: 0};
+  if(!serverConfigured()){ memoStatus('서버 설정 필요 (⚙️)'); res.reason = 'noconfig'; return res; }
+  memoStatus('동기화 중...');
+  try {
+    for(let attempt = 0; attempt < 4; attempt++){
+      const r = await serverCall('loadMemos', {});
+      if(!r || !r.ok) throw new Error((r && r.error) || '불러오기 실패');
+      const base = MEMO_BASE && MEMO_BASE.hashes ? MEMO_BASE.hashes : null;
+      const m = mergeMemos(base, memos, r.memos, memoTombs, r.tombstones);   // await 이후의 최신 이 기기 메모
+      res.conflicts += m.conflicts;
+      const dataChanged = !sameMemoLists(m.memos, memos);
+      const tombChanged = stableStringify(m.tombstones) !== stableStringify(normMemoTombs(memoTombs));
+      if(dataChanged){ saveMemoCheckpoint('병합 전'); res.changedLocal = true; }
+      if(dataChanged || tombChanged){ memos = m.memos; memoTombs = m.tombstones; saveLocalMemos(); }
+      const sentBase = makeMemoBase(m.memos);            // 보내는 순간의 상태 (이후에 고친 건 구분됨)
+      if(sameMemoLists(m.memos, r.memos)){ commitMemoBase(sentBase, r.rev); res.ok = true; break; }
+      const w = await serverCall('saveMemos', {memos: m.memos, tombstones: m.tombstones, baseRev: r.rev});
+      if(w.ok){ commitMemoBase(sentBase, w.rev); res.ok = true; break; }
+      if(w.conflict) continue;                           // 그 사이 다른 기기가 저장 → 다시 병합
+      if(w.error === 'shrink'){
+        res.reason = 'shrink';
+        throw new Error('저장을 멈췄어요: Drive보다 메모가 크게 줄어 있어요 (⚙️ 체크포인트로 복구하세요)');
+      }
+      throw new Error(w.error || '저장 실패');
+    }
+    if(!res.ok) throw new Error('다른 기기와 동시에 저장 중이라 끝내지 못했어요. 잠시 후 다시 시도해주세요');
+    memoStatus('Drive 동기화됨 ✓', 3000);
+    return res;
+  } catch(e) {
+    res.error = e.message; res.reason = res.reason || e.code || 'error';
+    if(e.code === 'unauthorized') memoStatus('비밀 키 오류 — ⚙️ 설정');
+    else memoStatus('동기화 실패 — ' + String(e.message || '').slice(0, 40));
+    return res;
+  }
+}
+// 복원처럼 "Drive 를 이 상태로 바꾸겠다"는 의도가 분명할 때만 (서버는 직전 상태를 백업)
+function forcePushMemos(label){
+  const p = _memoQ.then(() => _forcePushMemos(label));
+  _memoQ = p.catch(() => {});
+  return p;
+}
+async function _forcePushMemos(label){
+  if(!serverConfigured()) return false;
+  memoStatus((label || '복원') + ' 저장 중...');
+  try {
+    const sentBase = makeMemoBase(memos);
+    const w = await serverCall('saveMemos', {memos: memos, tombstones: {}, force: true});
+    if(!w.ok) throw new Error(w.error || '저장 실패');
+    memoTombs = {}; saveLocalMemos();
+    commitMemoBase(sentBase, w.rev);
+    memoStatus('Drive에 저장됨 ✓', 3000);
+    return true;
+  } catch(e) { memoStatus('Drive 저장 실패'); return false; }
+}
+
+async function loadMemos(){
+  loadLocalMemos(); renderMemos();                       // 먼저 이 기기 메모를 바로 보여줌
+  if(!serverConfigured()) return;
+  const r = await syncMemos();
+  if(r.ok && r.changedLocal) renderMemos();
+}
+function persistMemos(){
+  saveLocalMemos();                                      // 이 기기에는 즉시 저장
+  clearTimeout(memoSaveTimer);
+  memoSaveTimer = setTimeout(async () => {
+    const r = await syncMemos();
+    if(r.ok && r.changedLocal){
+      const t = document.activeElement && document.activeElement.tagName;
+      if(!['INPUT','TEXTAREA'].includes(t)) renderMemos();   // 입력 중이면 화면을 새로 그리지 않음
+    }
+  }, 1000);
+}
+window.addEventListener('online', () => { if(serverConfigured()) syncMemos(); });
 
 function renderMemos(){
-  const el=document.getElementById('memo-list');
-  const sorted=[...memos].sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0));
-  if(!sorted.length){el.innerHTML='<div class="memo-empty">메모를 추가해보세요 ✏️</div>';return;}
-  el.innerHTML=sorted.map((m,si)=>{
-    const realIdx=memos.indexOf(m);
-    return`<div class="memo-card ${m.color||'mc-yellow'}${m.pinned?' pinned':''}" onclick="openMemoModal(${realIdx})">
-      ${m.title?`<div class="memo-card-title">${esc(m.title)}</div>`:''}
-      <div class="memo-card-body">${esc(m.body||'').replace(/\n/g,'<br>')}</div>
-      <div class="memo-card-date">${m.updatedAt?new Date(m.updatedAt).toLocaleDateString('ko-KR'):''}</div>
+  const el = document.getElementById('memo-list');
+  const sorted = [...memos].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  if(!sorted.length){ el.innerHTML = '<div class="memo-empty">메모를 추가해보세요 ✏️</div>'; return; }
+  el.innerHTML = sorted.map(m => {
+    const realIdx = memos.indexOf(m);
+    const col = MEMO_COLORS.includes(m.color) ? m.color : 'mc-yellow';
+    return `<div class="memo-card ${col}${m.pinned ? ' pinned' : ''}" onclick="openMemoModal(${realIdx})">
+      ${m.title ? `<div class="memo-card-title">${esc(m.title)}</div>` : ''}
+      <div class="memo-card-body">${esc(m.body || '').replace(/\n/g, '<br>')}</div>
+      <div class="memo-card-date">${m.updatedAt ? new Date(m.updatedAt).toLocaleDateString('ko-KR') : ''}</div>
       <div class="memo-card-actions">
-        <button class="memo-icon-btn" onclick="event.stopPropagation();togglePin(${realIdx})">${m.pinned?'📌 고정됨':'📌 고정'}</button>
+        <button class="memo-icon-btn" onclick="event.stopPropagation();togglePin(${realIdx})">${m.pinned ? '📌 고정됨' : '📌 고정'}</button>
       </div>
-    </div>`;}).join('');
+    </div>`;
+  }).join('');
 }
 
 function openMemoModal(idx){
-  editIdx = idx??-1;
-  const isEdit = editIdx>=0;
-  document.getElementById('memo-modal-title').textContent=isEdit?'메모 편집':'새 메모';
-  document.getElementById('memo-del-btn').style.display=isEdit?'block':'none';
-  const m=isEdit?memos[editIdx]:{title:'',body:'',color:'mc-yellow'};
-  document.getElementById('m-title').value=m.title||'';
-  document.getElementById('m-body').value=m.body||'';
-  selColor=m.color||'mc-yellow';
-  document.querySelectorAll('.color-chip').forEach(c=>{
-    c.classList.toggle('sel',c.dataset.c===selColor);
-  });
+  editIdx = idx ?? -1;
+  const isEdit = editIdx >= 0;
+  document.getElementById('memo-modal-title').textContent = isEdit ? '메모 편집' : '새 메모';
+  document.getElementById('memo-del-btn').style.display = isEdit ? 'block' : 'none';
+  const m = isEdit ? memos[editIdx] : {title: '', body: '', color: 'mc-yellow'};
+  document.getElementById('m-title').value = m.title || '';
+  document.getElementById('m-body').value = m.body || '';
+  selColor = m.color || 'mc-yellow';
+  document.querySelectorAll('.color-chip').forEach(c => { c.classList.toggle('sel', c.dataset.c === selColor); });
   document.getElementById('modal-memo').classList.add('on');
-  setTimeout(()=>document.getElementById(m.title?'m-title':'m-body').focus(),100);
+  setTimeout(() => document.getElementById(m.title ? 'm-title' : 'm-body').focus(), 100);
 }
-
-function closeMemo(){document.getElementById('modal-memo').classList.remove('on');}
-
+function closeMemo(){ document.getElementById('modal-memo').classList.remove('on'); }
 function pickColor(el){
-  document.querySelectorAll('.color-chip').forEach(c=>c.classList.remove('sel'));
+  document.querySelectorAll('.color-chip').forEach(c => c.classList.remove('sel'));
   el.classList.add('sel');
-  selColor=el.dataset.c;
+  selColor = el.dataset.c;
 }
-
 function saveMemoItem(){
-  const title=document.getElementById('m-title').value.trim();
-  const body=document.getElementById('m-body').value.trim();
-  if(!title&&!body){alert('내용을 입력해주세요');return;}
-  const item={title,body,color:selColor,pinned:editIdx>=0?memos[editIdx].pinned:false,updatedAt:new Date().toISOString()};
-  if(editIdx>=0) memos[editIdx]=item;
-  else memos.unshift(item);
-  closeMemo();
-  renderMemos();
-  persistMemos();
+  const title = document.getElementById('m-title').value.trim();
+  const body = document.getElementById('m-body').value.trim();
+  if(!title && !body){ alert('내용을 입력해주세요'); return; }
+  const prev = editIdx >= 0 ? memos[editIdx] : null;
+  const item = {id: prev ? prev.id : newMemoId(), title, body, color: selColor, pinned: prev ? prev.pinned : false, updatedAt: new Date().toISOString()};
+  if(prev) memos[editIdx] = item; else memos.unshift(item);
+  closeMemo(); renderMemos(); persistMemos();
 }
-
 function deleteMemo(){
-  if(editIdx<0||!confirm('메모를 삭제할까요?'))return;
-  memos.splice(editIdx,1);
-  closeMemo();
-  renderMemos();
-  persistMemos();
+  if(editIdx < 0 || !confirm('메모를 삭제할까요?')) return;
+  memos.splice(editIdx, 1);                              // 삭제 기록은 동기화할 때 남겨요
+  closeMemo(); renderMemos(); persistMemos();
+}
+function togglePin(idx){
+  memos[idx].pinned = !memos[idx].pinned;
+  renderMemos(); persistMemos();
 }
 
-function togglePin(idx){
-  memos[idx].pinned=!memos[idx].pinned;
-  renderMemos();
-  persistMemos();
+// ══════════════════════════════════════════
+// ⚙️ 서버 설정
+// ══════════════════════════════════════════
+function openSettings(){
+  document.getElementById('srv-url').value = PORTAL_URL;
+  const k = document.getElementById('srv-key');
+  k.value = '';
+  k.placeholder = PORTAL_KEY ? '(저장돼 있어요 — 바꿀 때만 입력)' : 'createSecretKey() 실행 로그의 64자 키';
+  document.getElementById('srv-msg').textContent = '';
+  renderCpList();
+  document.getElementById('modal-server').classList.add('on');
 }
+function closeSettings(){ document.getElementById('modal-server').classList.remove('on'); }
+function renderCpList(){
+  const box = document.getElementById('srv-cps');
+  const list = listMemoCheckpoints();
+  box.textContent = '';
+  if(!list.length){
+    const d = document.createElement('div');
+    d.style.cssText = 'font-size:12px;color:var(--hint)';
+    d.textContent = '아직 없어요 (다른 기기 메모를 합치거나 복원할 때 자동으로 만들어져요)';
+    box.appendChild(d); return;
+  }
+  list.forEach(cp => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0';
+    const txt = document.createElement('span');
+    txt.style.flex = '1';
+    txt.textContent = `${new Date(cp.at).toLocaleString('ko-KR')} · ${cp.label} · 메모 ${cp.n}개`;
+    const btn = document.createElement('button');
+    btn.className = 'mbtn-cancel';
+    btn.style.padding = '4px 10px';
+    btn.textContent = '이 상태로 복원';
+    btn.dataset.id = cp.id;
+    btn.onclick = () => restoreMemoCheckpoint(btn.dataset.id);
+    row.appendChild(txt); row.appendChild(btn); box.appendChild(row);
+  });
+}
+async function saveSettings(){
+  const msg = document.getElementById('srv-msg');
+  const url = document.getElementById('srv-url').value.trim();
+  let key = document.getElementById('srv-key').value.trim();
+  if(!key) key = PORTAL_KEY;
+  const setMsg = (t, col) => { msg.textContent = t; msg.style.color = col || 'var(--muted)'; };
+  if(!/^https:\/\/script\.google\.com\/(?:a\/[^\/]+\/)?macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)){
+    setMsg('웹 앱 주소 형식이 아니에요 (https://script.google.com/macros/s/…/exec)', 'var(--red)'); return;
+  }
+  if(key.length < 32){ setMsg('비밀 키는 32자 이상이에요', 'var(--red)'); return; }
+  const prev = {url: PORTAL_URL, key: PORTAL_KEY};
+  PORTAL_URL = url; PORTAL_KEY = key;
+  setMsg('연결 테스트 중...');
+  try {
+    const r = await serverCall('ping', {});
+    if(!r || !r.ok) throw new Error((r && r.error) || '연결 실패');
+    localStorage.setItem('portal_server_url', PORTAL_URL);
+    localStorage.setItem('portal_server_key', PORTAL_KEY);
+    MEMO_BASE = null; localStorage.removeItem('portal_memo_base');   // 서버가 바뀌었을 수 있으니 기준 상태 초기화
+    closeSettings();
+    sync('연결됐어요 ✓', 3000);
+    bootData();
+  } catch(e) {
+    PORTAL_URL = prev.url; PORTAL_KEY = prev.key;        // 실패하면 이전 설정으로 복원
+    setMsg('연결 테스트 실패 — 이전 설정으로 되돌렸어요 (' + (e.message || '') + ')', 'var(--red)');
+  }
+}
+async function restoreMemoCheckpoint(id){
+  let o = null;
+  try { o = JSON.parse(localStorage.getItem(id)); } catch(e) {}
+  if(!o || !Array.isArray(o.memos)){ alert('체크포인트를 읽을 수 없어요'); return; }
+  if(!confirm(`이 기기의 체크포인트로 되돌립니다.\n\n🕐 ${new Date(o.at).toLocaleString('ko-KR')}\n🗒️ 메모 ${o.memos.length}개\n\nDrive의 메모도 이 상태로 바뀌어요 (Drive는 직전 상태를 백업해둬요). 계속할까요?`)) return;
+  saveMemoCheckpoint('복원 전');
+  memos = normalizeMemoList(o.memos); memoTombs = {};
+  saveLocalMemos(); renderMemos(); closeSettings();
+  await forcePushMemos('체크포인트 복원');
+}
+function bootData(){ loadCalEvents(); loadTaskLists(); loadMemos(); }
 
 // 키보드 단축키
 document.addEventListener('keydown',e=>{
@@ -573,9 +882,12 @@ document.addEventListener('keydown',e=>{
 
 // ── 초기 로드 ──
 renderCal();
-loadCalEvents();
-loadTaskLists();
-loadMemos();
+if(serverConfigured()){ bootData(); }
+else {
+  loadLocalMemos(); renderMemos();                        // 서버 없이도 이 기기 메모는 보여요
+  document.getElementById('task-list').innerHTML = '<div class="empty">⚙️ 서버 설정을 해주세요 (위쪽 ⚙️ 서버 버튼)</div>';
+  openSettings();
+}
 </script>
 </body>
 </html>
