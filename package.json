@@ -1,0 +1,16 @@
+{
+  "name": "portal",
+  "private": true,
+  "description": "개인 포털 — 캘린더·할 일·메모 (GitHub Pages + Google Apps Script)",
+  "scripts": {
+    "test": "node tools/check.js && node tests/run-all.js",
+    "check": "node tools/check.js",
+    "test:only": "node tests/run-all.js"
+  },
+  "engines": { "node": ">=18" },
+  "devDependencies": {
+    "acorn": "8.19.0",
+    "eslint": "9.39.5",
+    "globals": "17.13.0"
+  }
+}
