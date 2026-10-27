@@ -1,3 +1,4 @@
 node_modules/
 tests/.build/
 CLAUDE.local.md
+.clasp.json
