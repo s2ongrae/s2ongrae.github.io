@@ -8,7 +8,7 @@ const m = html.match(/\/\/ <MEMO_CORE>([\s\S]*?)\/\/ <\/MEMO_CORE>/);
 if (!m) { console.error('index.html 에서 // <MEMO_CORE> 표시를 찾지 못했어요 (메모 병합 핵심 코드 경계 표시는 지우면 안 돼요)'); process.exit(1); }
 fs.writeFileSync(path.join(BUILD, 'memo_core.js'), m[1]);
 fs.copyFileSync(path.join(ROOT, 'apps-script', 'Code.gs'), path.join(BUILD, 'portal_gs.js'));
-const order = ['portal_server', 'portal_merge', 'portal_integration'];
+const order = ['portal_server', 'portal_merge', 'portal_integration', 'prediag'];
 const only = process.argv[2]; let failed = 0;
 for (const name of order) {
   if (only && !name.endsWith(only)) continue;

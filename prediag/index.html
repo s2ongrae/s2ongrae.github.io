@@ -22,6 +22,46 @@ button{font-family:inherit;cursor:pointer;border:none}
 </head>
 <body>
 <div id="root"></div>
+<script>
+// <PREDIAG_CORE> 화면과 무관한 계산 함수 (tests/prediag.test.js 가 이 구간을 뽑아 검증해요)
+function dateStr(d){
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+function calcCutoff(months, now){
+  const d=new Date(now||Date.now());
+  d.setMonth(d.getMonth()-months);
+  return dateStr(d);
+}
+function calcYearCutoff(years, now){
+  const d=new Date(now||Date.now());
+  d.setFullYear(d.getFullYear()-years);
+  return dateStr(d);
+}
+// 주민번호 앞 6자리 + 뒤 첫 자리 → 생년월일·성별 (뒤 첫 자리: 1·2·5·6 은 1900년대, 3·4·7·8 은 2000년대, 9·0 은 1800년대)
+function parseBirth(front, back){
+  if(!/^\d{6}$/.test(front||'') || !/^\d/.test(back||'')) return null;
+  const g=+back[0], yy=+front.slice(0,2), mm=+front.slice(2,4), dd=+front.slice(4,6);
+  const century = [1,2,5,6].includes(g) ? 1900 : [3,4,7,8].includes(g) ? 2000 : 1800;
+  const birth=new Date(century+yy, mm-1, dd);
+  if(birth.getFullYear()!==century+yy || birth.getMonth()!==mm-1 || birth.getDate()!==dd) return null;   // 2월 30일 같은 날짜는 거절
+  return {birth, gender: g%2===1 ? '남성' : '여성'};
+}
+// 보험나이: 만 나이 + 직전 생일에서 6개월 이상 지났으면 1살 더함 (표준약관의 6개월 반올림)
+function insAgeOf(birth, now){
+  now = now ? new Date(now) : new Date();
+  if(!(birth instanceof Date) || isNaN(birth) || birth > now) return null;
+  let age = now.getFullYear()-birth.getFullYear();
+  let last = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+  if(now < last){ age--; last = new Date(now.getFullYear()-1, birth.getMonth(), birth.getDate()); }
+  const half = new Date(last.getFullYear(), last.getMonth()+6, last.getDate());
+  return now >= half ? age+1 : age;
+}
+function insAgeFromRrn(front, back, now){
+  const p=parseBirth(front, back);
+  return p ? insAgeOf(p.birth, now) : null;
+}
+// </PREDIAG_CORE>
+</script>
 <script type="text/babel">
 const{useState,useMemo,useEffect,useRef}=React;
 
@@ -37,33 +77,7 @@ const OCCS=["직장인(사무직)","직장인(현장직)","자영업","프리랜
 
 const DISEASES=["위/식도염","허리/등 통증","피부질환","고혈압","당뇨","갑상선","수술 이력","호흡기질환","정신건강","기타"];
 
-// 날짜 계산
-function dateStr(d){
-  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
-}
-function calcCutoff(months){
-  const d=new Date();
-  d.setMonth(d.getMonth()-months);
-  return dateStr(d);
-}
-function calcYearCutoff(years){
-  const d=new Date();
-  d.setFullYear(d.getFullYear()-years);
-  return dateStr(d);
-}
-
-// 보험 나이
-function calcInsAge(str){
-  if(str.length!==8)return null;
-  const y=parseInt(str.slice(0,4)),m=parseInt(str.slice(4,6))-1,d=parseInt(str.slice(6,8));
-  const birth=new Date(y,m,d),now=new Date();
-  if(isNaN(birth.getTime()))return null;
-  let age=now.getFullYear()-birth.getFullYear();
-  const thisB=new Date(now.getFullYear(),birth.getMonth(),birth.getDate());
-  if(now<thisB)age--;
-  const halfB=new Date(birth.getFullYear()+age+(now>=thisB?0:-1),birth.getMonth()+6,birth.getDate());
-  return now>=halfB?age+1:age;
-}
+// 날짜·보험나이 계산은 위쪽 PREDIAG_CORE 구간에 있어요 (테스트가 그 구간을 직접 검증)
 
 // 리스크 프로필
 function getRisk(gender,age){
@@ -76,7 +90,7 @@ function getRisk(gender,age){
     msg:"20대 남성은 통계적으로 상해 및 활동성 사고 확률이 매우 높습니다. 하지만 가장 저렴한 비용으로 평생 갈 3대 진단비(암·뇌·심)의 중심 기둥을 세울 수 있는 최고의 골든타임입니다.",
     noRenew:85,renew:15,plan:"월 만 원 미만 가성비 미니 암보험 플랜",layer:"20년납 100세만기 비갱신 3대진단비 + 실손 + 운전자"};
   if(m&&age<40)return{tag:"30대 남성",emoji:"🏢",accent:NAVY,priority:malePriority,
-    msg:"30대 남성은 직장 스트레스와 인벤토리 위험으로 중대질병 위험률이 가파르게 상승합니다. 은퇴 시점의 보험료 부담을 없애기 위해 20년납 100세만기 비갱신형 위주로 기본 뼈대를 리모델링해야 합니다.",
+    msg:"30대 남성은 직장 스트레스와 생활습관 위험으로 중대질병 위험률이 가파르게 상승합니다. 은퇴 시점의 보험료 부담을 없애기 위해 20년납 100세만기 비갱신형 위주로 기본 뼈대를 리모델링해야 합니다.",
     noRenew:75,renew:25,plan:"설계사들만 아는 만 원 미만 순환계 질환 주요치료비 플랜",layer:"비갱신 뇌·심 + 20년납 3대진단비 + 갱신형 실손 혼합"};
   if(m&&age>=40)return{tag:"40대+ 남성",emoji:"⚠️",accent:"#C2410C",priority:malePriority,
     msg:"40대 이상 남성은 대한민국 3대 질병 발병 통계가 수직 상승하는 구간입니다. 완치 후 경제 활동 공백까지 고려해 진단비 한도를 극대화하고 치료비 중심으로 콤팩트하게 집중 보완해야 합니다.",
@@ -160,11 +174,12 @@ function Btn({children,onClick,disabled,style={}}){return <button onClick={onCli
 function Step1({form,setForm,onNext}){
   const{name,gender,rrnFront,rrnBack,occ,occCustom,occDetail,phone,carrier,sido,addrDetail}=form;
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
-  const insAge=useMemo(()=>calcInsAge(rrnFront||"",rrnBack||""),[rrnFront,rrnBack]);
+  const insAge=useMemo(()=>insAgeFromRrn(rrnFront,rrnBack),[rrnFront,rrnBack]);
+  const parsed=rrnFront.length===6&&rrnBack.length===7?parseBirth(rrnFront,rrnBack):null;
   const checks = {
     이름: !!name,
     성별: !!gender,
-    주민번호: rrnFront.length===6 && rrnBack.length===7,
+    주민번호: !!parsed,
     직업: !!(occ && (occ!=="기타(직접입력)" || occCustom?.trim())),
     핸드폰: phone.replace(/[^0-9]/g,"").length>=10,
     통신사: !!carrier,
@@ -176,7 +191,7 @@ function Step1({form,setForm,onNext}){
     <div className="fade-up">
       <div style={{marginBottom:20}}>
         <h2 style={{fontSize:20,fontWeight:800,color:"#0F172A",marginBottom:6}}>기본 정보 입력</h2>
-        <p style={{fontSize:14,color:MUTED,lineHeight:1.6}}>보험 설계에 필요한 기본 정보를 입력해주세요.<br/>모든 정보는 암호화되어 안전하게 처리됩니다.</p>
+        <p style={{fontSize:14,color:MUTED,lineHeight:1.6}}>보험 설계에 필요한 기본 정보를 입력해주세요.<br/>입력하신 정보는 상담·설계 목적으로 담당 설계사에게만 전달됩니다.</p>
       </div>
 
       <Card>
@@ -214,13 +229,19 @@ function Step1({form,setForm,onNext}){
               style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${rrnBack?"#3B82F6":BORDER}`,borderRadius:12,fontSize:17,letterSpacing:4,color:"#0F172A",background:WHITE,outline:"none",textAlign:"center"}}/>
           </div>
         </div>
-        <p style={{fontSize:11,color:"#94A3B8",marginTop:5}}>※ 주민등록증 기준으로 입력해 주세요 · 뒷자리는 암호화 처리됩니다</p>
+        <p style={{fontSize:12,color:"#94A3B8",marginTop:5}}>※ 주민등록증 기준으로 입력해 주세요 · 보험나이와 가입 심사 확인에 쓰여요</p>
+        {rrnFront.length===6&&rrnBack.length===7&&!parsed&&(
+          <p style={{fontSize:12,color:RED,marginTop:5,fontWeight:600}}>생년월일이 올바르지 않아요. 앞 6자리와 뒷자리 첫 숫자를 확인해 주세요</p>
+        )}
+        {parsed&&gender&&parsed.gender!==gender&&(
+          <p style={{fontSize:12,color:AMBER,marginTop:5,fontWeight:600}}>주민번호로는 {parsed.gender}이에요. 성별 선택을 확인해 주세요</p>
+        )}
         {insAge!==null&&rrnFront.length===6&&rrnBack.length===7&&(
           <div className="scale-in" style={{marginTop:10,padding:"12px 14px",background:`linear-gradient(135deg,${BLUEL},#DBEAFE)`,borderRadius:12,border:`1px solid #BFDBFE`}}>
             <div style={{fontSize:14,fontWeight:700,color:NAVY}}>
-              🎯 {name||"고객"}님의 현재 보험 나이는 <span style={{fontSize:18,color:BLUE}}>만 {insAge}세</span>입니다
+              🎯 {name||"고객"}님의 현재 보험 나이는 <span style={{fontSize:18,color:BLUE}}>{insAge}세</span>입니다
             </div>
-            <div style={{fontSize:12,color:"#3B82F6",marginTop:3}}>상령일 기준 계산 (6개월 초과 시 +1세 적용)</div>
+            <div style={{fontSize:12,color:"#3B82F6",marginTop:3}}>만 나이에서 직전 생일 후 6개월이 지났으면 +1세 (상령일 기준)</div>
           </div>
         )}
       </Card>
@@ -436,26 +457,7 @@ function Step2({disc,setDisc,onNext,onPrev,form}){
 // STEP 3
 // ══════════════════════════════════════════════════════
 function Step3({form,disc,onNext,onPrev}){
-  // Step3에서 직접 계산 (props 전달 의존하지 않음)
-  const insAge = useMemo(()=>{
-    const age = calcInsAge(form.rrnFront||"", form.rrnBack||"");
-    if(age!==null) return age;
-    // 뒷자리 입력 없어도 앞자리로 연도 추정
-    if(form.rrnFront?.length===6){
-      const yy=parseInt(form.rrnFront.slice(0,2));
-      const cy=new Date().getFullYear()%100;
-      const year=yy<=cy?2000+yy:1900+yy;
-      const m=parseInt(form.rrnFront.slice(2,4))-1;
-      const d=parseInt(form.rrnFront.slice(4,6));
-      const birth=new Date(year,m,d),now=new Date();
-      let a=now.getFullYear()-birth.getFullYear();
-      const thisB=new Date(now.getFullYear(),m,d);
-      if(now<thisB)a--;
-      const halfB=new Date(birth.getFullYear()+a+(now>=thisB?0:-1),m+6,d);
-      return now>=halfB?a+1:a;
-    }
-    return null;
-  },[form.rrnFront,form.rrnBack]);
+  const insAge = useMemo(()=>insAgeFromRrn(form.rrnFront,form.rrnBack),[form.rrnFront,form.rrnBack]);
 
   const risk=getRisk(form.gender,insAge);
   const hasYes=Q_DEFS.some(q=>disc[q.k]===true);
@@ -556,23 +558,7 @@ function Step3({form,disc,onNext,onPrev}){
 // STEP 4
 // ══════════════════════════════════════════════════════
 function Step4({form,disc,onPrev}){
-  const insAge = useMemo(()=>{
-    const age = calcInsAge(form.rrnFront||"", form.rrnBack||"");
-    if(age!==null) return age;
-    if(form.rrnFront?.length===6){
-      const yy=parseInt(form.rrnFront.slice(0,2));
-      const cy=new Date().getFullYear()%100;
-      const year=yy<=cy?2000+yy:1900+yy;
-      const m=parseInt(form.rrnFront.slice(2,4))-1;
-      const d=parseInt(form.rrnFront.slice(4,6));
-      const birth=new Date(year,m,d),now=new Date();
-      let a=now.getFullYear()-birth.getFullYear();
-      if(now<new Date(now.getFullYear(),m,d))a--;
-      const halfB=new Date(birth.getFullYear()+a+(now>=new Date(now.getFullYear(),m,d)?0:-1),m+6,d);
-      return now>=halfB?a+1:a;
-    }
-    return null;
-  },[form.rrnFront,form.rrnBack]);
+  const insAge = useMemo(()=>insAgeFromRrn(form.rrnFront,form.rrnBack),[form.rrnFront,form.rrnBack]);
   const risk = getRisk(form.gender, insAge);
   const[submitted,setSubmitted]=useState(false);
   const[loading,setLoading]=useState(false);
@@ -597,7 +583,7 @@ function Step4({form,disc,onPrev}){
       이름: form.name,
       성별: form.gender,
       주민번호: form.rrnFront&&form.rrnBack?`${form.rrnFront}-${form.rrnBack}`:"미입력",
-      보험나이: insAge?`만 ${insAge}세`:"미입력",
+      보험나이: insAge?`${insAge}세`:"미입력",
       핸드폰: form.phone||"미입력",
       통신사: form.carrier||"미입력",
       직업: form.occ==="기타(직접입력)"?(form.occCustom||"기타"):form.occ,
@@ -618,10 +604,11 @@ function Step4({form,disc,onPrev}){
       if(res.ok) setSubmitted(true);
       else {
         const data = await res.json().catch(()=>({}));
-        setError(data?.error||"전송에 실패했습니다. Formspree 대시보드에서 도메인 허용 설정을 확인해주세요.");
+        console.warn("Formspree 전송 실패", res.status, data);           // 원인 확인용 (고객 화면에는 쉬운 말로)
+        setError("전송하지 못했어요. 잠시 뒤 다시 눌러 주시고, 계속 안 되면 설계사에게 카카오톡으로 알려 주세요.");
       }
     } catch(e) {
-      setError("⚠️ 로컬 파일에서는 전송이 안 돼요. Netlify에 업로드 후 테스트해주세요!");
+      setError("전송하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.");
     }
     finally { setLoading(false); }
   };
@@ -656,7 +643,7 @@ function Step4({form,disc,onPrev}){
           ["이름",form.name],
           ["성별",form.gender],
           ["주민번호",form.rrnFront&&form.rrnBack?`${form.rrnFront} - ${form.rrnBack[0]}••••••`:"미입력"],
-          ["보험 나이",insAge?`만 ${insAge}세`:"미입력"],
+          ["보험 나이",insAge?`${insAge}세`:"미입력"],
           ["핸드폰",form.phone||"미입력"],
           ["통신사",form.carrier||"미입력"],
           ["직업",form.occ==="기타(직접입력)"?form.occCustom||"기타":form.occ],
@@ -683,15 +670,15 @@ function Step4({form,disc,onPrev}){
       )}
 
       <div style={{background:AMBERL,border:`1px solid #FDE68A`,borderRadius:14,padding:"14px",marginBottom:20}}>
-        <div style={{fontSize:12,color:"#92400E",lineHeight:1.6}}>📌 <strong>개인정보 수집 안내:</strong> 입력하신 정보는 보험 상담 및 설계 목적으로만 사용되며, 설계사 외 제3자에게 제공되지 않습니다.</div>
+        <div style={{fontSize:12,color:"#92400E",lineHeight:1.6}}>📌 <strong>개인정보 수집 안내:</strong> 입력하신 정보는 보험 상담 및 설계 목적으로만 사용되며, 설계사 외 제3자에게 제공되지 않습니다. 전송은 폼 전송 서비스(Formspree)를 거쳐 설계사 메일로 전달됩니다.</div>
       </div>
 
       <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"18px",borderRadius:16,background:loading?"#93C5FD":`linear-gradient(135deg,${NAVY} 0%,${BLUE} 100%)`,color:WHITE,fontSize:16,fontWeight:700,border:"none",cursor:loading?"not-allowed":"pointer",boxShadow:loading?"none":`0 4px 20px rgba(37,99,235,.4)`,transition:"all .2s",letterSpacing:.3}}>
-        {loading?"전송 중... 잠시만 기다려주세요 ⏳":"📨 설계사에게 진단서 안전하게 전송하고 맞춤 제안서 받기"}
+        {loading?"전송 중... 잠시만 기다려주세요 ⏳":"📨 설계사에게 보내고 맞춤 제안서 받기"}
       </button>
       {error&&<div style={{marginTop:10,padding:"12px",background:"#FEF2F2",borderRadius:10,border:"1px solid #FECACA",fontSize:13,color:"#DC2626",textAlign:"center"}}>{error}</div>}
       <button onClick={onPrev} style={{width:"100%",padding:"13px",marginTop:10,borderRadius:14,border:`1.5px solid ${BORDER}`,background:WHITE,color:"#475569",fontSize:14,fontWeight:600}}>← 이전으로</button>
-      <div style={{textAlign:"center",marginTop:14,fontSize:12,color:"#94A3B8"}}>🔒 SSL 암호화 전송 · 스팸 없음 · 언제든 거절 가능</div>
+      <div style={{textAlign:"center",marginTop:14,fontSize:12,color:"#94A3B8"}}>🔒 전송 구간 암호화(HTTPS) · 스팸 없음 · 언제든 거절 가능</div>
     </div>
   );
 }
@@ -703,8 +690,6 @@ function App(){
   const[step,setStep]=useState(1);
   const[form,setForm]=useState({name:"",gender:"",rrnFront:"",rrnBack:"",occ:"",occCustom:"",occDetail:"",phone:"",carrier:"",sido:"",addrDetail:""});
   const[disc,setDisc]=useState({q1:null,q1d:[],q1memo:"",q2:null,q2d:[],q2memo:"",q3:null,q3d:[],q3memo:""});
-  const insAge=useMemo(()=>calcInsAge(form.rrnFront||"",form.rrnBack||""),[form.rrnFront,form.rrnBack]);
-  const risk=useMemo(()=>getRisk(form.gender,insAge),[form.gender,insAge]);
 
   return(
     <div style={{maxWidth:480,margin:"0 auto",minHeight:"100vh",background:BG}}>
