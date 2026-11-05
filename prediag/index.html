@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>1:1 보험 사전진단 | 김성래 설계사</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:#F8FAFC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;color:#0F172A}
+input,select,textarea{font-family:inherit}
+button{font-family:inherit;cursor:pointer;border:none}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
+@keyframes barFill{from{width:0}to{width:100%}}
+.fade-up{animation:fadeUp .38s ease both}
+.scale-in{animation:scaleIn .3s ease both}
+::-webkit-scrollbar{display:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useMemo,useEffect,useRef}=React;
+
+const NAVY="#1E3A8A",BLUE="#2563EB",BLUEL="#EFF6FF",
+      GREEN="#059669",GREENL="#ECFDF5",
+      AMBER="#D97706",AMBERL="#FFFBEB",
+      RED="#DC2626",REDL="#FFF1F0",PINK="#BE185D",
+      MUTED="#64748B",BORDER="#E2E8F0",
+      BG="#F8FAFC",WHITE="#FFFFFF";
+
+const SIDO=["서울","경기","인천","부산","대구","대전","광주","울산","세종","강원","충북","충남","전북","전남","경북","경남","제주"];
+const OCCS=["직장인(사무직)","직장인(현장직)","자영업","프리랜서","주부","학생","공무원","의료직","교사","기타(직접입력)"];
+
+const DISEASES=["위/식도염","허리/등 통증","피부질환","고혈압","당뇨","갑상선","수술 이력","호흡기질환","정신건강","기타"];
+
+// 날짜 계산
+function dateStr(d){
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+function calcCutoff(months){
+  const d=new Date();
+  d.setMonth(d.getMonth()-months);
+  return dateStr(d);
+}
+function calcYearCutoff(years){
+  const d=new Date();
+  d.setFullYear(d.getFullYear()-years);
+  return dateStr(d);
+}
+
+// 보험 나이
+function calcInsAge(str){
+  if(str.length!==8)return null;
+  const y=parseInt(str.slice(0,4)),m=parseInt(str.slice(4,6))-1,d=parseInt(str.slice(6,8));
+  const birth=new Date(y,m,d),now=new Date();
+  if(isNaN(birth.getTime()))return null;
+  let age=now.getFullYear()-birth.getFullYear();
+  const thisB=new Date(now.getFullYear(),birth.getMonth(),birth.getDate());
+  if(now<thisB)age--;
+  const halfB=new Date(birth.getFullYear()+age+(now>=thisB?0:-1),birth.getMonth()+6,birth.getDate());
+  return now>=halfB?age+1:age;
+}
+
+// 리스크 프로필
+function getRisk(gender,age){
+  if(!gender||!age)return null;
+  const m=gender==="남성";
+  const malePriority=["실손의료비","뇌·심장 주요치료비","고액 암진단비","상해/후유장해"];
+  const femalePriority=["실손의료비","유방/갑상선(유사암) 진단비","여성 특정 수술비","뇌·심장 담보"];
+
+  if(m&&age<30)return{tag:"20대 남성",emoji:"💪",accent:BLUE,priority:malePriority,
+    msg:"20대 남성은 통계적으로 상해 및 활동성 사고 확률이 매우 높습니다. 하지만 가장 저렴한 비용으로 평생 갈 3대 진단비(암·뇌·심)의 중심 기둥을 세울 수 있는 최고의 골든타임입니다.",
+    noRenew:85,renew:15,plan:"월 만 원 미만 가성비 미니 암보험 플랜",layer:"20년납 100세만기 비갱신 3대진단비 + 실손 + 운전자"};
+  if(m&&age<40)return{tag:"30대 남성",emoji:"🏢",accent:NAVY,priority:malePriority,
+    msg:"30대 남성은 직장 스트레스와 인벤토리 위험으로 중대질병 위험률이 가파르게 상승합니다. 은퇴 시점의 보험료 부담을 없애기 위해 20년납 100세만기 비갱신형 위주로 기본 뼈대를 리모델링해야 합니다.",
+    noRenew:75,renew:25,plan:"설계사들만 아는 만 원 미만 순환계 질환 주요치료비 플랜",layer:"비갱신 뇌·심 + 20년납 3대진단비 + 갱신형 실손 혼합"};
+  if(m&&age>=40)return{tag:"40대+ 남성",emoji:"⚠️",accent:"#C2410C",priority:malePriority,
+    msg:"40대 이상 남성은 대한민국 3대 질병 발병 통계가 수직 상승하는 구간입니다. 완치 후 경제 활동 공백까지 고려해 진단비 한도를 극대화하고 치료비 중심으로 콤팩트하게 집중 보완해야 합니다.",
+    noRenew:60,renew:40,plan:"고액 심혈관/뇌혈관 특정 치료비 집중 플랜",layer:"간편심사 검토 + 고액 진단비 우선 + 갱신형 실손 유지"};
+  if(!m&&age<30)return{tag:"20대 여성",emoji:"🌸",accent:PINK,priority:femalePriority,
+    msg:"20대 여성은 통계적으로 유방암, 갑상선암(유사암) 등 여성 특화 질환의 발병 시기가 남성보다 훨씬 빠르게 시작됩니다. 한도가 축소되기 전 소액암/유사암 진단비를 가장 저렴하게 선점해 두셔야 합니다.",
+    noRenew:90,renew:10,plan:"월 몇 천 원대 여성 전용 미니 암케어 플랜",layer:"여성암 비갱신 + 소액암 선점 + 실손 + 태아보험 준비"};
+  if(!m&&age<40)return{tag:"30대 여성",emoji:"👶",accent:"#7C3AED",priority:femalePriority,
+    msg:"30대 여성은 결혼 및 출산, 그리고 여성 3대 암 발병률이 정점을 향하는 시기입니다. 자궁근종 등 산부인과 기왕증으로 가입 제한 패널티가 생기기 전 무사고 상태에서 건강 담보를 완성해야 합니다.",
+    noRenew:80,renew:20,plan:"여성 특정 질병 수술비 및 1-5종 수술비 플랜",layer:"여성특화 비갱신 + 출산 전 완성 + 갱신형 실손 혼합"};
+  return{tag:"40대+ 여성",emoji:"🌿",accent:GREEN,priority:femalePriority,
+    msg:"40대 이상 여성은 갱년기 호르몬 변화와 더불어 노후 간병/치매 리스크 노출이 시작됩니다. 여성이 남성보다 노후 요양 기간이 길다는 통계를 반영하여 간병인 지원 체계를 조화롭게 설계해야 합니다.",
+    noRenew:50,renew:50,plan:"노후 대비 간병인 사용 일당 및 치매 보장 플랜",layer:"간병·치매 집중 + 여성암 유지 + 연금형 병행 검토"};
+}
+
+// ─ Bar ─────────────────────────────────────────────────
+function Bar({label,pct,color,delay=0}){
+  const[w,setW]=useState(0);
+  useEffect(()=>{const t=setTimeout(()=>setW(pct),delay+120);return()=>clearTimeout(t);},[pct,delay]);
+  return(
+    <div style={{marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+        <span style={{fontSize:13,color:"#334155",fontWeight:500}}>{label}</span>
+        <span style={{fontSize:13,fontWeight:700,color}}>{pct}%</span>
+      </div>
+      <div style={{height:10,background:"#F1F5F9",borderRadius:999,overflow:"hidden"}}>
+        <div style={{height:"100%",width:`${w}%`,background:color,borderRadius:999,transition:"width 1s cubic-bezier(.4,0,.2,1)"}}/>
+      </div>
+    </div>
+  );
+}
+
+// ─ Priority badges ──────────────────────────────────────
+function PriorityBadges({items,color}){
+  return(
+    <div style={{display:"flex",flexWrap:"wrap",alignItems:"center",gap:4,margin:"12px 0"}}>
+      {items.map((label,i)=>(
+        <React.Fragment key={i}>
+          <span style={{padding:"5px 12px",borderRadius:8,background:color+"18",color,fontSize:12,fontWeight:700,border:`1px solid ${color}33`,whiteSpace:"nowrap"}}>{label}</span>
+          {i<items.length-1&&<span style={{color:"#CBD5E1",fontSize:14,fontWeight:300}}>→</span>}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+// ─ Steps indicator ──────────────────────────────────────
+function Steps({cur}){
+  const labels=["기본정보","알릴의무","리스크 진단","완료"];
+  return(
+    <div style={{display:"flex",alignItems:"center",padding:"0 8px",marginBottom:24}}>
+      {labels.map((l,i)=>{
+        const n=i+1,done=n<cur,active=n===cur;
+        return(
+          <React.Fragment key={i}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,flexShrink:0}}>
+              <div style={{width:28,height:28,borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,
+                background:done?GREEN:active?BLUE:"#CBD5E1",color:"#fff",
+                boxShadow:active?`0 0 0 4px ${BLUEL}`:done?`0 0 0 4px ${GREENL}`:"none",transition:"all .3s"}}>
+                {done?"✓":n}
+              </div>
+              <div style={{fontSize:10,color:active?BLUE:done?GREEN:MUTED,fontWeight:active||done?600:400,whiteSpace:"nowrap"}}>{l}</div>
+            </div>
+            {i<3&&<div style={{flex:1,height:2,background:done?GREEN:active?"#BFDBFE":"#E2E8F0",margin:"0 3px 14px",transition:"background .3s",minWidth:4}}/>}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─ UI atoms ─────────────────────────────────────────────
+function Card({children,style={}}){return <div style={{background:WHITE,borderRadius:16,border:`1px solid ${BORDER}`,padding:"18px 16px",marginBottom:12,boxShadow:"0 1px 4px rgba(0,0,0,.05)",...style}}>{children}</div>;}
+function Label({children}){return <label style={{display:"block",fontSize:12,fontWeight:700,color:MUTED,textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>{children}</label>;}
+function Inp({...p}){return <input {...p} style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${p.value?"#3B82F6":BORDER}`,borderRadius:12,fontSize:15,color:"#0F172A",background:WHITE,transition:"border .15s",outline:"none",...(p.style||{})}}/>;}
+function Btn({children,onClick,disabled,style={}}){return <button onClick={onClick} disabled={disabled} style={{width:"100%",padding:"15px",borderRadius:14,background:disabled?"#94A3B8":`linear-gradient(135deg,${NAVY},${BLUE})`,color:WHITE,fontSize:15,fontWeight:700,border:"none",cursor:disabled?"not-allowed":"pointer",boxShadow:disabled?"none":`0 4px 16px rgba(37,99,235,.3)`,transition:"all .2s",...style}}>{children}</button>;}
+
+// ══════════════════════════════════════════════════════
+// STEP 1
+// ══════════════════════════════════════════════════════
+function Step1({form,setForm,onNext}){
+  const{name,gender,rrnFront,rrnBack,occ,occCustom,occDetail,phone,carrier,sido,addrDetail}=form;
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const insAge=useMemo(()=>calcInsAge(rrnFront||"",rrnBack||""),[rrnFront,rrnBack]);
+  const checks = {
+    이름: !!name,
+    성별: !!gender,
+    주민번호: rrnFront.length===6 && rrnBack.length===7,
+    직업: !!(occ && (occ!=="기타(직접입력)" || occCustom?.trim())),
+    핸드폰: phone.replace(/[^0-9]/g,"").length>=10,
+    통신사: !!carrier,
+    거주지역: !!(sido && addrDetail?.trim().length>0),
+  };
+  const canNext = Object.values(checks).every(Boolean);
+
+  return(
+    <div className="fade-up">
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontSize:20,fontWeight:800,color:"#0F172A",marginBottom:6}}>기본 정보 입력</h2>
+        <p style={{fontSize:14,color:MUTED,lineHeight:1.6}}>보험 설계에 필요한 기본 정보를 입력해주세요.<br/>모든 정보는 암호화되어 안전하게 처리됩니다.</p>
+      </div>
+
+      <Card>
+        <Label>이름</Label>
+        <Inp placeholder="실명을 입력해주세요" value={name} onChange={e=>set("name",e.target.value)}/>
+      </Card>
+
+      <Card>
+        <Label>성별</Label>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {["남성","여성"].map(g=>(
+            <div key={g} onClick={()=>set("gender",g)} style={{padding:"16px",borderRadius:14,border:`2px solid ${gender===g?BLUE:BORDER}`,background:gender===g?BLUEL:WHITE,cursor:"pointer",textAlign:"center",transition:"all .18s"}}>
+              <div style={{fontSize:28,marginBottom:4}}>{g==="남성"?"👨":"👩"}</div>
+              <div style={{fontSize:15,fontWeight:700,color:gender===g?BLUE:"#334155"}}>{g}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <Label>주민등록번호</Label>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <Inp placeholder="앞 6자리" value={rrnFront} maxLength={6} inputMode="numeric"
+            style={{flex:1,textAlign:"center",letterSpacing:4,fontSize:17}}
+            onChange={e=>set("rrnFront",e.target.value.replace(/\D/g,""))}/>
+          <span style={{fontSize:20,color:MUTED,flexShrink:0}}>—</span>
+          <div style={{flex:1,position:"relative"}}>
+            <input
+              type="password"
+              placeholder="뒤 7자리"
+              value={rrnBack}
+              maxLength={7}
+              inputMode="numeric"
+              onChange={e=>set("rrnBack",e.target.value.replace(/\D/g,""))}
+              style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${rrnBack?"#3B82F6":BORDER}`,borderRadius:12,fontSize:17,letterSpacing:4,color:"#0F172A",background:WHITE,outline:"none",textAlign:"center"}}/>
+          </div>
+        </div>
+        <p style={{fontSize:11,color:"#94A3B8",marginTop:5}}>※ 주민등록증 기준으로 입력해 주세요 · 뒷자리는 암호화 처리됩니다</p>
+        {insAge!==null&&rrnFront.length===6&&rrnBack.length===7&&(
+          <div className="scale-in" style={{marginTop:10,padding:"12px 14px",background:`linear-gradient(135deg,${BLUEL},#DBEAFE)`,borderRadius:12,border:`1px solid #BFDBFE`}}>
+            <div style={{fontSize:14,fontWeight:700,color:NAVY}}>
+              🎯 {name||"고객"}님의 현재 보험 나이는 <span style={{fontSize:18,color:BLUE}}>만 {insAge}세</span>입니다
+            </div>
+            <div style={{fontSize:12,color:"#3B82F6",marginTop:3}}>상령일 기준 계산 (6개월 초과 시 +1세 적용)</div>
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <Label>핸드폰 번호</Label>
+        <input
+          type="tel"
+          placeholder="010-0000-0000"
+          value={phone}
+          maxLength={13}
+          onChange={e=>{
+            const d=e.target.value.replace(/[^0-9]/g,'').slice(0,11);
+            const fmt=d.length<=3?d:d.length<=7?d.slice(0,3)+'-'+d.slice(3):d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);
+            set("phone",fmt);
+          }}
+          style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${phone?"#3B82F6":BORDER}`,borderRadius:12,fontSize:15,color:"#0F172A",background:WHITE,outline:"none",fontFamily:"inherit"}}
+        />
+        <div style={{marginTop:10}}>
+          <div style={{fontSize:12,fontWeight:600,color:MUTED,marginBottom:8}}>통신사</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+            {[["SKT","🔴"],["KT","🟡"],["LG U+","🟣"],["SKT 알뜰폰","📱"],["KT 알뜰폰","📱"],["LG 알뜰폰","📱"]].map(([name2,ic])=>(
+              <div key={name2} onClick={()=>set("carrier",name2)}
+                style={{padding:"9px 4px",borderRadius:10,border:`2px solid ${carrier===name2?BLUE:BORDER}`,background:carrier===name2?BLUEL:WHITE,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+                <div style={{fontSize:14}}>{ic}</div>
+                <div style={{fontSize:11,fontWeight:600,color:carrier===name2?BLUE:"#475569",marginTop:2,lineHeight:1.2}}>{name2}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <Label>직업</Label>
+        <select value={occ} onChange={e=>set("occ",e.target.value)}
+          style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${occ?BLUE:BORDER}`,borderRadius:12,fontSize:14,color:occ?"#0F172A":MUTED,background:WHITE,outline:"none",appearance:"auto"}}>
+          <option value="">직업을 선택해주세요</option>
+          {OCCS.map(o=><option key={o} value={o}>{o}</option>)}
+        </select>
+        {occ==="기타(직접입력)"&&(
+          <div style={{marginTop:8}}>
+            <Inp placeholder="직업을 직접 입력해주세요" value={occCustom||""} onChange={e=>set("occCustom",e.target.value)}/>
+          </div>
+        )}
+        <div style={{marginTop:10}}>
+          <div style={{fontSize:12,fontWeight:600,color:MUTED,marginBottom:6}}>상세 업무 내용 <span style={{fontWeight:400}}>(선택)</span></div>
+          <textarea value={occDetail||""} onChange={e=>set("occDetail",e.target.value)}
+            placeholder={"예) 사무직 회사원으로 주로 실내 근무합니다\n예) 배달 라이더로 오토바이 운행 하루 6시간\n예) 건설 현장에서 철근 작업합니다"}
+            rows={3}
+            style={{width:"100%",padding:"11px 14px",border:`1.5px solid ${BORDER}`,borderRadius:12,fontSize:13,color:"#0F172A",background:WHITE,resize:"vertical",outline:"none",lineHeight:1.6,fontFamily:"inherit"}}/>
+          <p style={{fontSize:11,color:"#94A3B8",marginTop:4}}>구체적인 업무 환경을 적어주시면 정확한 상해급수 산출이 가능합니다</p>
+        </div>
+      </Card>
+
+      <Card>
+        <Label>거주지역</Label>
+        <select value={sido||""} onChange={e=>set("sido",e.target.value)}
+          style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${sido?BLUE:BORDER}`,borderRadius:12,fontSize:14,color:sido?"#0F172A":MUTED,background:WHITE,outline:"none",appearance:"auto",marginBottom:8}}>
+          <option value="">시/도 선택</option>
+          {SIDO.map(s=><option key={s} value={s}>{s}</option>)}
+        </select>
+        <Inp placeholder="동, 아파트명, 호수까지 입력해주세요 (예: 서구 둔산동 xx아파트 101동 101호)" value={addrDetail||""}
+          onChange={e=>set("addrDetail",e.target.value)}/>
+      </Card>
+
+      <Btn onClick={onNext} disabled={!canNext}>다음 단계 →</Btn>
+      {!canNext&&(
+        <div style={{marginTop:10,padding:"12px 14px",background:"#FFF8F0",border:"1px solid #FED7AA",borderRadius:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#92400E",marginBottom:8}}>아직 입력이 필요한 항목이에요</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {Object.entries(checks).map(([label,ok])=>!ok&&(
+              <span key={label} style={{padding:"3px 10px",borderRadius:999,background:"#FEF3C7",color:"#B45309",fontSize:12,fontWeight:600}}>✗ {label}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// STEP 2
+// ══════════════════════════════════════════════════════
+const Q_DEFS=[
+  {k:"q1",period:"3개월",cutoff:()=>calcCutoff(3),icon:"🩺",
+   title:()=>`최근 3개월 이내 (${calcCutoff(3)} 이후) 의사로부터 진찰·검사·치료·약복용 이력이 있으신가요?`},
+  {k:"q2",period:"1년",cutoff:()=>calcCutoff(12),icon:"🔬",
+   title:()=>`최근 1년 이내에 의사로부터 추가검사(재검사) 소견을 받으신 적이 있으신가요?`},
+  {k:"q3",period:"5년",cutoff:()=>calcYearCutoff(5),icon:"🏥",
+   title:()=>`최근 5년 이내 (${calcYearCutoff(5)} 이후) 입원, 수술, 7일 이상 치료, 30일 이상 투약 이력이 있으신가요?`},
+];
+
+function Step2({disc,setDisc,onNext,onPrev,form}){
+  const setD=(k,v)=>setDisc(p=>({...p,[k]:v,[k+"d"]:v?p[k+"d"]:[],...(v?{}:{[k+"memo"]:""})}));
+  const toggleD=(k,v)=>setDisc(p=>{const arr=p[k+"d"];return{...p,[k+"d"]:arr.includes(v)?arr.filter(x=>x!==v):[...arr,v]};});
+  const setMemo=(k,v)=>setDisc(p=>({...p,[k+"memo"]:v}));
+  const canNext=Q_DEFS.every(q=>disc[q.k]!==null);
+  const hasYes=Q_DEFS.some(q=>disc[q.k]===true);
+  const hasDisease=Q_DEFS.some(q=>disc[q.k+"d"]&&disc[q.k+"d"].length>0);
+
+  return(
+    <div className="fade-up">
+      <div style={{marginBottom:16}}>
+        <h2 style={{fontSize:20,fontWeight:800,color:"#0F172A",marginBottom:6}}>계약 전 알릴의무 확인</h2>
+        <p style={{fontSize:13,color:MUTED,lineHeight:1.6}}>정확한 보험 심사를 위한 표준 고지의무 항목입니다.<br/>솔직하게 답변해야 보험금 지급 시 불이익이 없습니다.</p>
+      </div>
+
+      {/* HIRA 안내 — 맨 위 */}
+      <div style={{background:BLUEL,border:`1px solid #BFDBFE`,borderRadius:16,padding:"16px",marginBottom:16}}>
+        <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:12}}>
+          <span style={{fontSize:22,flexShrink:0}}>💡</span>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:NAVY,marginBottom:4}}>진료이력 조회로 더 정밀한 분석을</div>
+            <p style={{fontSize:13,color:"#1E40AF",lineHeight:1.6}}>아래 가이드에 따라 건강보험심사평가원에서 진료이력을 조회한 후 설계사에게 전달해 주시면 더욱 정밀한 보장 분석이 가능합니다.</p>
+          </div>
+        </div>
+        <div style={{background:WHITE,borderRadius:12,padding:"12px 14px",border:`1px solid #BFDBFE`,marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:700,color:NAVY,marginBottom:8}}>📋 조회 방법</div>
+          {[
+            "① hira.or.kr 접속 → '진료정보 열람' 접속",
+            "② 보험종별: 건강보험 선택 → 상병항목 표시 체크, 민감상병 표시 체크, 전체 병의원·약국 체크",
+            "③ 대상기간 5년 설정 → '기본진료정보요약' 옆의 '기본진료내역' 클릭 → '조회' 버튼 클릭",
+            "④ 전체 다운로드 후 설계사에게 전달",
+          ].map((t,i)=>(
+            <div key={i} style={{fontSize:12,color:"#1E40AF",padding:"5px 0",borderBottom:i<3?`1px dashed #BFDBFE`:"none",lineHeight:1.5}}>{t}</div>
+          ))}
+        </div>
+        <a href="https://www.hira.or.kr/main.do" target="_blank" rel="noreferrer"
+          style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"11px",background:BLUE,color:WHITE,borderRadius:12,fontSize:14,fontWeight:600,textDecoration:"none"}}>
+          🔗 건강보험심사평가원 바로가기
+        </a>
+      </div>
+
+      {/* 3대 고지의무 */}
+      {Q_DEFS.map(q=>(
+        <div key={q.k} style={{background:WHITE,borderRadius:16,border:`1px solid ${BORDER}`,padding:"18px 16px",marginBottom:12,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+          <div style={{display:"flex",gap:10,marginBottom:14}}>
+            <span style={{fontSize:22,flexShrink:0}}>{q.icon}</span>
+            <div>
+              <span style={{display:"inline-block",padding:"2px 10px",background:AMBERL,color:AMBER,borderRadius:999,fontSize:11,fontWeight:700,marginBottom:6}}>최근 {q.period} 이내</span>
+              <p style={{fontSize:14,fontWeight:500,color:"#1E293B",lineHeight:1.6}}>{q.title()}</p>
+            </div>
+          </div>
+          {/* Yes / No / 모르겠음 */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+            {[{v:true,l:"예",ic:"✓",bg:REDL,bc:RED,tc:RED},{v:false,l:"아니오",ic:"✗",bg:GREENL,bc:GREEN,tc:GREEN},{v:"unknown",l:"모르겠음",ic:"❓",bg:AMBERL,bc:AMBER,tc:AMBER}].map(opt=>{
+              const sel=disc[q.k]===opt.v;
+              return(
+                <div key={String(opt.v)} onClick={()=>setD(q.k,opt.v)} style={{padding:"11px 6px",borderRadius:12,border:`2px solid ${sel?opt.bc:BORDER}`,background:sel?opt.bg:WHITE,cursor:"pointer",textAlign:"center",transition:"all .18s"}}>
+                  <div style={{fontSize:18,marginBottom:2}}>{opt.ic}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:sel?opt.tc:"#475569"}}>{opt.l}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 질병 선택 (Yes일 때만) */}
+          {disc[q.k]===true&&(
+            <div className="fade-up" style={{marginTop:12,padding:"14px",background:"#FFF8F8",borderRadius:12,border:`1px dashed #FCA5A5`}}>
+              <div style={{fontSize:12,fontWeight:700,color:RED,marginBottom:10}}>⚕️ 해당 질환/부위를 선택해주세요 (복수 선택 가능)</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12}}>
+                {DISEASES.map(d=>{
+                  const sel=disc[q.k+"d"].includes(d);
+                  return(
+                    <div key={d} onClick={()=>toggleD(q.k,d)} style={{padding:"6px 12px",borderRadius:999,border:`1.5px solid ${sel?RED:"#FCA5A5"}`,background:sel?RED:WHITE,color:sel?WHITE:"#9CA3AF",fontSize:12,fontWeight:500,cursor:"pointer",transition:"all .12s"}}>{d}</div>
+                  );
+                })}
+              </div>
+              {/* 상세 기입란 */}
+              {disc[q.k+"d"]&&disc[q.k+"d"].length>0&&(
+                <div className="scale-in">
+                  <div style={{fontSize:12,fontWeight:700,color:"#7F1D1D",marginBottom:6}}>📝 정확한 이력을 작성해 주세요</div>
+                  <textarea
+                    value={disc[q.k+"memo"]||""}
+                    onChange={e=>setMemo(q.k,e.target.value)}
+                    placeholder={`예) 26년 4월 30일, 오른쪽 손가락 염좌로 물리치료 1회, 완치\n예) 25년 11월, 역류성 식도염으로 약 30일 복용, 현재 완치`}
+                    rows={3}
+                    style={{width:"100%",padding:"10px 12px",border:`1.5px solid #FCA5A5`,borderRadius:10,fontSize:13,color:"#1E293B",background:WHITE,resize:"vertical",outline:"none",lineHeight:1.6}}
+                  />
+                  <p style={{fontSize:11,color:"#9CA3AF",marginTop:4}}>일자 · 부위 및 진단명 · 치료 기간 · 완치 여부를 포함해 주세요</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 모르겠음 안내 */}
+          {disc[q.k]==="unknown"&&(
+            <div className="fade-up" style={{marginTop:10,padding:"12px 14px",background:AMBERL,borderRadius:10,border:`1px solid #FDE68A`}}>
+              <div style={{fontSize:13,color:"#78350F",lineHeight:1.6}}>💬 정확히 모르셔도 괜찮습니다. 심평원 진료이력 조회 자료를 함께 첨부해 주시면 설계사가 직접 확인 후 최적 방어 전략을 안내해 드립니다.</div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* 유병 경고 박스 */}
+      {hasDisease&&(
+        <div className="scale-in" style={{background:"#FEF3C7",border:`1.5px solid #FDE68A`,borderRadius:14,padding:"14px 16px",marginBottom:12}}>
+          <div style={{fontSize:13,color:"#92400E",lineHeight:1.7}}>
+            ⚠️ 선택하신 병력은 표준형 가입 시 부담보(보장 제외) 조건이 붙을 수 있습니다. 제출 후 심평원 이력을 토대로 <strong>패널티를 최소화할 수 있는 방어 플랜</strong>을 집중 설계해 드리겠습니다.
+          </div>
+        </div>
+      )}
+
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={onPrev} style={{flex:1,padding:"14px",borderRadius:14,border:`1.5px solid ${BORDER}`,background:WHITE,color:"#475569",fontSize:14,fontWeight:600}}>← 이전</button>
+        <Btn style={{flex:2}} onClick={onNext} disabled={!canNext}>다음 단계 →</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// STEP 3
+// ══════════════════════════════════════════════════════
+function Step3({form,disc,onNext,onPrev}){
+  // Step3에서 직접 계산 (props 전달 의존하지 않음)
+  const insAge = useMemo(()=>{
+    const age = calcInsAge(form.rrnFront||"", form.rrnBack||"");
+    if(age!==null) return age;
+    // 뒷자리 입력 없어도 앞자리로 연도 추정
+    if(form.rrnFront?.length===6){
+      const yy=parseInt(form.rrnFront.slice(0,2));
+      const cy=new Date().getFullYear()%100;
+      const year=yy<=cy?2000+yy:1900+yy;
+      const m=parseInt(form.rrnFront.slice(2,4))-1;
+      const d=parseInt(form.rrnFront.slice(4,6));
+      const birth=new Date(year,m,d),now=new Date();
+      let a=now.getFullYear()-birth.getFullYear();
+      const thisB=new Date(now.getFullYear(),m,d);
+      if(now<thisB)a--;
+      const halfB=new Date(birth.getFullYear()+a+(now>=thisB?0:-1),m+6,d);
+      return now>=halfB?a+1:a;
+    }
+    return null;
+  },[form.rrnFront,form.rrnBack]);
+
+  const risk=getRisk(form.gender,insAge);
+  const hasYes=Q_DEFS.some(q=>disc[q.k]===true);
+  const hasDisease=Q_DEFS.some(q=>disc[q.k+"d"]&&disc[q.k+"d"].length>0);
+
+  return(
+    <div className="fade-up">
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontSize:20,fontWeight:800,color:"#0F172A",marginBottom:6}}>맞춤 리스크 프리뷰</h2>
+        <p style={{fontSize:13,color:MUTED}}>{form.name||"고객"}님 전용 보험 분석 결과입니다</p>
+      </div>
+
+      {risk?(
+        <>
+          {/* 프로필 배너 */}
+          <div style={{background:`linear-gradient(135deg,${NAVY} 0%,#1D4ED8 100%)`,borderRadius:20,padding:"20px 18px",marginBottom:14,color:WHITE}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
+              <div style={{fontSize:34}}>{risk.emoji}</div>
+              <div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+                  <span style={{padding:"3px 10px",background:"rgba(255,255,255,.2)",borderRadius:999,fontSize:12,fontWeight:700}}>{risk.tag}</span>
+                  <span style={{padding:"3px 10px",background:BLUE,borderRadius:999,fontSize:12,fontWeight:700}}>보험나이 {insAge}세</span>
+
+                </div>
+                <div style={{fontSize:12,opacity:.8}}>{form.occ==="기타(직접입력)"?(form.occCustom||"기타"):form.occ}{form.occDetail&&` · ${form.occDetail.slice(0,20)}${form.occDetail.length>20?"…":""}`}</div>
+              </div>
+            </div>
+            <p style={{fontSize:14,lineHeight:1.75,opacity:.95}}>{risk.msg}</p>
+          </div>
+
+          {/* 가입 우선순위 뱃지 */}
+          <div style={{background:WHITE,borderRadius:16,border:`1px solid ${BORDER}`,padding:"16px",marginBottom:12,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+            <div style={{fontSize:14,fontWeight:700,color:"#0F172A",marginBottom:4}}>🎯 보장 가입 우선순위</div>
+            <div style={{fontSize:12,color:MUTED,marginBottom:10}}>통계적 위험도 기반 맞춤 순서</div>
+            <PriorityBadges items={risk.priority} color={risk.accent}/>
+          </div>
+
+          {/* 비율 그래프 */}
+          <div style={{background:WHITE,borderRadius:16,border:`1px solid ${BORDER}`,padding:"18px 16px",marginBottom:12,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+            <div style={{fontSize:14,fontWeight:700,color:"#0F172A",marginBottom:14}}>📊 권장 보험 설계 구성 비율</div>
+            <Bar label="비갱신형 (평생 고정 보험료)" pct={risk.noRenew} color={BLUE} delay={100}/>
+            <Bar label="갱신형 (효율·보완 목적)" pct={risk.renew} color={GREEN} delay={300}/>
+          </div>
+
+          {/* 🔥 가성비 레이어링 */}
+          <div style={{border:`2px solid ${risk.accent}`,borderRadius:16,padding:"16px",marginBottom:12,background:risk.accent+"08"}}>
+            <div style={{fontSize:13,fontWeight:700,color:risk.accent,marginBottom:6}}>🔥 설계사 추천 가성비 레이어링</div>
+            <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginBottom:8}}>{risk.plan}</div>
+            <div style={{padding:"12px",background:WHITE,borderRadius:12,border:`1px solid ${risk.accent}33`}}>
+              <div style={{fontSize:12,color:MUTED,marginBottom:4}}>레이어링 전략</div>
+              <div style={{fontSize:13,color:"#1E293B",fontWeight:500,lineHeight:1.6}}>{risk.layer}</div>
+            </div>
+          </div>
+
+          {/* 유병 경고 */}
+          {hasDisease&&(
+            <div className="scale-in" style={{background:REDL,border:`1.5px solid #FCA5A5`,borderRadius:16,padding:"16px",marginBottom:12}}>
+              <div style={{display:"flex",gap:10}}>
+                <span style={{fontSize:20,flexShrink:0}}>⚠️</span>
+                <div>
+                  <div style={{fontSize:14,fontWeight:700,color:RED,marginBottom:4}}>유병 이력이 확인되었습니다</div>
+                  <p style={{fontSize:13,color:"#7F1D1D",lineHeight:1.6}}>기재하신 건강 이력에 따라 일반 심사 거절 가능성이 있습니다. 간편심사 보험, 유병자 전용 상품, 특별조건부 가입 전략을 별도 검토해드리겠습니다.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 설계사 */}
+          <div style={{background:WHITE,borderRadius:16,border:`1px solid ${BORDER}`,padding:"16px",marginBottom:16,display:"flex",gap:12,alignItems:"center",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+            <div style={{width:48,height:48,borderRadius:24,background:`linear-gradient(135deg,${NAVY},${BLUE})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>👨‍💼</div>
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>김성래 보험설계사</div>
+              <div style={{fontSize:12,color:MUTED,marginTop:2}}>보험 전문 컨설턴트 · 1:1 맞춤 설계</div>
+              <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
+                {["무료 상담","맞춤 설계","카카오톡 응대"].map(t=>(
+                  <span key={t} style={{padding:"2px 8px",background:BLUEL,color:BLUE,borderRadius:999,fontSize:11,fontWeight:600}}>{t}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      ):(
+        <div style={{background:WHITE,borderRadius:16,border:`1px solid ${BORDER}`,padding:40,textAlign:"center",marginBottom:16}}>
+          <div style={{fontSize:40,marginBottom:10}}>🔍</div>
+          <div style={{fontSize:14,color:MUTED}}>성별과 생년월일을 입력하시면<br/>맞춤 분석이 표시됩니다</div>
+        </div>
+      )}
+
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={onPrev} style={{flex:1,padding:"14px",borderRadius:14,border:`1.5px solid ${BORDER}`,background:WHITE,color:"#475569",fontSize:14,fontWeight:600}}>← 이전</button>
+        <Btn style={{flex:2}} onClick={onNext}>제출 단계로 →</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// STEP 4
+// ══════════════════════════════════════════════════════
+function Step4({form,disc,onPrev}){
+  const insAge = useMemo(()=>{
+    const age = calcInsAge(form.rrnFront||"", form.rrnBack||"");
+    if(age!==null) return age;
+    if(form.rrnFront?.length===6){
+      const yy=parseInt(form.rrnFront.slice(0,2));
+      const cy=new Date().getFullYear()%100;
+      const year=yy<=cy?2000+yy:1900+yy;
+      const m=parseInt(form.rrnFront.slice(2,4))-1;
+      const d=parseInt(form.rrnFront.slice(4,6));
+      const birth=new Date(year,m,d),now=new Date();
+      let a=now.getFullYear()-birth.getFullYear();
+      if(now<new Date(now.getFullYear(),m,d))a--;
+      const halfB=new Date(birth.getFullYear()+a+(now>=new Date(now.getFullYear(),m,d)?0:-1),m+6,d);
+      return now>=halfB?a+1:a;
+    }
+    return null;
+  },[form.rrnFront,form.rrnBack]);
+  const risk = getRisk(form.gender, insAge);
+  const[submitted,setSubmitted]=useState(false);
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState("");
+  const hasYes=Q_DEFS.some(q=>disc[q.k]===true);
+  const hasDisease=Q_DEFS.some(q=>disc[q.k+"d"]&&disc[q.k+"d"].length>0);
+
+  // ★ Formspree 실제 전송
+  // 👉 formspree.io 에서 무료 가입 후 Form ID를 아래에 붙여넣으세요
+  const FORMSPREE_ID = "mrednkov";
+
+  const buildDiscText = () => Q_DEFS.map(q=>{
+    const ans = disc[q.k]===true?"예":disc[q.k]===false?"아니오":"모르겠음";
+    const diseases = disc[q.k+"d"]?.join(", ")||"";
+    const memo = disc[q.k+"memo"]||"";
+    return `[${q.period} 이내] ${ans}${diseases?` / 부위: ${diseases}`:""}${memo?`\n상세: ${memo}`:""}`;
+  }).join("\n");
+
+  const handleSubmit=async()=>{
+    setLoading(true); setError("");
+    const payload={
+      이름: form.name,
+      성별: form.gender,
+      주민번호: form.rrnFront&&form.rrnBack?`${form.rrnFront}-${form.rrnBack}`:"미입력",
+      보험나이: insAge?`만 ${insAge}세`:"미입력",
+      핸드폰: form.phone||"미입력",
+      통신사: form.carrier||"미입력",
+      직업: form.occ==="기타(직접입력)"?(form.occCustom||"기타"):form.occ,
+      업무상세: form.occDetail||"-",
+      거주지역: [form.sido,form.addrDetail].filter(Boolean).join(" ")||"미입력",
+      알릴의무: buildDiscText(),
+      분석전략: risk?`${risk.tag} — ${risk.plan}`:"미분석",
+      레이어링: risk?.layer||"-",
+    };
+    try {
+      const fd = new FormData();
+      Object.entries(payload).forEach(([k,v])=>fd.append(k, v||"-"));
+      const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`,{
+        method:"POST",
+        headers:{"Accept":"application/json"},
+        body:fd,
+      });
+      if(res.ok) setSubmitted(true);
+      else {
+        const data = await res.json().catch(()=>({}));
+        setError(data?.error||"전송에 실패했습니다. Formspree 대시보드에서 도메인 허용 설정을 확인해주세요.");
+      }
+    } catch(e) {
+      setError("⚠️ 로컬 파일에서는 전송이 안 돼요. Netlify에 업로드 후 테스트해주세요!");
+    }
+    finally { setLoading(false); }
+  };
+
+  if(submitted)return(
+    <div className="scale-in" style={{textAlign:"center",padding:"20px 0"}}>
+      <div style={{fontSize:64,marginBottom:16}}>🎉</div>
+      <h2 style={{fontSize:22,fontWeight:800,color:"#0F172A",marginBottom:8}}>전송 완료!</h2>
+      <p style={{fontSize:15,color:MUTED,lineHeight:1.7,marginBottom:20}}>사전 프로필 전송이 완료되었습니다.<br/>설계사가 배정되어 <strong style={{color:BLUE}}>카카오톡으로 정밀 분석<br/>제안서</strong>를 보내드릴 예정입니다.</p>
+      <div style={{background:`linear-gradient(135deg,${NAVY},${BLUE})`,borderRadius:20,padding:"20px",color:WHITE,marginBottom:14,textAlign:"left"}}>
+        <div style={{fontSize:13,opacity:.8,marginBottom:4}}>담당 설계사</div>
+        <div style={{fontSize:17,fontWeight:700}}>김성래 보험설계사</div>
+        <div style={{fontSize:13,opacity:.8,marginTop:2,marginBottom:12}}>보험 전문 컨설턴트</div>
+        <div style={{padding:"12px",background:"rgba(255,255,255,.15)",borderRadius:12,fontSize:13}}>⏱ 영업일 기준 <strong>1일 이내</strong> 카카오톡으로 연락드립니다</div>
+      </div>
+      {risk&&<div style={{background:GREENL,borderRadius:14,padding:"14px",border:`1px solid #A7F3D0`,textAlign:"left"}}>
+        <div style={{fontSize:13,color:"#065F46",lineHeight:1.6}}>✅ <strong>{form.name}님 예상 전략:</strong> {risk.layer}</div>
+      </div>}
+    </div>
+  );
+
+  return(
+    <div className="fade-up">
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontSize:20,fontWeight:800,color:"#0F172A",marginBottom:6}}>제출 전 최종 확인</h2>
+        <p style={{fontSize:14,color:MUTED}}>아래 내용을 확인 후 전송해주세요</p>
+      </div>
+
+      <div style={{background:WHITE,borderRadius:16,border:`1px solid ${BORDER}`,padding:"18px 16px",marginBottom:12,boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}>
+        <div style={{fontSize:14,fontWeight:700,color:"#0F172A",marginBottom:14,paddingBottom:12,borderBottom:`1px solid ${BORDER}`}}>📋 입력 정보 요약</div>
+        {[
+          ["이름",form.name],
+          ["성별",form.gender],
+          ["주민번호",form.rrnFront&&form.rrnBack?`${form.rrnFront} - ${form.rrnBack[0]}••••••`:"미입력"],
+          ["보험 나이",insAge?`만 ${insAge}세`:"미입력"],
+          ["핸드폰",form.phone||"미입력"],
+          ["통신사",form.carrier||"미입력"],
+          ["직업",form.occ==="기타(직접입력)"?form.occCustom||"기타":form.occ],
+          ["업무 상세",form.occDetail||"-"],
+          ["거주지",[form.sido,form.addrDetail].filter(Boolean).join(" ")||"미입력"],
+        ].map(([k,v])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px dashed ${BORDER}`}}>
+            <span style={{fontSize:13,color:MUTED}}>{k}</span>
+            <span style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>{v}</span>
+          </div>
+        ))}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0"}}>
+          <span style={{fontSize:13,color:MUTED}}>알릴의무</span>
+          <span style={{fontSize:13,fontWeight:600,color:hasYes?RED:GREEN}}>{hasYes?"유병 이력 있음 ⚠️":"이상 없음 ✓"}</span>
+        </div>
+      </div>
+
+      {risk&&(
+        <div style={{background:BLUEL,border:`1px solid #BFDBFE`,borderRadius:16,padding:"16px",marginBottom:12}}>
+          <div style={{fontSize:12,color:"#1E40AF",fontWeight:600,marginBottom:4}}>🎯 분석된 맞춤 전략</div>
+          <div style={{fontSize:15,fontWeight:700,color:NAVY,marginBottom:4}}>{risk.tag}</div>
+          <div style={{fontSize:13,color:"#1E40AF"}}>{risk.plan}</div>
+        </div>
+      )}
+
+      <div style={{background:AMBERL,border:`1px solid #FDE68A`,borderRadius:14,padding:"14px",marginBottom:20}}>
+        <div style={{fontSize:12,color:"#92400E",lineHeight:1.6}}>📌 <strong>개인정보 수집 안내:</strong> 입력하신 정보는 보험 상담 및 설계 목적으로만 사용되며, 설계사 외 제3자에게 제공되지 않습니다.</div>
+      </div>
+
+      <button onClick={handleSubmit} disabled={loading} style={{width:"100%",padding:"18px",borderRadius:16,background:loading?"#93C5FD":`linear-gradient(135deg,${NAVY} 0%,${BLUE} 100%)`,color:WHITE,fontSize:16,fontWeight:700,border:"none",cursor:loading?"not-allowed":"pointer",boxShadow:loading?"none":`0 4px 20px rgba(37,99,235,.4)`,transition:"all .2s",letterSpacing:.3}}>
+        {loading?"전송 중... 잠시만 기다려주세요 ⏳":"📨 설계사에게 진단서 안전하게 전송하고 맞춤 제안서 받기"}
+      </button>
+      {error&&<div style={{marginTop:10,padding:"12px",background:"#FEF2F2",borderRadius:10,border:"1px solid #FECACA",fontSize:13,color:"#DC2626",textAlign:"center"}}>{error}</div>}
+      <button onClick={onPrev} style={{width:"100%",padding:"13px",marginTop:10,borderRadius:14,border:`1.5px solid ${BORDER}`,background:WHITE,color:"#475569",fontSize:14,fontWeight:600}}>← 이전으로</button>
+      <div style={{textAlign:"center",marginTop:14,fontSize:12,color:"#94A3B8"}}>🔒 SSL 암호화 전송 · 스팸 없음 · 언제든 거절 가능</div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// ROOT
+// ══════════════════════════════════════════════════════
+function App(){
+  const[step,setStep]=useState(1);
+  const[form,setForm]=useState({name:"",gender:"",rrnFront:"",rrnBack:"",occ:"",occCustom:"",occDetail:"",phone:"",carrier:"",sido:"",addrDetail:""});
+  const[disc,setDisc]=useState({q1:null,q1d:[],q1memo:"",q2:null,q2d:[],q2memo:"",q3:null,q3d:[],q3memo:""});
+  const insAge=useMemo(()=>calcInsAge(form.rrnFront||"",form.rrnBack||""),[form.rrnFront,form.rrnBack]);
+  const risk=useMemo(()=>getRisk(form.gender,insAge),[form.gender,insAge]);
+
+  return(
+    <div style={{maxWidth:480,margin:"0 auto",minHeight:"100vh",background:BG}}>
+      <div style={{background:`linear-gradient(135deg,${NAVY} 0%,#1D4ED8 100%)`,padding:"20px 20px 0",color:WHITE}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+          <div style={{width:42,height:42,borderRadius:21,background:"rgba(255,255,255,.18)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🏦</div>
+          <div>
+            <div style={{fontSize:15,fontWeight:800,letterSpacing:-.3}}>김성래 설계사 · 1:1 사전진단</div>
+            <div style={{fontSize:12,opacity:.75}}>프리미엄 맞춤 보험 분석 서비스</div>
+          </div>
+        </div>
+        <Steps cur={step}/>
+      </div>
+      <div style={{padding:"20px 16px 48px"}}>
+        {step===1&&<Step1 form={form} setForm={setForm} onNext={()=>setStep(2)}/>}
+        {step===2&&<Step2 disc={disc} setDisc={setDisc} form={form} onNext={()=>setStep(3)} onPrev={()=>setStep(1)}/>}
+        {step===3&&<Step3 form={form} disc={disc} onNext={()=>setStep(4)} onPrev={()=>setStep(2)}/>}
+        {step===4&&<Step4 form={form} disc={disc} onPrev={()=>setStep(3)}/>}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
