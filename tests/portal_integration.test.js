@@ -136,5 +136,12 @@ console.log('O) 제목·브랜드');
 ok(/<title>KIM SEONGRAE · PORTAL<\/title>/.test(html)&&!/[^\x00-\x7F]/.test(html.match(/<title>(.*?)<\/title>/)[1].replace(/ · /,' ')),'제목은 ASCII + 가운뎃점만 (키릴 문자 없음)');
 ok(/class="brand">KIM SEONG<span>RAE<\/span> · PORTAL/.test(html),'헤더 브랜드 KIM SEONGRAE');
 
+console.log('P) 헤더 링크');
+{ const hdr=(html.match(/<div class="app-links">[\s\S]*?<\/div>/)||[''])[0];
+  const hrefs=[...hdr.matchAll(/href="([^"]+)"/g)].map(m=>m[1]);
+  ok(JSON.stringify(hrefs)===JSON.stringify(['https://s2ongrae.github.io/gaegyebu','https://s2ongrae.github.io/insurance-manager','https://s2ongrae.github.io/prediag/']),'헤더 링크: 가계부 · 보험관리툴 · 사전진단툴 순서 ('+hrefs.length+'개)');
+  ok((hdr.match(/target="_blank"/g)||[]).length===3&&(hdr.match(/rel="noopener"/g)||[]).length===3,'새 탭 링크는 모두 rel=noopener');
+  ok((hdr.match(/<span>[^<]+<\/span>/g)||[]).length===3&&/\.app-links \.app-link span\{display:none\}/.test(html),'폰에서는 글자를 숨기고 아이콘만 (링크 이름이 span 으로 감싸져 있음)'); }
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();

@@ -50,4 +50,7 @@ ok(used.every(n => run(`typeof ${n}`) === 'function'), '화면 코드가 쓰는 
 ok(!/function (dateStr|calcCutoff|calcYearCutoff|insAgeOf)\(/.test(babel), '계산 함수가 화면 코드에 중복 정의되지 않음');
 ok(/maxLength=\{7\}/.test(babel) && /주민번호: !!parsed/.test(babel), '주민번호는 날짜까지 맞아야 다음 단계로');
 
+console.log('E) 사전진단툴에는 다른 앱 링크를 넣지 않음 (고객용 화면 — 사용자 결정 2026-11-06)');
+ok(!/href="https:\/\/s2ongrae\.github\.io\/(?:gaegyebu|insurance-manager)?\/?"/.test(html) && !/s2ongrae\.github\.io\/(?:gaegyebu|insurance-manager)/.test(html),'가계부·보험관리툴·포털로 가는 링크가 없음');
+
 console.log(`\n사전진단툴 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail ? 1 : 0);

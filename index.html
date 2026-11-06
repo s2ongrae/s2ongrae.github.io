@@ -171,6 +171,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ev-del-btn:hover{color:var(--red)}
 
 @media(max-width:900px){.mid-row{grid-template-columns:1fr}}
+@media(max-width:700px){.app-links .app-link span{display:none}.app-links .app-link{padding:6px 9px}}   /* 폰: 링크가 늘어도 비좁지 않게 아이콘만 */
 @media(max-width:600px){.page{padding:14px 12px 40px}.task-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -180,8 +181,9 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   <div style="display:flex;align-items:center;gap:20px">
     <div class="brand">KIM SEONG<span>RAE</span> · PORTAL</div>
     <div class="app-links">
-      <a class="app-link" href="https://s2ongrae.github.io/gaegyebu" target="_blank">📒 가계부</a>
-      <a class="app-link" href="https://s2ongrae.github.io/insurance-manager" target="_blank">🏦 보험관리툴</a>
+      <a class="app-link" href="https://s2ongrae.github.io/gaegyebu" target="_blank" rel="noopener" title="가계부로 가기">📒 <span>가계부</span></a>
+      <a class="app-link" href="https://s2ongrae.github.io/insurance-manager" target="_blank" rel="noopener" title="보험관리툴로 가기">🏦 <span>보험관리툴</span></a>
+      <a class="app-link" href="https://s2ongrae.github.io/prediag/" target="_blank" rel="noopener" title="사전진단툴로 가기">🩺 <span>사전진단툴</span></a>
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:14px">
