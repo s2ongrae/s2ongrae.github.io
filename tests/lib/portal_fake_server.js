@@ -1,9 +1,11 @@
 const fs = require('fs'), vm = require('vm'), nodeCrypto = require('crypto');
 module.exports = function makePortalServer(){
   let CLOCK = new Date('2026-10-13T03:00:00Z').getTime();
-  class FakeFile{ constructor(n,c,p){this.name=n;this.content=c;this.parent=p;this.trashed=false;this.created=CLOCK;}
-    getBlob(){const c=this.content;return{getDataAsString:()=>c};} setContent(c){this.content=c;return this;}
-    getDateCreated(){return new Date(this.created);} setTrashed(t){this.trashed=t;return this;}
+  let fileSeq = 0;
+  class FakeFile{ constructor(n,c,p){this.name=n;this.content=c;this.parent=p;this.trashed=false;this.created=CLOCK;this.id='f'+(++fileSeq);this.updated=CLOCK;}
+    getId(){return this.id;} getLastUpdated(){return new Date(this.updated);}
+    getBlob(){const c=this.content;return{getDataAsString:()=>c};} setContent(c){this.content=c;this.updated=CLOCK;return this;}
+    getDateCreated(){return new Date(this.created);} setTrashed(t){this.trashed=t;return this;} 
     makeCopy(n,f){const x=new FakeFile(n,this.content,f);f.files.push(x);return x;} }
   class FakeFolder{ constructor(n,p){this.name=n;this.parent=p;this.files=[];this.folders=[];}
     _it(a){let i=0;return{hasNext:()=>i<a.length,next:()=>a[i++]};}
@@ -12,6 +14,12 @@ module.exports = function makePortalServer(){
     createFolder(n){const f=new FakeFolder(n,this);this.folders.push(f);return f;}
     createFile(n,c){const f=new FakeFile(n,c,this);this.files.push(f);return f;} }
   const ROOT=new FakeFolder('',null), props={}; let lockBusy=false;
+  // 스프레드시트 (queue_status 시험용 — 값 표만 흔내 낸다)
+  const books={};   // id -> { 탭이름: rows[][] }
+  const SpreadsheetApp={ openById:id=>{ const b=books[id]; if(!b) throw new Error('스프레드시트를 찾을 수 없어요');
+    const tab=n=>b[n]?{ getDataRange:()=>({ getValues:()=>b[n].map(r=>r.slice()) }) }:null;
+    return { getSheetByName:tab, getSheets:()=>Object.keys(b).map(n=>({ getDataRange:()=>({ getValues:()=>b[n].map(r=>r.slice()) }) })) }; } };
+  const allFiles=()=>{ const out=[]; (function walk(f){ out.push(...f.files); f.folders.forEach(walk); })(ROOT); return out; };
   // 캘린더
   let evSeq=0; const events=[];
   const mkEv=(title,start,end,allDay)=>{ const e={id:'ev'+(++evSeq),title,start,end,allDay,desc:''};
@@ -29,8 +37,9 @@ module.exports = function makePortalServer(){
       get:(id,tid)=>Object.assign({},(taskStore[id]||[]).find(t=>t.id===tid)),
       update:(t,id,tid)=>{const a=taskStore[id]||[];const i=a.findIndex(x=>x.id===tid);if(i>=0)a[i]=t;},
       remove:(id,tid)=>{taskStore[id]=(taskStore[id]||[]).filter(t=>t.id!==tid);} } };
-  const sb={ console, Logger:{log(){}}, Session:{getScriptTimeZone:()=>'Asia/Seoul'}, CalendarApp:{getDefaultCalendar:()=>calendar}, Tasks,
-    DriveApp:{getFoldersByName:n=>ROOT._it(ROOT.folders.filter(f=>f.name===n)),createFolder:n=>ROOT.createFolder(n)},
+  const sb={ console, Logger:{log(){}}, Session:{getScriptTimeZone:()=>'Asia/Seoul'}, CalendarApp:{getDefaultCalendar:()=>calendar}, Tasks, SpreadsheetApp,
+    DriveApp:{getFoldersByName:n=>ROOT._it(ROOT.folders.filter(f=>f.name===n)),createFolder:n=>ROOT.createFolder(n),
+      getFileById:id=>allFiles().find(f=>f.id===id)||null},
     MimeType:{PLAIN_TEXT:'t'}, PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]===undefined?null:props[k],setProperty:(k,v)=>{props[k]=v;}})},
     LockService:{getScriptLock:()=>({tryLock:()=>!lockBusy,releaseLock(){}})},
     Utilities:{ sleep(){ sb.__sleeps++; }, getUuid:()=>nodeCrypto.randomUUID(),
@@ -43,5 +52,6 @@ module.exports = function makePortalServer(){
   const KEY='P'.repeat(20)+'q'.repeat(44); props.SECRET_KEY=KEY;
   const post = body => JSON.parse(sb.doPost({postData:{contents: typeof body==='string'?body:JSON.stringify(body)}}).getContent());
   const memoFile = ()=>{ const r=ROOT.folders.find(f=>f.name==='김성래포털'); return r&&r.files.find(f=>f.name==='포털_메모.json'); };
-  return { post, KEY, ROOT, props, sb, events, taskStore, memoFile, tick:ms=>{CLOCK+=ms;}, setLock:b=>{lockBusy=b;}, doGet:()=>JSON.parse(sb.doGet({}).getContent()), run:c=>vm.runInContext(c,sb) };
+  return { post, KEY, ROOT, props, sb, events, taskStore, memoFile, books, addSheet:(id,tabs)=>{books[id]=tabs;},
+    tick:ms=>{CLOCK+=ms;}, setLock:b=>{lockBusy=b;}, doGet:()=>JSON.parse(sb.doGet({}).getContent()), run:c=>vm.runInContext(c,sb) };
 };

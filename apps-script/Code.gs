@@ -50,6 +50,7 @@ function doPost(e) {
       case 'deleteEvent':       return out(deleteCalEvent(body.eventId));
       case 'loadMemos':         return out(loadMemos());
       case 'saveMemos':         return out(saveMemos(body));
+      case 'queue_status':      return out(queueStatus());   // 포털 상단 상태등(읽기 전용)
       default:                  return out({ ok: false, error: '알 수 없는 요청이에요.' });
     }
   } catch (err) {
@@ -338,4 +339,169 @@ function getMemoFile() {
 function out(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 관제 상태등 (읽기 전용) — 포털 상단의 배지 3개가 이걸 부른다
+//
+//   ① 노트북 응답   : HEARTBEAT_FILE_ID 가 있으면 그 파일의 updated_at,
+//                     없으면 Command_Queue 의 마지막 활동 시각(대략)
+//   ② 밀린 명령     : Command_Queue 의 PENDING · WAITING_APPROVAL · TIMEOUT_REVIEW 수
+//   ③ 토스 동기화   : 드라이브 가계부/가계부_주식스냅샷.json 의 최신 날짜
+//
+//  · 시트 ID · 파일 ID 는 스크립트 속성에만 둔다(이 저장소는 공개다) — 코드·문서·테스트에 넣지 않는다.
+//    QUEUE_SHEET_ID     : Command_Queue 시트가 있는 스프레드시트 ID (필수)
+//    HEARTBEAT_FILE_ID  : (선택) heartbeat.json 을 드라이브에 올려 둔 경우 그 파일 ID
+//  · 무엇을 못 읽어도 예외를 던지지 않는다 — 화면은 state:'unknown' → '미연결 (세팅 대기)'.
+//  · 돌려주는 값에 시트·파일 ID 는 없다(상태와 숫자뿐).
+//  · 쓰기가 없다: 시트·드라이브를 읽기만 한다. 5분 캐시는 화면(localStorage)이 담당.
+// ═══════════════════════════════════════════════════════════════
+const QS_PROP_SHEET = 'QUEUE_SHEET_ID';
+const QS_PROP_HEARTBEAT = 'HEARTBEAT_FILE_ID';
+const QS_TAB = 'Command_Queue';
+const QS_TOSS_FOLDER = '가계부';
+const QS_TOSS_FILE = '가계부_주식스냅샷.json';
+const QS_HB_OK_MIN = 5;                  // 5분 이내 = 초록
+const QS_HB_WARN_MIN = 60;               // 5분~1시간 = 노랑, 그 뒤는 빨강
+const QS_PENDING_LATE_MIN = 15;           // 15분 넘게 PENDING 이면 빨강
+const QS_TOSS_OK_DAYS = 1;               // 하루 이내 = 초록
+const QS_TOSS_WARN_DAYS = 3;             // 2~3일(주말 감안) = 노랑, 4일+ = 빨강
+const QS_MAX_ROWS = 3000;                // 아주 긴 시트는 아래(최근)부터 이만큼만
+
+function queueStatus() {
+  const props = PropertiesService.getScriptProperties();
+  const res = {
+    ok: true, connected: false, at: new Date().toISOString(),
+    config: { queue: false, heartbeat: false, toss: false },
+    heartbeat: { state: 'unknown' }, queue: { state: 'unknown' }, toss: { state: 'unknown' }
+  };
+  const sheetId = clip(props.getProperty(QS_PROP_SHEET), 200).trim();
+  const hbFileId = clip(props.getProperty(QS_PROP_HEARTBEAT), 200).trim();
+  let lastQueueAt = '';
+
+  if (sheetId) {
+    res.config.queue = true;
+    try {
+      const q = queueSheetStatus_(sheetId);
+      res.queue = q.summary; lastQueueAt = q.lastActivityAt || '';
+    } catch (err) {
+      Logger.log('queue_status: 시트를 읽지 못했어요 — ' + String((err && err.message) || err));
+      res.queue = { state: 'unknown', error: '시트를 읽지 못했어요' };
+    }
+  }
+
+  if (hbFileId) {
+    res.config.heartbeat = true;
+    try { res.heartbeat = heartbeatStatus_(hbFileId); }
+    catch (err) {
+      Logger.log('queue_status: 하트비트 파일을 읽지 못했어요 — ' + String((err && err.message) || err));
+      res.heartbeat = { state: 'unknown', error: '하트비트 파일을 읽지 못했어요' };
+    }
+  } else if (lastQueueAt) {
+    res.heartbeat = heartAge_(lastQueueAt, 'sheet');   // 정확한 하트비트가 없을 때의 대략값
+  }
+
+  try {
+    res.toss = tossSyncStatus_();
+    if (res.toss.state !== 'unknown') res.config.toss = true;
+  } catch (err) {
+    Logger.log('queue_status: 토스 스냅샷을 읽지 못했어요 — ' + String((err && err.message) || err));
+    res.toss = { state: 'unknown', error: '토스 스냅샷을 읽지 못했어요' };
+  }
+
+  res.connected = !!(res.config.queue || res.config.heartbeat || res.config.toss);
+  return res;
+}
+
+/** 시트의 숫자/날짜 칸 → ms (Date 칸·문자열 둘 다) */
+function qsCellMs_(v) {
+  if (v instanceof Date) return v.getTime();
+  const t = Date.parse(String(v == null ? '' : v));
+  return isFinite(t) ? t : 0;
+}
+
+function queueSheetStatus_(sheetId) {
+  const ss = SpreadsheetApp.openById(sheetId);
+  const sh = ss.getSheetByName(QS_TAB);
+  if (!sh) return { summary: { state: 'unknown', error: 'Command_Queue 탭이 없어요' }, lastActivityAt: '' };
+  const values = sh.getDataRange().getValues();
+  const empty = { state: 'ok', pending: 0, waiting: 0, timeout: 0, oldest_min: null };
+  if (!values || values.length < 2) return { summary: empty, lastActivityAt: '' };
+  const head = values[0].map(function (v) { return String(v == null ? '' : v).trim(); });
+  const at = function (name) { return head.indexOf(name); };
+  const iStatus = at('status'), iCreated = at('created_at'), iClaimed = at('claimed_at'), iFinished = at('finished_at');
+  if (iStatus < 0) return { summary: { state: 'unknown', error: 'status 칸을 찾지 못했어요' }, lastActivityAt: '' };
+
+  let pending = 0, waiting = 0, timeout = 0, oldest = 0, last = 0;
+  const start = Math.max(1, values.length - QS_MAX_ROWS);
+  for (let r = start; r < values.length; r++) {
+    const row = values[r];
+    if (!row) continue;
+    const st = String(row[iStatus] == null ? '' : row[iStatus]).trim().toUpperCase();
+    if (!st) continue;
+    const created = iCreated >= 0 ? qsCellMs_(row[iCreated]) : 0;
+    if (st === 'PENDING') {
+      pending++;
+      if (created && (!oldest || created < oldest)) oldest = created;
+    } else if (st === 'WAITING_APPROVAL') waiting++;
+    else if (st === 'TIMEOUT_REVIEW') timeout++;
+    last = Math.max(last,
+      created,
+      iClaimed >= 0 ? qsCellMs_(row[iClaimed]) : 0,
+      iFinished >= 0 ? qsCellMs_(row[iFinished]) : 0);
+  }
+
+  const oldestMin = oldest ? Math.max(0, Math.round((Date.now() - oldest) / 60000)) : null;
+  let state = 'ok';
+  if (timeout >= 1) state = 'bad';
+  else if (oldestMin !== null && oldestMin >= QS_PENDING_LATE_MIN) state = 'bad';
+  else if (pending >= 2 || waiting >= 1) state = 'warn';
+  return {
+    summary: { state: state, pending: pending, waiting: waiting, timeout: timeout, oldest_min: oldestMin },
+    lastActivityAt: last ? new Date(last).toISOString() : ''
+  };
+}
+
+/** 마지막 응답 시각 → 신호등. source:'sheet' 은 '죽었나/쉬나'를 가릴 수 없어 빨강을 주지 않는다. */
+function heartAge_(iso, source) {
+  const t = Date.parse(String(iso || ''));
+  if (!isFinite(t)) return { state: 'unknown', source: source };
+  const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+  let state = 'bad';
+  if (min <= QS_HB_OK_MIN) state = 'ok';
+  else if (min <= QS_HB_WARN_MIN) state = 'warn';
+  if (source === 'sheet' && state === 'bad') state = 'warn';   // 시트 시각은 '마지막 작업'일 뿐이에요
+  return { state: state, at: new Date(t).toISOString(), min: min, source: source, approx: source === 'sheet' };
+}
+
+function heartbeatStatus_(fileId) {
+  const f = DriveApp.getFileById(fileId);
+  let d;
+  try { d = JSON.parse(f.getBlob().getDataAsString()); }
+  catch (_) { return { state: 'unknown', source: 'drive', error: '하트비트 파일을 읽을 수 없어요' }; }
+  return heartAge_((d && (d.updated_at || d.last_poll_at)) || '', 'drive');
+}
+
+/** 가계부 폴더의 토스 스냅샷 파일에서 마지막 동기화 날짜를 읽는다 (없으면 unknown) */
+function tossSyncStatus_() {
+  const folders = DriveApp.getFoldersByName(QS_TOSS_FOLDER);
+  if (!folders.hasNext()) return { state: 'unknown' };
+  const files = folders.next().getFilesByName(QS_TOSS_FILE);
+  if (!files.hasNext()) return { state: 'unknown' };
+  const file = files.next();
+  let d = null;
+  try { d = JSON.parse(file.getBlob().getDataAsString()); } catch (_) {}
+  const latest = (d && isObj(d.latest)) ? d.latest : null;
+  let date = clip(latest && latest.date, 10).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const stamp = file.getLastUpdated ? file.getLastUpdated() : null;   // 날짜가 없으면 파일 수정 시각
+    date = stamp ? Utilities.formatDate(stamp, TZ, 'yyyy-MM-dd') : '';
+  }
+  if (!date) return { state: 'unknown' };
+  const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  const days = Math.max(0, Math.round((Date.parse(today + 'T00:00:00Z') - Date.parse(date + 'T00:00:00Z')) / 86400000));
+  let state = 'bad';
+  if (days <= QS_TOSS_OK_DAYS) state = 'ok';
+  else if (days <= QS_TOSS_WARN_DAYS) state = 'warn';
+  return { state: state, date: date, days: days, at: clip(latest && latest.at, 40) };
 }

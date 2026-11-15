@@ -5,7 +5,7 @@ const memo = (id,x={})=>Object.assign({id,title:'제목'+id,body:'내용'+id,col
 
 console.log('1) 접근 통제');
 let r = S.doGet(); ok(r.ok===false && r.error==='POST로만 사용할 수 있어요.' && Object.keys(r).length===2, 'doGet은 안내 문구만(캘린더·메모 안 줌)');
-for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping']){
+for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping','queue_status']){
   r = post({action:a}); ok(r.error==='unauthorized', `키 없이 ${a} 거절`);
   r = post({action:a, key:'x'.repeat(64)}); ok(r.error==='unauthorized', `틀린 키로 ${a} 거절`);
 }
@@ -88,6 +88,77 @@ console.log('7) 키 생성/교체');
 delete S.props.SECRET_KEY; S.run('createSecretKey()'); ok(S.props.SECRET_KEY&&S.props.SECRET_KEY.length===64, 'createSecretKey 64자');
 const k1=S.props.SECRET_KEY; S.run('createSecretKey()'); ok(S.props.SECRET_KEY===k1, '이미 있으면 덮어쓰지 않음');
 S.run('rotateSecretKey()'); ok(S.props.SECRET_KEY!==k1, 'rotateSecretKey 교체'); ok(post({action:'ping',key:k1}).error==='unauthorized', '교체 후 옛 키 거절');
+
+console.log('8) 관제 상태등 (queue_status) — 읽기 전용');
+{
+  const K2 = S.props.SECRET_KEY;                       // 7)에서 키를 교체했어요
+  let q = post({action:'queue_status', key:K2});
+  ok(q.ok===true && q.connected===false && q.queue.state==='unknown' && q.heartbeat.state==='unknown' && q.toss.state==='unknown', '속성이 없으면 예외 없이 "미연결"');
+  ok(q.config && q.config.queue===false, '연결 여부를 따로 알려 줌');
+
+  const nowMs = S.run('Date.now()'), kst = ms => new Date(ms + 9*3600e3).toISOString().slice(0,10);
+  const iso = m => new Date(nowMs - m*60000).toISOString();
+  const TODAY = kst(nowMs), dayAgo = n => kst(nowMs - n*86400000);
+
+  S.props.QUEUE_SHEET_ID = 'SHEETidForTest0001';        // 가짜 ID (공개 저장소에 넣지 않음)
+  q = post({action:'queue_status', key:K2});
+  ok(q.ok===true && q.config.queue===true && q.queue.state==='unknown', '시트를 열 수 없어도 예외 없이 unknown');
+  ok(!JSON.stringify(q).includes('SHEETidForTest'), '응답에 시트 ID가 나가지 않음');
+
+  const head = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by','finished_at'];
+  const row = (id, created, status, claimed) => [id, created, 'phone', 'git_pull', 'gaegyebu', '{}', status, 0, claimed||'', '', ''];
+  const setRows = rows => S.addSheet('SHEETidForTest0001', {'Command_Queue':[head].concat(rows)});
+
+  setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(8), 'PENDING'), row('c3', iso(12), 'WAITING_APPROVAL')]);
+  q = post({action:'queue_status', key:K2});
+  ok(q.queue.pending===1 && q.queue.waiting===1 && q.queue.timeout===0, 'PENDING·WAITING_APPROVAL 건수');
+  ok(q.queue.state==='warn', '승인 대기 1건이면 노랑');
+  ok(q.queue.oldest_min>=7 && q.queue.oldest_min<=9, '가장 오래된 PENDING 경과 시간');
+  ok(q.heartbeat.state==='ok' && q.heartbeat.source==='sheet' && q.heartbeat.min===2 && q.heartbeat.approx===true, '하트비트 파일이 없으면 시트 마지막 활동(2분 전)으로 대략 표시');
+
+  setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(8), 'PENDING'), row('c3', iso(12), 'PENDING')]);
+  ok(post({action:'queue_status', key:K2}).queue.state==='warn', 'PENDING 2건이면 노랑');
+  setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(20), 'PENDING')]);
+  ok(post({action:'queue_status', key:K2}).queue.state==='bad', 'PENDING 이 15분 넘게 쌓이면 빨강');
+  setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(3), 'TIMEOUT_REVIEW')]);
+  q = post({action:'queue_status', key:K2});
+  ok(q.queue.state==='bad' && q.queue.timeout===1, 'TIMEOUT_REVIEW 1건이면 빨강');
+  setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(40), 'FAILED'), row('c3', iso(50), 'REJECTED')]);
+  q = post({action:'queue_status', key:K2});
+  ok(q.queue.state==='ok' && q.queue.pending===0 && q.queue.waiting===0, '밀린 것이 없으면 초록');
+
+  const hbf = S.ROOT.createFile('heartbeat.json', JSON.stringify({updated_at:iso(2), state:'running'}));
+  S.props.HEARTBEAT_FILE_ID = hbf.id;
+  q = post({action:'queue_status', key:K2});
+  ok(q.config.heartbeat===true && q.heartbeat.source==='drive' && q.heartbeat.state==='ok', '하트비트 파일(2분 전) → 초록');
+  hbf.content = JSON.stringify({updated_at:iso(30)});
+  ok(post({action:'queue_status', key:K2}).heartbeat.state==='warn', '30분 전(1시간 안쪽) → 노랑');
+  hbf.content = JSON.stringify({updated_at:iso(200)});
+  ok(post({action:'queue_status', key:K2}).heartbeat.state==='bad', '200분 전(1시간 초과) → 빨강');
+  hbf.content = 'not json';
+  ok(post({action:'queue_status', key:K2}).heartbeat.state==='unknown', '깨진 파일은 예외 없이 unknown');
+  ok(!JSON.stringify(post({action:'queue_status', key:K2})).includes(hbf.id), '응답에 파일 ID가 나가지 않음');
+  delete S.props.HEARTBEAT_FILE_ID;
+
+  const gf = S.ROOT.createFolder('가계부');
+  const sf = gf.createFile('가계부_주식스냅샷.json', JSON.stringify({latest:{date:TODAY, at:iso(30)}, history:[]}));
+  q = post({action:'queue_status', key:K2});
+  ok(q.toss.state==='ok' && q.toss.date===TODAY && q.toss.days===0 && q.config.toss===true, '오늘 스냅샷 → 초록');
+  sf.content = JSON.stringify({latest:{date:dayAgo(1)}});
+  ok(post({action:'queue_status', key:K2}).toss.state==='ok', '어제(주말 감안 1일) → 초록');
+  sf.content = JSON.stringify({latest:{date:dayAgo(2)}});
+  ok(post({action:'queue_status', key:K2}).toss.state==='warn', '2일 → 노랑');
+  sf.content = JSON.stringify({latest:{date:dayAgo(5)}});
+  ok(post({action:'queue_status', key:K2}).toss.state==='bad', '5일 → 빨강');
+  sf.content = 'not json';
+  q = post({action:'queue_status', key:K2});
+  ok(q.toss.state==='ok' && q.toss.date===TODAY, '깨진 스냅샷은 파일 수정 시각으로 대신');
+  sf.setTrashed(true);
+  ok(post({action:'queue_status', key:K2}).toss.state==='unknown', '스냅샷이 없으면 unknown');
+
+  ok(post({action:'queue_status'}).error==='unauthorized', '키 없이는 상태도 안 줌');
+  ok(post({action:'queue_status', key:'x'.repeat(64)}).error==='unauthorized', '틀린 키도 거절');
+}
 
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);
 process.exit(fail?1:0);

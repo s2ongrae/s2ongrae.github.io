@@ -14,7 +14,7 @@
 
 ## 구조
 
-- `index.html`: 헤더(가계부·보험관리툴·사전진단툴 링크 — 폰에서는 아이콘만, ⚙️ 서버) / 할 일(목록 탭, 추가, 완료, 삭제) / 캘린더(월 보기, 날짜 클릭 → 일정 보기·추가·삭제) / 메모(추가·편집·색상·고정·삭제).
+- `index.html`: 헤더(가계부·보험관리툴·사전진단툴·콘텐츠 허브·스마트스토어 링크 — 폰에서는 아이콘만, ⚙️ 서버, 상태등 3개) / 할 일(목록 탭, 추가, 완료, 삭제) / 캘린더(월 보기, 날짜 클릭 → 일정 보기·추가·삭제) / 메모(추가·편집·색상·고정·삭제).
 - 서버 호출은 `serverCall(action, payload)` 하나로 통일(모든 요청에 키). 할 일·캘린더용 `post()` 는 예외 대신 `{ok:false, code:'noconfig'|'unauthorized'}` 를 돌려준다.
 - 서버 설정이 없으면 서버 요청을 보내지 않고 이 기기 메모만 보여준다.
 
@@ -37,10 +37,21 @@
 - 이 기기: `portal_memos_v3`(예전 `portal_memos_v2` 를 이어받음), `portal_memo_tombs`, `portal_memo_base`, 체크포인트 `portal_mcp_*`(최대 3개, ⚙️ 창에서 복원). 서버 주소·키: `portal_server_url`, `portal_server_key`.
 - 저장은 즉시 로컬 + 1초 뒤 동기화(`persistMemos`). 체크포인트 복원은 force 저장.
 
+## 상단 링크·상태등 (2026-11-15)
+
+- 헤더 링크는 **5개 고정 순서**: 가계부 · 보험관리툴 · 사전진단툴 · 🎬 콘텐츠 허브(`s2ongrae.github.io/content-hub/`) · 🛍️ 스마트스토어.
+- **스마트스토어는 주소를 넣기 전엔 열리지 않는다**: `localStorage.portal_store_url`(https 만) → 없으면 `.off` 점선 + 클릭 시 "⚙️ 설정에 넣어주세요" 안내만. 주소는 ⚙️ 창의 "이 링크만 저장"으로 저장한다(서버 연결 테스트와 무관).
+- **상태등 3개** = 노트북 응답 · 밀린 명령 · 토스 동기화. 서버 `queue_status` 한 번으로 읽고 **이 기기에 5분 캐시**(`portal_qstatus_cache`). 배지 클릭 = 강제 새로고침.
+- **빨간 에러를 보여 주지 않는 경우**: ① 서버 설정 전(`reason:'noconfig'`) ② 서버가 아직 `queue_status` 를 모르는 예전 배포(`reason:'unsupported'`) → 셋 다 `미연결 (세팅 대기)` + 무엇을 하면 되는지 title 로 안내. 실패도 5분 캐시에 담아 반복 호출을 막는다.
+- 임계값(Code.gs): 노트북 초록 5분 이내 / 노랑 1시간 이내 / 빨강 그 뒤. 밀린 명령은 TIMEOUT_REVIEW 1건 이상, PENDING 15분 초과 = 빨강, PENDING 2건 이상·승인 대기 1건 이상 = 노랑. 토스는 1일 이내 초록 / 3일까지 노랑 / 4일+ 빨강.
+- **시트 시각은 '노트북 생존'의 정확한 근거가 아니다** — 노트북 `heartbeat.json` 은 노트북 디스크에만 있어서, 드라이브에 올려 두고 `HEARTBEAT_FILE_ID` 를 넣기 전까지는 `Command_Queue` 의 마지막 활동 시각을 '대략'으로 쓴다(그래서 시트 기준엔 빨강을 주지 않는다).
+
 ## 서버 (Code.gs)
 
 - POST 전용, 모든 요청에 비밀 키. `doGet` 은 안내 문구만.
-- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force).
+- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용).
+- `queue_status` 는 시트·드라이브를 **읽기만** 한다. 시트 ID·파일 ID 는 **스크립트 속성**에만: `QUEUE_SHEET_ID`(Command_Queue 가 있는 스프레드시트), `HEARTBEAT_FILE_ID`(선택). 응답에 ID 는 넣지 않고, 못 읽어도 예외 대신 `state:'unknown'`.
+- 토스 동기화 날짜는 드라이브 `가계부/가계부_주식스냅샷.json` 의 `latest.date`(없으면 파일 수정 시각)에서 읽는다 — 가계부 서버와 같은 파일이라 추가 설정이 없다.
 - 입력 검사: 월·날짜·시간 형식, ID 길이, 제목 길이. 종료 시간이 없거나 시작보다 빠르면 1시간짜리로.
 - 메모 저장: 잠금, rev 확인, 절반 아래로 줄면 `shrink` 거부, 하루 1회 백업(14일), 손상 파일 보호.
 - Apps Script 서비스(+)에 **Tasks API** 가 추가돼 있어야 한다.
@@ -49,9 +60,10 @@
 
 - 앱: `index.html` 을 GitHub 에 올리면 끝.
 - 서버: `apps-script/` 에서 clasp 로 배포한다. `clasp push` → `clasp version "설명"` → `clasp list-deployments` 에서 `@HEAD` 가 아닌 배포 id 로 `clasp redeploy <id> -V <새 버전> -d "설명"`. `apps-script/.clasp.json` 은 git 에 안 올린다. 편집기로 할 때는 Code.gs 를 붙여 넣고 배포 관리 → 새 버전. 보안 설정을 처음 할 때만 새 배포 + `createSecretKey` + 옛 배포 보관.
+- **`queue_status` 를 처음 배포할 때**: `SpreadsheetApp` 을 쓰므로 권한 승인을 한 번 다시 받아야 한다(배포 관리 → 새 버전 → 승인). 그리고 스크립트 속성에 `QUEUE_SHEET_ID` 를 넣어야 상태등이 켜진다. 배포 전에는 화면이 `미연결 (세팅 대기)` 로 남는다(정상).
 
 ## 테스트
 
 - `tests/lib/portal_fake_server.js`: 가짜 CalendarApp·Tasks·DriveApp 위에서 실제 Code.gs 실행.
 - `portal_integration.test.js` 는 포털 스크립트 전체를 가짜 브라우저에서 돌린다. 시간대 Asia/Seoul 고정.
-- 테스트 종류: `portal_server`, `portal_merge`(메모 병합 규칙), `portal_integration`.
+- 테스트 종류: `portal_server`, `portal_merge`(메모 병합 규칙), `portal_integration`, `prediag`, `memo-safety`. `queue_status`·상태등은 `portal_server` 8)절과 `portal_integration` Q)절이 검증한다(가짜 시트·가짜 heartbeat·가짜 스냅샷).
