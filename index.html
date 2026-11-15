@@ -91,8 +91,8 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .spin{text-align:center;padding:20px;color:var(--muted);font-size:13px;grid-column:1/-1}
 .empty{color:var(--muted);font-size:13px;text-align:center;padding:20px 0;grid-column:1/-1}
 
-/* 중간 행: 캘린더(좌) + 메모(우) */
-.mid-row{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+/* 중간 행: 캘린더(좌) + 메모(우) — 1fr 은 최소폭이 min-content 라 긴 글에 칸이 밀려나요(minmax(0,1fr)) */
+.mid-row{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
 
 /* ── 캘린더 ── */
 .cal-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
@@ -129,7 +129,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .day-more{font-size:9px;color:var(--muted);padding:1px 3px}
 
 /* ── 메모 패널 ── */
-.memo-panel{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-height:500px}
+.memo-panel{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-height:500px;min-width:0}
 .memo-add-btn{width:100%;background:var(--bg);border:2px dashed var(--border2);color:var(--muted);
   border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
   transition:all .15s;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:6px}
@@ -146,7 +146,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .mc-white{background:#fff;border-color:var(--border2)}
 .memo-card-title{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.memo-card-body{font-size:12px;color:var(--text2);line-height:1.6;
+.memo-card-body{font-size:12px;color:var(--text2);line-height:1.6;overflow-wrap:anywhere;
   display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 .memo-card-date{font-size:10px;color:var(--muted);margin-top:8px}
 .memo-card-actions{display:flex;gap:4px;margin-top:10px;opacity:0;transition:opacity .15s}
@@ -189,7 +189,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ev-del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:14px;margin-left:auto}
 .ev-del-btn:hover{color:var(--red)}
 
-@media(max-width:900px){.mid-row{grid-template-columns:1fr}}
+@media(max-width:900px){.mid-row{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:700px){.header{padding:9px 12px}.header-row{gap:8px}.header-left{gap:10px}.header-right{gap:8px}
   .brand{font-size:9px;letter-spacing:.8px}.app-links{gap:5px;flex-wrap:nowrap}
   .app-links .app-link span{display:none}.app-links .app-link{padding:5px 7px}   /* 폰: 링크가 늘어도 비좁지 않게 아이콘만 */
