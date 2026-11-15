@@ -53,4 +53,8 @@ ok(/maxLength=\{7\}/.test(babel) && /주민번호: !!parsed/.test(babel), '주�
 console.log('E) 사전진단툴에는 다른 앱 링크를 넣지 않음 (고객용 화면 — 사용자 결정 2026-11-06)');
 ok(!/href="https:\/\/s2ongrae\.github\.io\/(?:gaegyebu|insurance-manager)?\/?"/.test(html) && !/s2ongrae\.github\.io\/(?:gaegyebu|insurance-manager)/.test(html),'가계부·보험관리툴·포털로 가는 링크가 없음');
 
+console.log('F) 외부 스크립트 무결성 (CDN 이 바뀌면 실행하지 않음 — 주민번호를 받는 화면이라서)');
+{ const ext = [...html.matchAll(/<script\s[^>]*src="https:[^"]+"[^>]*>/g)].map(m => m[0]);
+  ok(ext.length === 3, '외부 스크립트 3개 (React·ReactDOM·Babel)');
+  ok(ext.every(t => /integrity="sha(384|512)-[A-Za-z0-9+/=]{60,}"/.test(t) && /crossorigin="anonymous"/.test(t)), '모든 외부 스크립트에 integrity + crossorigin'); }
 console.log(`\n사전진단툴 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail ? 1 : 0);

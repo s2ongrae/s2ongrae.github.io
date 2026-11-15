@@ -399,14 +399,18 @@ function renderTasks(tasks){
 
 async function addTask(){
   const inp=document.getElementById('task-inp'),title=inp.value.trim();
-  if(!title)return; inp.value=''; sync('저장 중...',0);
-  await post({action:'addTask',listId:curListId,title});
+  if(!title)return; sync('저장 중...',0);
+  const d=await post({action:'addTask',listId:curListId,title});
+  // 실패하면 입력한 글자를 그대로 두고 알려요 (예전엔 실패해도 "저장됨 ✓"이 뜨고 입력이 지워졌어요)
+  if(!d||!d.ok){ sync('저장 실패 — '+((d&&d.error)||'서버 설정·인터넷 확인')); return; }
+  if(inp.value.trim()===title) inp.value='';
   sync('저장됨 ✓'); loadTasks();
 }
 async function toggleTask(cb){
   const t=renderTasks._cache[+cb.dataset.idx]; if(!t)return;
   sync('저장 중...',0);
-  await post({action:'completeTask',listId:curListId,taskId:t.id});
+  const d=await post({action:'completeTask',listId:curListId,taskId:t.id});
+  if(!d||!d.ok){ sync('저장 실패 — '+((d&&d.error)||'서버 설정·인터넷 확인')); loadTasks(); return; }
   sync('저장됨 ✓'); loadTasks();
 }
 async function delTask(btn){
@@ -611,11 +615,29 @@ function mergeMemos(baseH, localArr, serverArr, tombsL, tombsS){
 
 // ── 이 기기의 메모 상태 ──
 function lsGet(k, def){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
-function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+// 이 기기 저장: 저장 공간이 가득 차면 오래된 체크포인트를 지우고 한 번 더. 그래도 안 되면 false + 안내.
+// 예전엔 실패를 조용히 넘겨서, 다시 열면 옛 메모가 "이 기기에서 고친 것"으로 보여 Drive 를 되돌렸어요.
+let LOCAL_SAVE_FAILED = false;
+function freeMemoCheckpointSpace(){
+  let idx = []; try { idx = JSON.parse(localStorage.getItem('portal_mcp_index')) || []; } catch(e) {}
+  const freed = idx.length > 0;
+  idx.forEach(id => localStorage.removeItem(id));
+  try { localStorage.setItem('portal_mcp_index', '[]'); } catch(e) {}
+  return freed;
+}
+function lsSet(k, v){
+  const text = JSON.stringify(v);
+  try { localStorage.setItem(k, text); return true; }
+  catch(e) {
+    try { if(freeMemoCheckpointSpace()){ localStorage.setItem(k, text); return true; } } catch(e2) {}
+    if(!LOCAL_SAVE_FAILED){ LOCAL_SAVE_FAILED = true; try { memoStatus('⚠️ 이 기기 저장 공간이 가득 찼어요 — 브라우저 저장 공간을 비워 주세요'); } catch(_) {} }
+    return false;
+  }
+}
 let memos = [];
 let memoTombs = {};
 let MEMO_BASE = lsGet('portal_memo_base', null);   // 마지막으로 Drive 와 맞춘 상태(메모별 해시)
-let editIdx = -1;
+let editId = null;                                 // 편집 중인 메모의 id (순서 번호로 찾으면 동기화로 순서가 바뀔 때 다른 메모를 덮어썼어요)
 let selColor = 'mc-yellow';
 let memoSaveTimer = null;
 let _memoQ = Promise.resolve();
@@ -630,8 +652,13 @@ function loadLocalMemos(){
   memos = normalizeMemoList(v3 !== null ? v3 : lsGet('portal_memos_v2', []));   // v2 는 예전 형식(그대로 이어받음)
   memoTombs = normMemoTombs(lsGet('portal_memo_tombs', {}));
 }
-function saveLocalMemos(){ lsSet('portal_memos_v3', memos); lsSet('portal_memo_tombs', memoTombs); }
-function commitMemoBase(hashes, rev){ MEMO_BASE = {rev: rev, hashes: hashes, at: new Date().toISOString()}; lsSet('portal_memo_base', MEMO_BASE); }
+function saveLocalMemos(){ const a = lsSet('portal_memos_v3', memos), b = lsSet('portal_memo_tombs', memoTombs); return a && b; }
+// 메모가 이 기기에 제대로 저장되지 않았으면 기준을 바꾸지 않아요 (다시 열 때 옛 메모로 Drive 를 되돌리지 않게)
+function commitMemoBase(hashes, rev){
+  if(!saveLocalMemos()) return false;
+  MEMO_BASE = {rev: rev, hashes: hashes, at: new Date().toISOString()}; lsSet('portal_memo_base', MEMO_BASE);
+  return true;
+}
 function newMemoId(){
   const a = new Uint8Array(6); crypto.getRandomValues(a);
   return 'm' + Date.now().toString(36) + Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
@@ -680,6 +707,8 @@ async function _syncMemosOnce(opts){
       if(dataChanged || tombChanged){ memos = m.memos; memoTombs = m.tombstones; saveLocalMemos(); }
       const sentBase = makeMemoBase(m.memos);            // 보내는 순간의 상태 (이후에 고친 건 구분됨)
       if(sameMemoLists(m.memos, r.memos)){ commitMemoBase(sentBase, r.rev); res.ok = true; break; }
+      // 저장이 실패·충돌해도 방금 받은 Drive 메모를 "이 기기에서 고친 것"으로 착각하지 않도록 지금 Drive 상태를 기준으로 먼저 남김
+      commitMemoBase(makeMemoBase(normalizeMemoList(r.memos || [])), r.rev);
       const w = await serverCall('saveMemos', {memos: m.memos, tombstones: m.tombstones, baseRev: r.rev});
       if(w.ok){ commitMemoBase(sentBase, w.rev); res.ok = true; break; }
       if(w.conflict) continue;                           // 그 사이 다른 기기가 저장 → 다시 병합
@@ -743,25 +772,25 @@ function renderMemos(){
   const sorted = [...memos].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   if(!sorted.length){ el.innerHTML = '<div class="memo-empty">메모를 추가해보세요 ✏️</div>'; return; }
   el.innerHTML = sorted.map(m => {
-    const realIdx = memos.indexOf(m);
     const col = MEMO_COLORS.includes(m.color) ? m.color : 'mc-yellow';
-    return `<div class="memo-card ${col}${m.pinned ? ' pinned' : ''}" onclick="openMemoModal(${realIdx})">
+    return `<div class="memo-card ${col}${m.pinned ? ' pinned' : ''}" data-id="${esc(m.id)}" onclick="openMemoModal(this.dataset.id)">
       ${m.title ? `<div class="memo-card-title">${esc(m.title)}</div>` : ''}
       <div class="memo-card-body">${esc(m.body || '').replace(/\n/g, '<br>')}</div>
       <div class="memo-card-date">${m.updatedAt ? new Date(m.updatedAt).toLocaleDateString('ko-KR') : ''}</div>
       <div class="memo-card-actions">
-        <button class="memo-icon-btn" onclick="event.stopPropagation();togglePin(${realIdx})">${m.pinned ? '📌 고정됨' : '📌 고정'}</button>
+        <button class="memo-icon-btn" data-id="${esc(m.id)}" onclick="event.stopPropagation();togglePin(this.dataset.id)">${m.pinned ? '📌 고정됨' : '📌 고정'}</button>
       </div>
     </div>`;
   }).join('');
 }
 
-function openMemoModal(idx){
-  editIdx = idx ?? -1;
-  const isEdit = editIdx >= 0;
+const memoById = id => memos.find(m => m.id === id) || null;
+function openMemoModal(id){
+  editId = (id != null && memoById(id)) ? id : null;
+  const isEdit = editId !== null;
   document.getElementById('memo-modal-title').textContent = isEdit ? '메모 편집' : '새 메모';
   document.getElementById('memo-del-btn').style.display = isEdit ? 'block' : 'none';
-  const m = isEdit ? memos[editIdx] : {title: '', body: '', color: 'mc-yellow'};
+  const m = isEdit ? memoById(editId) : {title: '', body: '', color: 'mc-yellow'};
   document.getElementById('m-title').value = m.title || '';
   document.getElementById('m-body').value = m.body || '';
   selColor = m.color || 'mc-yellow';
@@ -779,18 +808,25 @@ function saveMemoItem(){
   const title = document.getElementById('m-title').value.trim();
   const body = document.getElementById('m-body').value.trim();
   if(!title && !body){ alert('내용을 입력해주세요'); return; }
-  const prev = editIdx >= 0 ? memos[editIdx] : null;
+  // 편집하던 메모를 id 로 다시 찾아요. 그 사이 다른 기기에서 지워졌으면 새 메모로 남김 (내용을 잃지 않게)
+  const i = editId !== null ? memos.findIndex(m => m.id === editId) : -1;
+  const prev = i >= 0 ? memos[i] : null;
   const item = {id: prev ? prev.id : newMemoId(), title, body, color: selColor, pinned: prev ? prev.pinned : false, updatedAt: new Date().toISOString()};
-  if(prev) memos[editIdx] = item; else memos.unshift(item);
+  if(prev) memos[i] = item; else memos.unshift(item);
+  editId = null;
   closeMemo(); renderMemos(); persistMemos();
 }
 function deleteMemo(){
-  if(editIdx < 0 || !confirm('메모를 삭제할까요?')) return;
-  memos.splice(editIdx, 1);                              // 삭제 기록은 동기화할 때 남겨요
+  const i = editId !== null ? memos.findIndex(m => m.id === editId) : -1;
+  if(i < 0 || !confirm('메모를 삭제할까요?')) return;
+  memos.splice(i, 1);                                    // 삭제 기록은 동기화할 때 남겨요
+  editId = null;
   closeMemo(); renderMemos(); persistMemos();
 }
-function togglePin(idx){
-  memos[idx].pinned = !memos[idx].pinned;
+function togglePin(id){
+  const i = memos.findIndex(m => m.id === id);
+  if(i < 0) return;
+  memos[i] = Object.assign({}, memos[i], {pinned: !memos[i].pinned});
   renderMemos(); persistMemos();
 }
 
