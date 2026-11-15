@@ -27,15 +27,17 @@ button{font-family:inherit;cursor:pointer;border:none}
 function dateStr(d){
   return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
 }
+// 달을 더하고 빼되, 그 달에 같은 날이 없으면 그 달 말일로 (5월 31일 - 3개월 → 2월 28일, 3월 3일로 넘어가지 않게)
+function addMonthsClamp(d, n){
+  const y=d.getFullYear(), m=d.getMonth()+n;
+  const last=new Date(y, m+1, 0).getDate();
+  return new Date(y, m, Math.min(d.getDate(), last));
+}
 function calcCutoff(months, now){
-  const d=new Date(now||Date.now());
-  d.setMonth(d.getMonth()-months);
-  return dateStr(d);
+  return dateStr(addMonthsClamp(new Date(now||Date.now()), -months));
 }
 function calcYearCutoff(years, now){
-  const d=new Date(now||Date.now());
-  d.setFullYear(d.getFullYear()-years);
-  return dateStr(d);
+  return dateStr(addMonthsClamp(new Date(now||Date.now()), -12*years));
 }
 // 주민번호 앞 6자리 + 뒤 첫 자리 → 생년월일·성별 (뒤 첫 자리: 1·2·5·6 은 1900년대, 3·4·7·8 은 2000년대, 9·0 은 1800년대)
 function parseBirth(front, back){
@@ -53,7 +55,7 @@ function insAgeOf(birth, now){
   let age = now.getFullYear()-birth.getFullYear();
   let last = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
   if(now < last){ age--; last = new Date(now.getFullYear()-1, birth.getMonth(), birth.getDate()); }
-  const half = new Date(last.getFullYear(), last.getMonth()+6, last.getDate());
+  const half = addMonthsClamp(last, 6);                   // 8월 31일생 → 2월 28일(말일)부터 +1 (3월 3일로 밀리지 않게)
   return now >= half ? age+1 : age;
 }
 function insAgeFromRrn(front, back, now){

@@ -129,7 +129,9 @@ function getCalendarEvents(ym) {
     const allDay = ev.isAllDayEvent();
     const s = ev.getStartTime();
     let cursor = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-    const eEnd = ev.getEndTime();
+    let eEnd = ev.getEndTime();
+    // 시간 일정이 자정(0시 정각)에 끝나면 그 전날까지만 (23:00~24:00 일정이 다음 날 칸에도 보였어요)
+    if (!allDay && eEnd > s && eEnd.getHours() === 0 && eEnd.getMinutes() === 0 && eEnd.getSeconds() === 0) eEnd = new Date(eEnd.getTime() - 1);
     const endDay = new Date(eEnd.getFullYear(), eEnd.getMonth(), eEnd.getDate());
     if (allDay) endDay.setDate(endDay.getDate() - 1);
     while (cursor <= endDay) {
