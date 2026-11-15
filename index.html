@@ -127,6 +127,29 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ev-c4{background:#F3E8FF;color:#6B21A8} .ev-c5{background:#FFE4E6;color:#9F1239}
 .ev-c6{background:#FFF7ED;color:#9A3412}
 .day-more{font-size:9px;color:var(--muted);padding:1px 3px}
+/* 폰에서는 칸에 글자를 욱여넣지 않고 점만 — 일정 이름은 아래 '이번 달 일정' 목록에서 읽어요 */
+.day-dots{display:none}
+.day-dots i{display:block;width:6px;height:6px;border-radius:50%;background:#2563EB}
+.day-dots i.ev-c1{background:#DC2626} .day-dots i.ev-c2{background:#CA8A04}
+.day-dots i.ev-c3{background:#16A34A} .day-dots i.ev-c4{background:#7C3AED}
+.day-dots i.ev-c5{background:#E11D48} .day-dots i.ev-c6{background:#EA580C}
+.cal-agenda{display:none;margin-top:12px;border-top:1px dashed var(--border);padding-top:4px}
+.cal-agenda>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text2);padding:8px 2px}
+.cal-agenda>summary::-webkit-details-marker{display:none}
+.cal-agenda>summary:hover{color:var(--blue-d)}
+.cal-agenda>summary .caret{margin-left:auto;color:var(--hint);font-size:11px;transition:transform .15s}
+.cal-agenda[open]>summary .caret{transform:rotate(90deg)}
+.ag-day{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--bg);cursor:pointer}
+.ag-day:last-child{border-bottom:0}
+.ag-day:hover{background:var(--blue-l)}
+.ag-date{flex:0 0 30px;text-align:center;line-height:1.2;color:var(--muted);font-size:10.5px}
+.ag-date b{display:block;font-size:14px;font-weight:800;color:var(--text)}
+.ag-day.today .ag-date b,.ag-day.today .ag-date span{color:var(--blue-d)}
+.ag-evs{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ag-ev{font-size:12px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
+.ag-time{color:var(--blue-d);font-weight:700;margin-right:5px;font-size:11px}
+.ag-more{font-size:10.5px;color:var(--hint)}
+.ag-empty{font-size:12px;color:var(--muted);padding:4px 2px}
 
 /* ── 메모 패널 ── */
 .memo-panel{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-height:500px;min-width:0}
@@ -257,20 +280,41 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ev-del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:14px;margin-left:auto}
 .ev-del-btn:hover{color:var(--red)}
 
-@media(max-width:900px){.mid-row{grid-template-columns:minmax(0,1fr)}}
-@media(max-width:700px){.header{padding:9px 12px}.header-row{gap:8px}.header-left{gap:10px}.header-right{gap:8px}
-  .brand{font-size:9px;letter-spacing:.8px}.app-links{gap:5px;flex-wrap:nowrap}
-  .app-links .app-link span{display:none}.app-links .app-link{padding:5px 7px}   /* 폰: 링크가 늘어도 비좁지 않게 아이콘만 */
+@media(max-width:900px){.mid-row{grid-template-columns:minmax(0,1fr)}.memo-panel{min-height:0}}
+/* 손가락에는 hover 가 없다 — 눌러야만 보이던 메모 버튼은 늘 보이게 */
+@media(hover:none){.memo-card-actions{opacity:1}}
+@media(max-width:700px){.header{padding:8px 12px}.header-row{gap:8px;flex-wrap:nowrap;align-items:center}
+  .header-left{gap:6px;min-width:0}.header-right{gap:6px}
+  .brand{font-size:8px;letter-spacing:.4px;white-space:nowrap}.app-links{gap:3px;flex-wrap:nowrap}
+  .app-links .app-link span{display:none}.app-links .app-link{padding:0 6px;height:34px;font-size:14px;line-height:1}   /* 폰: 링크가 늘어도 비좁지 않게 아이콘만 */
+  .header-right .app-link{padding:0 9px;height:34px;font-size:14px;min-width:34px;justify-content:center}
+  .header-right .app-link span{display:none}
+  #today-str{display:none}   /* 날짜는 달력에 있으니 헤더 한 줄을 비워요 */
   .sync-badge{min-width:0;font-size:10px}
   /* 오더함: 폰에서는 작업 위치가 한 줄, 버튼 둘이 나머지 반씩 */
   .ord-quick .ord-ws{flex:1 1 100%;max-width:none}
   .ord-quick .ord-btn{flex:1 1 0;min-width:0;text-align:center}
   .ord-list{max-height:none}
+  .ord-refresh{width:34px;height:34px}
   /* 상태등은 폰에서 한 줄로 (넘치면 옆으로 밀어서) — 헤더가 화면을 먹지 않게 */
   .statusbar{margin-top:7px;padding-top:7px;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .statusbar::-webkit-scrollbar{display:none}
-  .stat{font-size:10px;padding:3px 8px 3px 7px;white-space:nowrap;flex:0 0 auto}.stat-note{display:none}}
-@media(max-width:600px){.page{padding:14px 12px 40px}.task-grid{grid-template-columns:minmax(0,1fr)}}
+  .stat{font-size:10.5px;padding:5px 10px 5px 8px;white-space:nowrap;flex:0 0 auto}.stat-note{display:none}}
+@media(max-width:349px){.brand{display:none}}
+@media(max-width:600px){.page{padding:14px 12px calc(40px + env(safe-area-inset-bottom))}
+  .task-grid{grid-template-columns:minmax(0,1fr)}
+  .tasks-section,.cal-card,.memo-panel,.order-card{padding:16px}
+  .task-cb{width:20px;height:20px}
+  .del-btn{font-size:17px;padding:5px 6px}
+  .cal-nav,.cal-today{padding:8px 14px;min-height:36px}
+  .overlay{padding:12px}.modal-inner{padding:20px}}
+/* 폰 달력 (2026-11-15): 칸에는 점만, 일정 이름은 아래 목록에서 — 두 글자로 잘리던 칸 글자를 없앰 */
+@media(max-width:560px){.cal-day{min-height:58px;padding:4px 2px;gap:3px;align-items:center}
+  .cal-day .dn{width:22px;height:22px;font-size:11.5px}
+  .cal-dow{padding:7px 2px;font-size:10.5px}
+  .day-ev,.day-more{display:none}
+  .day-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;padding:1px 0 3px}
+  .cal-agenda{display:block}}
 </style>
 </head>
 <body>
@@ -288,7 +332,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       </div>
     </div>
     <div class="header-right">
-      <button class="app-link" onclick="openSettings()" title="서버 주소·비밀 키 설정" style="cursor:pointer;font-family:inherit">⚙️ 서버</button>
+      <button class="app-link" onclick="openSettings()" title="서버 주소·비밀 키 설정" style="cursor:pointer;font-family:inherit">⚙️ <span>서버</span></button>
       <span class="sync-badge" id="sync-txt"></span>
       <span style="font-size:13px;color:var(--muted)" id="today-str"></span>
     </div>
@@ -326,6 +370,10 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
         </div>
       </div>
       <div class="cal-grid" id="cal-grid"></div>
+      <details class="cal-agenda" id="cal-agenda-wrap">
+        <summary><span id="cal-agenda-sum">이번 달 일정</span><span class="caret">▶</span></summary>
+        <div id="cal-agenda"></div>
+      </details>
     </div>
 
     <!-- 메모 패널 -->
@@ -982,11 +1030,35 @@ function renderCal(){
     let cls='cal-day';if(key===tk)cls+=' today';if(dow===0)cls+=' sun';if(dow===6)cls+=' sat';
     const evHtml=evs.slice(0,3).map((ev,ei)=>`<div class="day-ev ${EV_COLS[ei%7]}" onclick="event.stopPropagation();openCal('${key}')">${ev.allDay?'':esc(ev.time)+' '}${esc(ev.title)}</div>`).join('');
     const more=evs.length>3?`<div class="day-more">+${evs.length-3}</div>`:'';
-    h+=`<div class="${cls}" onclick="openCal('${key}')"><div class="dn">${d}</div>${evHtml}${more}</div>`;
+    const dots=evs.length?`<div class="day-dots">${evs.slice(0,4).map((ev,ei)=>`<i class="${EV_COLS[ei%7]}"></i>`).join('')}</div>`:'';
+    h+=`<div class="${cls}" onclick="openCal('${key}')"><div class="dn">${d}</div>${evHtml}${more}${dots}</div>`;
   }
   const rem=7-((first+last)%7||7);
   for(let i=1;i<=rem&&rem<7;i++) h+=`<div class="cal-day other"><div class="dn">${i}</div></div>`;
   g.innerHTML=h;
+  renderCalAgenda();
+}
+
+// 폰에서 달력 아래에 붙는 '이번 달 일정' 목록 (칸에는 점만 남기 때문)
+function renderCalAgenda(){
+  const el=document.getElementById('cal-agenda'); if(!el)return;
+  const pre=`${calY}-${String(calM+1).padStart(2,'0')}-`;
+  const tk=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const rows=[]; let total=0;
+  Object.keys(calEvents).filter(k=>k.indexOf(pre)===0).sort().forEach(k=>{
+    const evs=calEvents[k]||[]; if(!evs.length)return;
+    total+=evs.length;
+    const d=+k.slice(8), dow=new Date(calY,calM,d).getDay();
+    const evHtml=evs.slice(0,3).map(ev=>`<div class="ag-ev">${ev.allDay?'':`<span class="ag-time">${esc(ev.time)}</span>`}${esc(ev.title)}</div>`).join('');
+    const more=evs.length>3?`<div class="ag-more">+${evs.length-3}개 더</div>`:'';
+    rows.push(`<div class="ag-day${k===tk?' today':''}" onclick="openCal('${k}')">
+      <div class="ag-date"><b>${d}</b><span>${DAYS[dow]}</span></div>
+      <div class="ag-evs">${evHtml}${more}</div>
+    </div>`);
+  });
+  el.innerHTML=rows.length?rows.join(''):'<div class="ag-empty">이번 달 일정이 없어요</div>';
+  const sum=document.getElementById('cal-agenda-sum');
+  if(sum) sum.textContent=rows.length?`이번 달 일정 ${rows.length}일 · ${total}건`:'이번 달 일정 없음';
 }
 
 function changeMonth(dir){calM+=dir;if(calM<0){calM=11;calY--;}if(calM>11){calM=0;calY++;}calEvents={};renderCal();loadCalEvents();}

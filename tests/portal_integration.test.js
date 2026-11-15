@@ -132,6 +132,33 @@ const E=await A.run(`post({action:'getTasks',listId:'@default'})`);
 A.run(`(function(){ const el=document.getElementById('task-list'); const d={error:'<img src=x onerror=1>'}; el.innerHTML=\`<div class="empty">⚠️ \${esc(d.error)}</div>\`; })()`);
 ok(!/<img/.test(A.el('task-list').innerHTML),'할 일 오류 문구 이스케이프');
 
+console.log('N2) 폰 달력 — 칸은 점만, 일정 이름은 아래 목록에서');
+A.run(`calY=2026;calM=10;calEvents={
+  '2026-11-03':[{id:'c',title:'세 번째 날',time:'09:00',allDay:false}],
+  '2026-11-15':[{id:'a',title:'늦잠 자전거',time:'<i>10:00</i>',allDay:false},{id:'b',title:'<img src=x onerror=1>',time:'',allDay:true}],
+  '2026-11-20':[{id:'d',title:'하나',time:'08:00',allDay:false},{id:'e',title:'둘',time:'09:00',allDay:false},{id:'f',title:'셋',time:'10:00',allDay:false},{id:'g',title:'넷',time:'11:00',allDay:false}]}; renderCal();`);
+const cgrid=A.el('cal-grid').innerHTML, cag=A.el('cal-agenda').innerHTML;
+ok((cgrid.match(/class="day-dots"/g)||[]).length===3,'일정 있는 날에만 점을 찍음(3일)');
+ok((cgrid.match(/<i class="ev-c[0-6]"><\/i>/g)||[]).length===7,'점은 일정 하나에 하나(하루 4개까지 — 1+2+4)');
+ok(cgrid.includes('&lt;img')&&!/<img|<i>10:00/i.test(cgrid),'점 칸에서도 제목·시간은 글자로');
+ok((cag.match(/class="ag-day/g)||[]).length===3,'목록은 일정 있는 날만');
+ok(cag.indexOf('세 번째 날')>-1&&cag.indexOf('세 번째 날')<cag.indexOf('늦잠 자전거'),'목록은 날짜 순서대로');
+ok(/ag-time">10:00<\/span>/.test(cag)&&/종일|늦잠/.test(cag),'목록에 시간이 붙음');
+ok(cag.includes('&lt;img')&&!/<img|<i>10:00/i.test(cag),'목록도 제목·시간을 이스케이프');
+ok(/\+1개 더/.test(cag),'하루 4개를 넘으면 더 있다고 알림(3개까지 보여줌)');
+ok(/onclick="openCal\('2026-11-15'\)"/.test(cag),'목록을 누르면 그 날 일정 모달이 열림');
+ok(/이번 달 일정 3일 · 7건/.test(A.el('cal-agenda-sum').textContent),'접혀 있어도 몇 일·몇 건인지 보임');
+A.run('calEvents={}; renderCal();');
+ok(/이번 달 일정이 없어요/.test(A.el('cal-agenda').innerHTML),'일정이 없으면 목록도 안내만');
+ok(/이번 달 일정 없음/.test(A.el('cal-agenda-sum').textContent),'일정이 없으면 펼침 제목도 그렇게');
+ok(/\.day-dots\{display:none\}/.test(html)&&/\.cal-agenda\{display:none[;}]/.test(html),'점·목록은 PC 에서는 숨김');
+{ const mob=(html.match(/@media\(max-width:560px\)\{[^@]*/)||[''])[0];
+  ok(/\.day-ev,\.day-more\{display:none\}/.test(mob)&&/\.cal-agenda\{display:block\}/.test(mob),'폰(560px 이하)에서만 칸 글자를 숨기고 목록을 보여줌');
+  ok(/\.cal-day\{min-height:58px/.test(mob),'폰에서는 달력 칸이 낮아져 한 달이 한 화면에 들어옴'); }
+ok(/@media\(hover:none\)\{\.memo-card-actions\{opacity:1\}\}/.test(html),'손가락(호버 없음)에서는 메모 버튼이 늘 보임');
+ok(/#today-str\{display:none\}/.test(html),'폰 헤더에서는 긴 날짜를 숨김');
+A.run('calY=now.getFullYear();calM=now.getMonth();calEvents={};renderCal();');
+
 console.log('O) 제목·브랜드');
 ok(/<title>KIM SEONGRAE · PORTAL<\/title>/.test(html)&&!/[^\x00-\x7F]/.test(html.match(/<title>(.*?)<\/title>/)[1].replace(/ · /,' ')),'제목은 ASCII + 가운뎃점만 (키릴 문자 없음)');
 ok(/class="brand">KIM SEONG<span>RAE<\/span> · PORTAL/.test(html),'헤더 브랜드 KIM SEONGRAE');
