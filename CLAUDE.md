@@ -89,9 +89,15 @@
 - 서버: `apps-script/` 에서 clasp 로 배포한다. `clasp push` → `clasp version "설명"` → `clasp list-deployments` 에서 `@HEAD` 가 아닌 배포 id 로 `clasp redeploy <id> -V <새 버전> -d "설명"`. `apps-script/.clasp.json` 은 git 에 안 올린다. 편집기로 할 때는 Code.gs 를 붙여 넣고 배포 관리 → 새 버전. 보안 설정을 처음 할 때만 새 배포 + `createSecretKey` + 옛 배포 보관.
 - **`queue_status`·오더함을 처음 배포할 때**: `SpreadsheetApp` 을 쓰므로 권한 승인을 한 번 다시 받아야 한다(배포 관리 → 새 버전 → 승인). 그리고 스크립트 속성에 `QUEUE_SHEET_ID` 를 넣어야 상태등·오더함이 켜진다. 배포 전에는 화면이 `미연결 (세팅 대기)` / 재배포 안내로 남는다(정상).
 
+## 홈 화면 앱 아이콘 (PWA, 2026-11-15)
+
+- 폰 홈 화면에 "김성래 포털"(라벨 "성래포털") 앱처럼 추가된다. `manifest.webmanifest`(뿌리) — `start_url`·`scope` 는 `./`, `display: standalone`, `background_color #F0F4FF`·`theme_color #FFFFFF`(헤더가 흰색이라 상태바도 흰색).
+- 아이콘 `icons/icon-192.png`·`icons/icon-512.png`: 남색 그라데이션 + 골드 `P` 모노그램 + 얇은 골드 링. 꽉 찬 배경 + 가운데 글자라 `purpose: any maskable` — 안드로이드가 동그라미·스퀘어클로 잘라도 안전(링 r=374/1024 < 안전 반지름 410). `index.html` head 에 manifest·icon·apple-touch-icon·theme-color·mobile-web-app-capable.
+- **Service Worker 는 일부러 넣지 않는다** — 캐시가 꼬여 예전 화면이 남는 걸 막으려고. 나중에 오프라인 캐시가 필요하면 버전 붙인 SW 를 따로 설계한다(지금은 금지). `tests/pwa.test.js` 가 이 금지와 매니페스트·아이콘 실제 크기를 지킨다.
+
 ## 테스트
 
 - `tests/lib/portal_fake_server.js`: 가짜 CalendarApp·Tasks·DriveApp 위에서 실제 Code.gs 실행.
 - `portal_integration.test.js` 는 포털 스크립트 전체를 가짜 브라우저에서 돌린다. 시간대 Asia/Seoul 고정.
-- 테스트 종류: `portal_server`, `portal_merge`(메모 병합 규칙), `portal_integration`, `prediag`, `memo-safety`. `queue_status`·상태등은 `portal_server` 8)절과 `portal_integration` Q)절이, 오더함은 `portal_server` 9)절과 `portal_integration` R)절이 검증한다(가짜 시트·가짜 heartbeat·가짜 스냅샷).
+- 테스트 종류: `portal_server`, `portal_merge`(메모 병합 규칙), `portal_integration`, `prediag`, `memo-safety`, `pwa`(홈 화면 아이콘). `queue_status`·상태등은 `portal_server` 8)절과 `portal_integration` Q)절이, 오더함은 `portal_server` 9)절과 `portal_integration` R)절이 검증한다(가짜 시트·가짜 heartbeat·가짜 스냅샷).
 - `tests/lib/portal_fake_server.js` 의 가짜 스프레드시트는 `getRange().getValues/setValues`·`appendRow`·`insertSheet` 까지 흉내 낸다 — 오더함 쓰기를 실제 Code.gs 로 돌려 시트 배열을 직접 확인한다.
