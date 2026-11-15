@@ -533,20 +533,25 @@ console.log('S) 오더함 — 자동 확인·승인 카운트다운·다시 실�
     await D9.run('sendOrder()');
   }
   const rec = () => JSON.parse(D9.store.get('portal_ord_recent') || '[]');
-  ok(rec().length === 5, '최근 글은 5개까지만 남긴다');
-  ok(rec()[0] === '일곱 점검해줘' && rec().indexOf('하나 점검해줘') < 0, '방금 보낸 글이 맨 앞, 오래된 글은 밀려난다');
+  ok(rec().length === 5 && rec().every(x => x.t && isFinite(x.at)), '최근 글은 5개까지만, 시각과 함께 남긴다');
+  ok(rec()[0].t === '일곱 점검해줘' && !rec().some(x => x.t === '하나 점검해줘'), '방금 보낸 글이 맨 앞, 오래된 글은 밀려난다');
   D9.run(`ordRecentAdd('셋 점검해줘')`);
-  ok(rec()[0] === '셋 점검해줘' && rec().filter(x => x === '셋 점검해줘').length === 1 && rec().length === 5, '다시 쓴 글은 맨 앞으로 올라가고 중복되지 않는다');
+  ok(rec()[0].t === '셋 점검해줘' && rec().filter(x => x.t === '셋 점검해줘').length === 1 && rec().length === 5, '다시 쓴 글은 맨 앞으로 올라가고 중복되지 않는다');
   ok((D9.el('ord-recent').innerHTML.match(/class="ord-rec"/g) || []).length === 5, '최근 글을 칩으로 보여준다');
   ok(/최근 보낸 오더/.test(D9.el('ord-recent').innerHTML) && D9.el('ord-recent').style.display === 'flex', '칸 이름과 함께 보인다');
   D9.el('ord-inp').value = '';
   const nBeforeFill = D9.calls.length;
   D9.run('ordRecentFill(1)');
-  ok(D9.el('ord-inp').value === rec()[1] && D9.calls.length === nBeforeFill, '누르면 입력칸만 채우고 보내지는 않는다');
+  ok(D9.el('ord-inp').value === rec()[1].t && D9.calls.length === nBeforeFill, '누르면 입력칸만 채우고 보내지는 않는다');
   D9.run('ordRecentClear()');
   ok(rec().length === 0 && D9.el('ord-recent').style.display === 'none', '지우면 이 기기에서도 사라진다');
-  const S10 = mk(); const D10 = makeDevice(S10, {portal_ord_recent: JSON.stringify(['남아 있던 글'])});
+  const S10 = mk();
+  const D10 = makeDevice(S10, {portal_ord_recent: JSON.stringify([
+    {t: '남아 있던 글', at: Date.now() - 1000},
+    {t: '하루 지난 글', at: Date.now() - 25 * 3600 * 1000}
+  ])});
   ok(D10.get('ORD_RECENT').length === 1 && D10.el('ord-recent').innerHTML.indexOf('남아 있던 글') >= 0, '저장된 최근 글은 다시 열 때 이어받는다');
+  ok(D10.el('ord-recent').innerHTML.indexOf('하루 지난 글') < 0, '하루가 지난 글은 이 기기에서도 버린다(민감정보 잔류 최소화)');
 
   // ⑧ 입력 방어 — 2,000자·전송 잠금
   D9.el('ord-inp').value = '가'.repeat(2100);
