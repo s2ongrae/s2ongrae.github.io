@@ -156,6 +156,56 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .memo-icon-btn:hover{background:rgba(0,0,0,.12)}
 .memo-empty{text-align:center;padding:32px 0;color:var(--muted);font-size:13px}
 
+/* ── 🤖 노트북 오더함 ── */
+.order-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
+.ord-head-right{display:flex;align-items:center;gap:10px;min-width:0}
+.ord-hint{font-size:11px;color:var(--muted);text-align:right;overflow-wrap:anywhere}
+.ord-refresh{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text2);
+  width:30px;height:30px;font-size:15px;cursor:pointer;font-family:inherit;line-height:1;flex-shrink:0}
+.ord-refresh:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+.ord-quick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.ord-ws{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px;
+  font-size:12px;font-family:inherit;color:var(--text);max-width:170px;min-width:0}
+.ord-btn{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 13px;
+  font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;
+  transition:border-color .15s,background .15s,color .15s;white-space:nowrap}
+.ord-btn:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
+.ord-compose{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.ord-inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  padding:10px 13px;font-size:13px;line-height:1.55;font-family:inherit;color:var(--text);
+  outline:none;resize:vertical;min-height:58px}
+.ord-inp:focus{border-color:var(--blue);background:#fff}
+.ord-inp::placeholder{color:var(--hint)}
+.ord-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ord-edit{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;min-width:0}
+.ord-list{display:flex;flex-direction:column;gap:8px;max-height:460px;overflow-y:auto;min-width:0}
+.ord-item{display:flex;gap:10px;padding:11px 12px;background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;min-width:0}
+.ord-item.st-wait{background:var(--gold-l);border-color:#FDE68A}
+.ord-item.st-run{background:var(--purple-l);border-color:#DDD6FE}
+.ord-item.st-done{background:var(--green-l);border-color:#BBF7D0}
+.ord-item.st-bad{background:var(--red-l);border-color:#FECACA}
+.ord-ic{font-size:15px;line-height:1.25;flex-shrink:0}
+.ord-main{flex:1;min-width:0}
+.ord-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ord-type{font-size:12px;font-weight:700;color:var(--text)}
+.ord-when{font-size:10px;color:var(--hint);margin-left:auto;white-space:nowrap}
+.ord-text{font-size:12px;color:var(--text2);line-height:1.55;margin-top:3px;
+  overflow-wrap:anywhere;white-space:pre-wrap}
+.ord-text.err{color:var(--red)}
+.ord-sub{font-size:10px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+.ord-acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.ord-ok,.ord-no{border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.ord-ok{background:var(--green);color:#fff;border:none}.ord-ok:hover{background:#047857}
+.ord-no{background:#fff;color:var(--red);border:1px solid #FECACA}.ord-no:hover{background:var(--red-l)}
+.ord-chip{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
+.c-wait{background:#FEF3C7;color:#92400E}.c-pend{background:var(--blue-l);color:var(--blue-d)}
+.c-run{background:#EDE9FE;color:#5B21B6}.c-done{background:#D1FAE5;color:#065F46}
+.c-fail{background:#FEE2E2;color:#991B1B}.c-off{background:#E2E8F0;color:#475569}
+.ord-note{font-size:12px;color:var(--muted);line-height:1.6;padding:14px;background:var(--bg);
+  border:1px dashed var(--border2);border-radius:10px}
+.ord-empty{font-size:12px;color:var(--muted);text-align:center;padding:18px 0}
+
 /* ── 모달 ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:200;
   align-items:center;justify-content:center;padding:20px}
@@ -194,6 +244,10 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .brand{font-size:9px;letter-spacing:.8px}.app-links{gap:5px;flex-wrap:nowrap}
   .app-links .app-link span{display:none}.app-links .app-link{padding:5px 7px}   /* 폰: 링크가 늘어도 비좁지 않게 아이콘만 */
   .sync-badge{min-width:0;font-size:10px}
+  /* 오더함: 폰에서는 작업 위치가 한 줄, 버튼 둘이 나머지 반씩 */
+  .ord-quick .ord-ws{flex:1 1 100%;max-width:none}
+  .ord-quick .ord-btn{flex:1 1 0;min-width:0;text-align:center}
+  .ord-list{max-height:none}
   /* 상태등은 폰에서 한 줄로 (넘치면 옆으로 밀어서) — 헤더가 화면을 먹지 않게 */
   .statusbar{margin-top:7px;padding-top:7px;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .statusbar::-webkit-scrollbar{display:none}
@@ -265,6 +319,31 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       <button class="memo-add-btn" onclick="openMemoModal()">＋ 새 메모</button>
       <div class="memo-list" id="memo-list"><div class="memo-empty">메모를 추가해보세요</div></div>
     </div>
+  </div>
+
+  <!-- ③ 🤖 노트북 오더함 (오더 접수 · 승인/거절 · 결과 타임라인) -->
+  <div class="order-card" id="order-card">
+    <div class="section-head">
+      <div class="section-title">🤖 노트북 오더함 <span class="badge badge-blue" id="ord-count"></span></div>
+      <div class="ord-head-right">
+        <span class="ord-hint" id="ord-state"></span>
+        <button class="ord-refresh" onclick="loadOrders()" title="오더 목록 새로고침" aria-label="새로고침">⟳</button>
+      </div>
+    </div>
+    <div class="ord-quick">
+      <select class="ord-ws" id="ord-ws" aria-label="작업 위치" title="어느 저장소에서 할 일인지"></select>
+      <button class="ord-btn" onclick="quickOrder('git_pull')" title="노트북이 git pull --ff-only 로 코드를 최신화">🔄 코드 최신화</button>
+      <button class="ord-btn" onclick="quickOrder('toss_sync')" title="토스증권 → 가계부 동기화">📈 토스 동기화</button>
+    </div>
+    <div class="ord-compose">
+      <textarea class="ord-inp" id="ord-inp" rows="2" placeholder="노트북에 시킬 일을 메모하듯 적으세요 (예: 가계부 11월 지출 점검해줘)"
+        onkeydown="ordKey(event)"></textarea>
+      <div class="ord-foot">
+        <label class="ord-edit"><input type="checkbox" id="ord-edit-mode"> 파일 수정 허용 (승인 필요)</label>
+        <button class="add-btn" onclick="sendOrder()">오더 보내기</button>
+      </div>
+    </div>
+    <div class="ord-list" id="ord-list"><div class="ord-empty">오더를 불러오면 여기에 메모처럼 쌓여요</div></div>
   </div>
 </div>
 
@@ -527,6 +606,190 @@ async function refreshQueueStatus(force){
     renderQueueStatus({connected: false, reason: 'error'});
     return null;
   } finally { QSTAT_BUSY = false; }
+}
+
+// ══════════════════════════════════════════
+// 🤖 노트북 오더함 — 오더 접수 · 승인/거절 · 결과 타임라인
+//  서버(Code.gs)의 queue_list / queue_enqueue / queue_decide 만 써요.
+//  · 오더는 Command_Queue 시트에 쌓이고, 노트북(hub-agent)이 집어 가 실행해요.
+//  · 파일을 고치는 오더(mode=edit)는 바로 실행되지 않아요 — [✅ 승인]을 눌러야 해요.
+//  · 설정 전·예전 배포·시트 미연결이면 빨간 에러 대신 무엇을 하면 되는지 안내만 보여요.
+// ══════════════════════════════════════════
+const ORD_WS_LABEL = {'gaegyebu':'가계부','content-hub':'콘텐츠 허브','insurance-manager':'보험관리툴','smartstore-hub':'스마트스토어'};
+const ORD_TYPE_LABEL = {'git_pull':'코드 최신화','toss_sync':'토스 동기화','claude_prompt':'클로드 지시','git_push':'깃 푸시','smartstore_api_relay':'스마트스토어'};
+const ORD_TYPE_ICON = {'git_pull':'🔄','toss_sync':'📈','claude_prompt':'💬','git_push':'🚀','smartstore_api_relay':'🛍️'};
+const ORD_STATUS = {
+  PENDING:{t:'대기',c:'c-pend',s:''},
+  WAITING_APPROVAL:{t:'승인 대기',c:'c-wait',s:'st-wait'},
+  RUNNING:{t:'실행 중',c:'c-run',s:'st-run'},
+  DONE:{t:'완료',c:'c-done',s:'st-done'},
+  FAILED:{t:'실패',c:'c-fail',s:'st-bad'},
+  REJECTED:{t:'거절',c:'c-off',s:''},
+  EXPIRED:{t:'만료',c:'c-off',s:''},
+  TIMEOUT_REVIEW:{t:'확인 필요',c:'c-fail',s:'st-bad'}
+};
+const ORD_WS_FALLBACK = ['gaegyebu','content-hub','insurance-manager','smartstore-hub'];
+let ORD_ITEMS = [], ORD_WSS = ORD_WS_FALLBACK.slice(), ORD_AT = '', ORD_BUSY = false, ORD_WS_SEL = '';
+
+function ordWsName(id){ return ORD_WS_LABEL[id] || id || '작업 위치 없음'; }
+function ordTypeName(t){ return ORD_TYPE_LABEL[t] || t || '오더'; }
+function ordIcon(t){ return ORD_TYPE_ICON[t] || '📦'; }
+function ordWs(){
+  const sel = document.getElementById('ord-ws');
+  const v = sel && typeof sel.value === 'string' ? sel.value : '';
+  return v || ORD_WS_SEL || ORD_WSS[0] || '';
+}
+function fillOrderWs(){
+  const sel = document.getElementById('ord-ws');
+  if(!sel) return;
+  const list = ORD_WSS.length ? ORD_WSS : ORD_WS_FALLBACK.slice();
+  const keep = ORD_WS_SEL && list.indexOf(ORD_WS_SEL) >= 0 ? ORD_WS_SEL : (list[0] || '');
+  sel.innerHTML = list.map(w => `<option value="${esc(w)}"${w === keep ? ' selected' : ''}>${esc(ordWsName(w))}</option>`).join('');
+  ORD_WS_SEL = keep;
+}
+function ordWhen(iso){
+  const t = Date.parse(iso);
+  if(!isFinite(t)) return '';
+  const d = new Date(t), n = new Date();
+  const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  return d.toDateString() === n.toDateString() ? hm : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hm;
+}
+function ordExpire(ms){
+  const n = numOf(ms);
+  if(n === null) return '승인 대기';
+  if(n <= 0) return '승인 시간이 지났어요';
+  return Math.max(1, Math.round(n / 60000)) + '분 안에 승인해야 실행돼요';
+}
+function ordErr(d){
+  if(!d) return '서버 설정·인터넷 확인';
+  if(d.code === 'unauthorized') return '비밀 키 오류 (⚙️)';
+  if(d.code === 'busy') return '다른 저장 중이에요 — 잠시 뒤 다시';
+  return d.error || '연결 실패';
+}
+function ordBody(it){
+  const sum = String(it.summary || '');
+  const st = it.status;
+  if(st === 'DONE') return {t: (it.result ? '✅ ' + it.result : '✅ 완료') + (sum ? '\n' + sum : ''), err: false};
+  if(st === 'FAILED' || st === 'TIMEOUT_REVIEW') return {t: (it.error ? '⚠️ ' + it.error : '⚠️ 실패') + (sum ? '\n' + sum : ''), err: true};
+  if(st === 'REJECTED') return {t: '🚫 ' + (it.error || '승인 거절'), err: true};
+  if(st === 'EXPIRED') return {t: '⌛ ' + (it.error || '승인 시간이 지나 실행하지 않았어요'), err: false};
+  return {t: sum, err: false};
+}
+function renderOrderNotice(msg){
+  ORD_ITEMS = [];
+  const box = document.getElementById('ord-list');
+  if(box) box.innerHTML = `<div class="ord-note">${esc(msg)}</div>`;
+  const cnt = document.getElementById('ord-count'); if(cnt) cnt.textContent = '';
+  const stt = document.getElementById('ord-state'); if(stt) stt.textContent = '';
+}
+function renderOrders(){
+  const box = document.getElementById('ord-list'), cnt = document.getElementById('ord-count'), stt = document.getElementById('ord-state');
+  const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
+  const p = ORD_ITEMS.filter(i => i.status === 'PENDING' || i.status === 'RUNNING').length;
+  if(cnt){
+    const parts = [];
+    if(w) parts.push('승인 ' + w);
+    if(p) parts.push('대기 ' + p);
+    cnt.textContent = parts.length ? parts.join(' · ') : (ORD_ITEMS.length ? '최근 ' + ORD_ITEMS.length + '건' : '');
+  }
+  if(stt) stt.textContent = ORD_AT ? '최근 확인 ' + clockText(ORD_AT) : '';
+  if(!box) return;
+  if(!ORD_ITEMS.length){ box.innerHTML = '<div class="ord-empty">아직 오더가 없어요 — 위에서 첫 오더를 보내보세요</div>'; return; }
+  box.innerHTML = ORD_ITEMS.map(it => {
+    const s = ORD_STATUS[it.status] || {t: String(it.status || '?'), c: 'c-off', s: ''};
+    const body = ordBody(it);
+    const sub = [];
+    if(it.type === 'git_pull' || it.type === 'claude_prompt') sub.push(ordWsName(it.workspace));
+    if(it.id) sub.push(it.id);
+    if(it.status === 'WAITING_APPROVAL') sub.push(ordExpire(it.expires_in_ms));
+    else if(it.status === 'PENDING') sub.push('노트북 확인을 기다려요');
+    else if(it.status === 'RUNNING') sub.push('노트북이 실행 중');
+    else if(numOf(it.duration_ms) !== null) sub.push(Math.max(0, Math.round(numOf(it.duration_ms) / 1000)) + '초 걸림');
+    const acts = it.status === 'WAITING_APPROVAL'
+      ? `<div class="ord-acts"><button class="ord-ok" data-id="${esc(it.id)}" onclick="decideOrder(this.dataset.id,'approve')">✅ 승인</button>` +
+        `<button class="ord-no" data-id="${esc(it.id)}" onclick="decideOrder(this.dataset.id,'reject')">🚫 거절</button></div>`
+      : '';
+    return `<div class="ord-item ${s.s}">
+      <div class="ord-ic">${ordIcon(it.type)}</div>
+      <div class="ord-main">
+        <div class="ord-line">
+          <span class="ord-type">${esc(ordTypeName(it.type))}</span>
+          <span class="ord-chip ${s.c}">${esc(s.t)}</span>
+          <span class="ord-when">${esc(ordWhen(it.created_at))}</span>
+        </div>
+        <div class="ord-text${body.err ? ' err' : ''}">${esc(body.t)}</div>
+        <div class="ord-sub">${esc(sub.join(' · '))}</div>
+        ${acts}
+      </div>
+    </div>`;
+  }).join('');
+}
+function applyOrderList(d){
+  ORD_ITEMS = Array.isArray(d.items) ? d.items : [];
+  ORD_AT = d.at || '';
+  if(Array.isArray(d.workspaces) && d.workspaces.length) ORD_WSS = d.workspaces.slice(0, 20);
+  fillOrderWs();
+  renderOrders();
+}
+async function loadOrders(){
+  if(ORD_BUSY) return null;
+  if(!serverConfigured()){ renderOrderNotice('아직 연결 전이에요 — ⚙️ 서버 설정을 하면 오더함이 켜져요'); return null; }
+  ORD_BUSY = true;
+  try{
+    const d = await post({action: 'queue_list', limit: 18});
+    if(d && d.ok === true && Array.isArray(d.items)){ applyOrderList(d); return d; }
+    const code = d && d.code;
+    if(code === 'noconfig') renderOrderNotice('서버에 오더함 시트가 아직 연결되지 않았어요 — Apps Script 스크립트 속성 QUEUE_SHEET_ID 를 넣으면 켜져요');
+    else if(code === 'schema') renderOrderNotice('Command_Queue 시트가 예전 형식이에요 — Apps Script 에서 setupCommandQueue() 를 한 번 실행해 주세요');
+    else if(code === 'unreachable') renderOrderNotice('Command_Queue 시트를 열지 못했어요 — 시트 공유·권한을 확인해 주세요');
+    else if(code === 'unauthorized') renderOrderNotice('비밀 키가 맞지 않아요 — ⚙️ 서버 설정을 확인해 주세요');
+    else if(d && /알 수 없는 요청/.test(String(d.error || ''))) renderOrderNotice('서버가 아직 오더함을 모르는 배포예요 — apps-script/Code.gs 를 다시 배포하면 켜져요');
+    else renderOrderNotice('오더를 불러오지 못했어요 — 잠시 뒤 ⟳ 로 다시 확인해 주세요 (인터넷·서버 설정)');
+    return null;
+  } catch(e){
+    renderOrderNotice('오더를 불러오지 못했어요 — 잠시 뒤 ⟳ 로 다시 확인해 주세요');
+    return null;
+  } finally { ORD_BUSY = false; }
+}
+async function quickOrder(type){
+  if(!serverConfigured()){ sync('⚙️ 서버 설정을 먼저 해주세요', 3500); return; }
+  sync('접수 중...', 0);
+  const d = await post({action: 'queue_enqueue', type: type, workspace: type === 'git_pull' ? ordWs() : '', payload: {}});
+  if(!d || !d.ok){ sync('접수 실패 — ' + ordErr(d), 4500); return; }
+  sync(d.duplicate ? '같은 오더가 이미 대기 중이에요' : '오더 접수됨 ✓', 3500);
+  await loadOrders();
+}
+async function sendOrder(){
+  const inp = document.getElementById('ord-inp');
+  const text = String((inp && inp.value) || '').trim();
+  if(!text){ sync('보낼 오더를 적어주세요', 3000); return; }
+  if(!serverConfigured()){ sync('⚙️ 서버 설정을 먼저 해주세요', 3500); return; }
+  const editBox = document.getElementById('ord-edit-mode');
+  const edit = !!(editBox && editBox.checked);
+  if(edit && !confirm('파일을 고치는 오더로 접수할게요.\n노트북이 바로 고치지 않고 승인 대기로 서요 — 아래 [✅ 승인]을 눌러야 실행돼요.\n\n접수할까요?')) return;
+  sync('접수 중...', 0);
+  const d = await post({action: 'queue_enqueue', type: 'claude_prompt', workspace: ordWs(),
+    payload: {prompt: text, mode: edit ? 'edit' : 'ask'}});
+  if(!d || !d.ok){ sync('접수 실패 — ' + ordErr(d), 4500); return; }
+  if(inp && inp.value.trim() === text) inp.value = '';
+  if(editBox && editBox.checked) editBox.checked = false;
+  sync(d.duplicate ? '같은 오더가 이미 있어요' : (edit ? '승인 대기로 접수됨 ✓' : '오더 접수됨 ✓'), 4000);
+  await loadOrders();
+}
+async function decideOrder(id, decision){
+  if(!id) return;
+  if(decision === 'approve' && !confirm('이 오더를 승인할까요?\n노트북이 다음 확인 때 바로 실행해요.')) return;
+  if(decision === 'reject' && !confirm('이 오더를 거절할까요? 실행되지 않아요.')) return;
+  sync('처리 중...', 0);
+  const d = await post({action: 'queue_decide', id: id, decision: decision});
+  if(d && d.ok) sync(decision === 'approve' ? '승인됨 ✓ 노트북이 실행해요' : '거절했어요', 4000);
+  else sync('처리 실패 — ' + ordErr(d), 5000);
+  await loadOrders();
+}
+function ordKey(e){
+  if(!e || e.key !== 'Enter' || e.shiftKey) return;
+  if(e.preventDefault) e.preventDefault();
+  sendOrder();
 }
 
 // ══════════════════════════════════════════
@@ -1092,7 +1355,7 @@ async function restoreMemoCheckpoint(id){
   saveLocalMemos(); renderMemos(); closeSettings();
   await forcePushMemos('체크포인트 복원');
 }
-function bootData(){ loadCalEvents(); loadTaskLists(); loadMemos(); }
+function bootData(){ loadCalEvents(); loadTaskLists(); loadMemos(); loadOrders(); }
 
 // 키보드 단축키
 document.addEventListener('keydown',e=>{
@@ -1108,10 +1371,12 @@ document.addEventListener('keydown',e=>{
 // ── 초기 로드 ──
 renderCal();
 applyStoreLink();
+fillOrderWs();
 refreshQueueStatus();                                     // 캐시가 5분 안이면 서버를 부르지 않아요
 if(serverConfigured()){ bootData(); }
 else {
   loadLocalMemos(); renderMemos();                        // 서버 없이도 이 기기 메모는 보여요
+  renderOrderNotice('아직 연결 전이에요 — ⚙️ 서버 설정을 하면 오더함이 켜져요');
   document.getElementById('task-list').innerHTML = '<div class="empty">⚙️ 서버 설정을 해주세요 (위쪽 ⚙️ 서버 버튼)</div>';
   openSettings();
 }

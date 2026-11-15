@@ -219,5 +219,145 @@ console.log('Q) 상단 링크·상태등');
   ok(/콘텐츠 허브|content-hub/.test(html), '콘텐츠 허브 링크는 고정');
 }
 
+console.log('R) 🤖 노트북 오더함 (포털 안 오더 창구)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const S6 = mk();
+  const nowMs = S6.run('Date.now()');
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, status, x) => {
+    const r = [id, created, 'phone', 'git_pull', 'gaegyebu', '{}', status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  S6.props.QUEUE_SHEET_ID = 'SHEETidOrderUI0001';
+  S6.addSheet('SHEETidOrderUI0001', {'Command_Queue': [HEAD.slice(0)].concat([
+    row('Q-0002', at(nowMs - 8 * 60000), 'DONE', {type: 'toss_sync', finished_at: at(nowMs - 3 * 60000), duration_ms: 4200, result: '가계부 12건 동기화 완료'}),
+    row('Q-0003', at(nowMs - 6 * 60000), 'FAILED', {type: 'git_pull', error: '<img src=x onerror=1> 실패'}),
+    row('Q-0001', at(nowMs - 2 * 60000), 'WAITING_APPROVAL', {type: 'claude_prompt', workspace: 'content-hub',
+      payload: JSON.stringify({prompt: '제목 고쳐줘', mode: 'edit'}), risk_level: 'HIGH',
+      approval_expires_at: at(nowMs + 10 * 60000)})
+  ])});
+
+  // ① 카드 구성
+  ok(/id="order-card"/.test(html) && /🤖 노트북 오더함/.test(html), '오더함 카드가 페이지에 있다');
+  ok(/onclick="quickOrder\('git_pull'\)"/.test(html) && /onclick="quickOrder\('toss_sync'\)"/.test(html), '빠른 오더 버튼 2개(코드 최신화 · 토스 동기화)');
+  ok(/id="ord-inp"/.test(html) && /onclick="sendOrder\(\)"/.test(html), '메모형 오더 입력창 + 오더 보내기');
+  ok(/id="ord-edit-mode"/.test(html) && /onclick="loadOrders\(\)"/.test(html), '파일 수정 허용 + 새로고침 버튼');
+
+  // ② 설정 전 — 요청 없이 안내만
+  const S5 = mk(), D5 = makeDevice(S5);
+  ok(/⚙️ 서버 설정/.test(D5.el('ord-list').innerHTML) && !/⚠️/.test(D5.el('ord-list').innerHTML), '설정 전: 빨간 에러 대신 안내');
+  ok(D5.calls.length === 0, '설정 전: 오더 요청 0건');
+
+  // ③ 목록 그리기
+  const D6 = makeDevice(S6); D6.config();
+  await D6.run('loadOrders()');
+  const box = () => D6.el('ord-list').innerHTML;
+  const listCall = D6.calls.filter(c => JSON.parse(c.opts.body).action === 'queue_list').pop();
+  ok(!!listCall && JSON.parse(listCall.opts.body).limit === 18, '목록 요청은 queue_list(18건)');
+  ok(D6.get('ORD_ITEMS').length === 3, '오더 3건을 받았다');
+  ok(box().indexOf('승인 대기') >= 0 && box().indexOf('완료') >= 0 && box().indexOf('실패') >= 0, '상태 칩을 종류별로 보여준다');
+  ok(box().indexOf('✅ 승인') >= 0 && box().indexOf('🚫 거절') >= 0, '승인 대기 오더에 승인/거절 버튼');
+  ok((box().match(/data-id="Q-0001"/g) || []).length === 2, '버튼에 오더 id(data-id)가 붙는다');
+  ok(box().indexOf('가계부 12건 동기화 완료') >= 0, 'DONE 결과가 타임라인에 보인다');
+  ok(box().indexOf('4초 걸림') >= 0, '걸린 시간도 보여준다');
+  ok(!/<img/.test(box()) && box().indexOf('&lt;img') >= 0, '결과·오류 글자를 이스케이프한다(XSS)');
+  ok(box().indexOf('콘텐츠 허브') >= 0, '작업 위치를 사람이 읽는 이름으로');
+  ok(box().indexOf('10분 안에 승인') >= 0, '승인 남은 시간 안내');
+  ok(/승인 1/.test(D6.el('ord-count').textContent), '배지에 승인 대기 건수');
+  ok(/최근 확인/.test(D6.el('ord-state').textContent), '마지막으로 확인한 시각');
+  ok(D6.el('ord-ws').innerHTML.indexOf('>가계부</option>') >= 0 && D6.el('ord-ws').innerHTML.indexOf('>콘텐츠 허브</option>') >= 0, '작업 위치 선택칸(사람이 읽는 이름)');
+
+  // ④ 승인 버튼 → queue_decide → 목록 갱신
+  const lastBody = a => {
+    for (let i = D6.calls.length - 1; i >= 0; i--) { const b = JSON.parse(D6.calls[i].opts.body); if (!a || b.action === a) return b; }
+    return null;
+  };
+  let nCalls = D6.calls.length;
+  await D6.run(`decideOrder('Q-0001','approve')`);
+  let bd = lastBody('queue_decide');
+  ok(bd && bd.id === 'Q-0001' && bd.decision === 'approve' && bd.key === S6.KEY, '승인 버튼이 queue_decide(approve)를 키와 함께 보낸다');
+  ok(D6.calls.length > nCalls, '승인 뒤 목록을 다시 읽는다');
+  ok(D6.get('ORD_ITEMS').filter(i => i.id === 'Q-0001')[0].status === 'PENDING', '승인한 오더는 대기로 바뀐다');
+  ok(box().indexOf('✅ 승인') < 0, '승인하고 나면 승인 버튼이 사라진다');
+
+  // ⑤ 확인창에서 취소하면 아무것도 보내지 않는다
+  D6.run('confirm = function(){ return false; }');
+  const nEnq = D6.calls.filter(c => JSON.parse(c.opts.body).action === 'queue_enqueue').length;
+  D6.el('ord-inp').value = '제목 바꿔줘';
+  D6.el('ord-edit-mode').checked = true;
+  await D6.run('sendOrder()');
+  await new Promise(r => setTimeout(r, 30));
+  ok(D6.calls.filter(c => JSON.parse(c.opts.body).action === 'queue_enqueue').length === nEnq, '파일 수정 오더는 확인창에서 취소하면 접수하지 않는다');
+  ok(D6.el('ord-inp').value === '제목 바꿔줘', '취소하면 입력한 글이 남는다');
+
+  // ⑥ 오더 보내기 — 메모형 입력 → claude_prompt
+  D6.el('ord-edit-mode').checked = false;
+  D6.run('confirm = function(){ return true; }');
+  D6.el('ord-inp').value = '가계부 11월 지출 점검해줘';
+  await D6.run('sendOrder()');
+  let be = lastBody('queue_enqueue');
+  ok(be && be.type === 'claude_prompt' && be.workspace === 'gaegyebu' && be.payload.prompt === '가계부 11월 지출 점검해줘' && be.payload.mode === 'ask', '입력한 오더가 claude_prompt(ask)로 접수된다');
+  ok(D6.el('ord-inp').value === '', '접수되면 입력칸이 비워진다');
+  ok(D6.get('ORD_ITEMS').some(i => i.summary.indexOf('가계부 11월 지출 점검해줘') >= 0), '보낸 오더가 바로 목록에 쌓인다');
+  ok(D6.el('sync-txt').textContent.indexOf('접수됨') >= 0, '접수 안내가 뜬다');
+
+  // ⑦ 파일 수정 허용 → 승인 대기로 접수
+  D6.el('ord-edit-mode').checked = true;
+  D6.el('ord-inp').value = '메리 쇼츠 제목 후보 3개 뽑아줘';
+  await D6.run('sendOrder()');
+  be = lastBody('queue_enqueue');
+  ok(be && be.payload.mode === 'edit', '파일 수정 허용이면 mode=edit 로 보낸다');
+  ok(D6.get('ORD_ITEMS').some(i => i.status === 'WAITING_APPROVAL' && i.summary.indexOf('메리 쇼츠 제목') >= 0), '파일 수정 오더는 승인 대기에 쌓인다');
+  ok(D6.el('ord-edit-mode').checked === false, '접수 뒤 체크를 풀어 둔다');
+
+  // ⑧ Enter 로 보내기, Shift+Enter 는 줄바꿈
+  nCalls = D6.calls.length;
+  D6.el('ord-inp').value = '엔터로 보내기';
+  D6.run(`ordKey({key:'Enter', shiftKey:false, preventDefault:function(){this.p=true;}})`);
+  await new Promise(r => setTimeout(r, 40));
+  ok(lastBody('queue_enqueue').payload.prompt === '엔터로 보내기', 'Enter 로 오더를 보낸다');
+  const nCalls2 = D6.calls.length;
+  D6.run(`ordKey({key:'Enter', shiftKey:true})`);
+  await new Promise(r => setTimeout(r, 40));
+  ok(D6.calls.length === nCalls2, 'Shift+Enter 는 보내지 않는다(줄바꿈)');
+
+  // ⑨ 빈 입력·거절 버튼
+  D6.el('ord-inp').value = '   ';
+  const nEmpty = D6.calls.length;
+  await D6.run('sendOrder()');
+  ok(D6.calls.length === nEmpty, '빈 입력은 보내지 않는다');
+  const wait = D6.get('ORD_ITEMS').filter(i => i.status === 'WAITING_APPROVAL')[0];
+  await D6.run(`decideOrder('${wait.id}','reject')`);
+  ok(lastBody('queue_decide').decision === 'reject', '거절 버튼이 reject 를 보낸다');
+  ok(D6.get('ORD_ITEMS').filter(i => i.id === wait.id)[0].status === 'REJECTED', '거절한 오더는 거절로 바뀐다');
+
+  // ⑩ 예전 배포(오더함 없음) — 빨간 에러 대신 안내
+  const S7 = mk(), D7 = makeDevice(S7);
+  S7.sb.doPost = () => ({ getContent: () => JSON.stringify({ok: false, error: '알 수 없는 요청이에요.'}) });
+  D7.config();
+  await D7.run('loadOrders()');
+  ok(D7.el('ord-list').innerHTML.indexOf('다시 배포') >= 0 && D7.el('ord-list').innerHTML.indexOf('⚠️') < 0, '예전 배포: 빨간 에러 대신 재배포 안내');
+
+  // ⑪ 시트 미연결 — 넣어야 할 속성 이름 안내
+  const S8 = mk(), D8 = makeDevice(S8); D8.config();
+  await D8.run('loadOrders()');
+  ok(D8.el('ord-list').innerHTML.indexOf('QUEUE_SHEET_ID') >= 0, '시트 미연결: 넣어야 할 속성 이름을 알려준다');
+
+  // ⑫ 통신 실패 — 안내만, 화면은 살아 있음
+  D8.run('fetch = async function(){ throw new Error("offline"); }');
+  await D8.run('loadOrders()');
+  ok(D8.el('ord-list').innerHTML.indexOf('불러오지 못했어요') >= 0 && D8.el('ord-list').innerHTML.indexOf('⚠️') < 0, '통신 실패에도 안내 문구만');
+
+  // ⑬ 서버 값이 이상해도 화면이 깨지지 않는다
+  D6.run(`applyOrderList({at:new Date().toISOString(), items:[{id:'"><b>', type:'<img src=x>', status:'WHAT', summary:'<script>x</script>', workspace:'<i>', created_at:'bad'}], workspaces:['<b>ws</b>']})`);
+  ok(!/<script|<img|<i>|<b>/.test(box()) && box().indexOf('&lt;') >= 0, '알 수 없는 상태·값도 이스케이프해서 그린다');
+  ok(D6.el('ord-ws').innerHTML.indexOf('&lt;b&gt;') >= 0, '작업 위치 이름도 이스케이프');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
