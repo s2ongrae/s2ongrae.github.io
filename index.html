@@ -85,7 +85,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .task-body{flex:1;min-width:0}
 .task-title{font-size:13px;font-weight:500;line-height:1.4}
 .task-title.done{text-decoration:line-through;color:var(--muted)}
-.task-note{font-size:11px;color:var(--muted);margin-top:2px}
+.task-note{font-size:11px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
 .del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:15px;padding:1px 3px;border-radius:3px;transition:color .1s;flex-shrink:0}
 .del-btn:hover{color:var(--red)}
 .spin{text-align:center;padding:20px;color:var(--muted);font-size:13px;grid-column:1/-1}
@@ -198,7 +198,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .statusbar{margin-top:7px;padding-top:7px;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .statusbar::-webkit-scrollbar{display:none}
   .stat{font-size:10px;padding:3px 8px 3px 7px;white-space:nowrap;flex:0 0 auto}.stat-note{display:none}}
-@media(max-width:600px){.page{padding:14px 12px 40px}.task-grid{grid-template-columns:1fr}}
+@media(max-width:600px){.page{padding:14px 12px 40px}.task-grid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
 <body>
