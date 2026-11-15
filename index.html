@@ -166,6 +166,24 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ord-quick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
 .ord-ws{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px;
   font-size:12px;font-family:inherit;color:var(--text);max-width:170px;min-width:0}
+.ord-engine{max-width:230px;font-weight:600}
+/* 오더 도움말 — 눌러서 입력칸을 채우는 예시 목록 */
+.ord-help{background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;min-width:0}
+.ord-help>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:var(--text2);
+  display:flex;align-items:center;gap:6px}
+.ord-help>summary::-webkit-details-marker{display:none}
+.ord-help>summary:hover{color:var(--blue-d)}
+.ord-help>summary .ord-help-caret{margin-left:auto;color:var(--hint);font-size:11px;transition:transform .15s}
+.ord-help[open]>summary .ord-help-caret{transform:rotate(90deg)}
+.ord-help-body{padding:2px 12px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;min-width:0}
+.ord-help-sec{min-width:0}
+.ord-help-h{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:6px}
+.ord-ex{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:8px;
+  padding:6px 9px;font-size:11.5px;line-height:1.45;font-family:inherit;color:var(--text2);cursor:pointer;margin-bottom:5px;
+  overflow-wrap:anywhere}
+.ord-ex:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.ord-ex.act{font-weight:600;color:var(--blue-d)}
+.ord-help-note{font-size:10.5px;color:var(--hint);line-height:1.5;margin-top:2px}
 .ord-btn{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 13px;
   font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;
   transition:border-color .15s,background .15s,color .15s;white-space:nowrap}
@@ -332,9 +350,44 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
     </div>
     <div class="ord-quick">
       <select class="ord-ws" id="ord-ws" aria-label="작업 위치" title="어느 저장소에서 할 일인지"></select>
+      <select class="ord-ws ord-engine" id="ord-engine" aria-label="AI 엔진" onchange="ordEngineSave()" title="AI 엔진 — 자동이면 정품 Claude → 제미나이 agy → FreeLLMAPI 순으로 넘어갑니다">
+        <option value="auto">🤖 자동 (정품 Claude→agy→FreeLLMAPI)</option>
+        <option value="claude">정품 Claude</option>
+        <option value="agy">제미나이 agy</option>
+        <option value="freellmapi">FreeLLMAPI</option>
+      </select>
       <button class="ord-btn" onclick="quickOrder('git_pull')" title="노트북이 git pull --ff-only 로 코드를 최신화">🔄 코드 최신화</button>
       <button class="ord-btn" onclick="quickOrder('toss_sync')" title="토스증권 → 가계부 동기화">📈 토스 동기화</button>
     </div>
+    <details class="ord-help" id="ord-help">
+      <summary>💡 뭘 시킬 수 있나 — 눌러서 바로 쓰기 <span class="ord-help-caret">▶</span></summary>
+      <div class="ord-help-body">
+        <div class="ord-help-sec">
+          <div class="ord-help-h">🔄 저장소 · 최신화</div>
+          <button class="ord-ex" onclick="quickOrder('git_pull')">코드 최신화 (git pull)</button>
+          <div class="ord-help-note">노트북 폴더를 원격과 맞춥니다. 커밋 안 한 변경이 있으면 실패로 알려줘요.</div>
+        </div>
+        <div class="ord-help-sec">
+          <div class="ord-help-h">📈 가계부 · 돈</div>
+          <button class="ord-ex" onclick="quickOrder('toss_sync')">토스증권 → 가계부 동기화</button>
+          <button class="ord-ex" onclick="ordExample(this)" data-fill="이번 달 지출에서 '낭비'로 표시한 것만 모아서 요약해줘">이번 달 낭비만 요약</button>
+          <button class="ord-ex" onclick="ordExample(this)" data-fill="지난달 카드 지출을 항목별로 정리하고 줄일 수 있는 것 3개만 짚어줘">지난달 카드 지출 정리</button>
+        </div>
+        <div class="ord-help-sec">
+          <div class="ord-help-h">🔎 조회 · 분석 (파일 안 고침)</div>
+          <button class="ord-ex" onclick="ordExample(this)" data-fill="이번 주 블로그·쇼츠 소재 3개만 뽑아서 이유도 같이 알려줘">이번 주 소재 3개 뽑기</button>
+          <button class="ord-ex" onclick="ordExample(this)" data-fill="이 저장소 구조와 최근 변경 5개를 3줄로 요약해줘">저장소 구조 3줄 요약</button>
+          <button class="ord-ex" onclick="ordExample(this)" data-fill="이번 주 공모주 일정 중 청약 가능한 것만 정리해줘">이번 주 공모주 일정</button>
+        </div>
+        <div class="ord-help-sec">
+          <div class="ord-help-h">✏️ 파일 수정 (승인 필요)</div>
+          <button class="ord-ex act" onclick="ordExample(this)" data-fill="README 오타와 깨진 링크를 확인해서 고쳐줘" data-edit="1">README 오타·링크 고치기</button>
+          <button class="ord-ex act" onclick="ordExample(this)" data-fill="테스트가 실패하는 부분의 원인을 찾아서 고치고, 고친 내용을 요약해줘" data-edit="1">테스트 실패 원인 찾아 고치기</button>
+          <button class="ord-ex act" onclick="ordExample(this)" data-fill="index.html 헤더 링크 색을 파랑으로 바꾸고 모바일에서 깨지지 않는지 확인해줘" data-edit="1">화면 색·레이아웃 수정</button>
+          <div class="ord-help-note">고치는 오더는 <b>[✅ 승인]</b>을 눌러야 실행돼요(15분 안에).</div>
+        </div>
+      </div>
+    </details>
     <div class="ord-compose">
       <textarea class="ord-inp" id="ord-inp" rows="2" placeholder="노트북에 시킬 일을 메모하듯 적으세요 (예: 가계부 11월 지출 점검해줘)"
         onkeydown="ordKey(event)"></textarea>
@@ -629,9 +682,41 @@ const ORD_STATUS = {
   TIMEOUT_REVIEW:{t:'확인 필요',c:'c-fail',s:'st-bad'}
 };
 const ORD_WS_FALLBACK = ['gaegyebu','content-hub','insurance-manager','smartstore-hub'];
+// AI 엔진 — 값은 노트북(payload.engine)과 같아야 해요. auto 는 정품 Claude → 제미나이 agy → FreeLLMAPI 순.
+const ORD_ENGINES = ['auto','claude','agy','freellmapi'];
+const ORD_ENGINE_LABEL = {'auto':'자동','claude':'정품 Claude','agy':'제미나이 agy','freellmapi':'FreeLLMAPI'};
 let ORD_ITEMS = [], ORD_WSS = ORD_WS_FALLBACK.slice(), ORD_AT = '', ORD_BUSY = false, ORD_WS_SEL = '';
 
 function ordWsName(id){ return ORD_WS_LABEL[id] || id || '작업 위치 없음'; }
+function ordEngineName(id){ return ORD_ENGINE_LABEL[id] || id || '자동'; }
+/** 고른 엔진(auto · claude · agy · freellmapi). 모르는 값이면 auto. */
+function ordEngine(){
+  const sel = document.getElementById('ord-engine');
+  const v = sel && typeof sel.value === 'string' ? sel.value : '';
+  return ORD_ENGINES.indexOf(v) >= 0 ? v : 'auto';
+}
+/** 엔진 선택을 이 기기에 기억(다음에 열어도 그 엔진으로). */
+function ordEngineSave(){
+  try{ localStorage.setItem('portal_ord_engine', JSON.stringify(ordEngine())); }catch(e){}
+}
+function ordEngineLoad(){
+  const sel = document.getElementById('ord-engine');
+  if(!sel) return;
+  let v = 'auto';
+  try{ v = JSON.parse(localStorage.getItem('portal_ord_engine') || '"auto"'); }catch(e){ v = 'auto'; }
+  sel.value = ORD_ENGINES.indexOf(v) >= 0 ? v : 'auto';
+}
+/** 도움말 예시를 눌렀을 때 — 입력칸을 채우기만 하고 보내지는 않아요(사용자가 확인하고 보냄). */
+function ordExample(btn){
+  const inp = document.getElementById('ord-inp');
+  const text = btn && btn.dataset ? String(btn.dataset.fill || '') : '';
+  if(!inp || !text) return;
+  inp.value = text;
+  const editBox = document.getElementById('ord-edit-mode');
+  if(editBox) editBox.checked = !!(btn.dataset && btn.dataset.edit === '1');
+  try{ inp.focus(); }catch(e){}
+  sync((editBox && editBox.checked) ? '내용을 채웠어요 — 보내면 승인 대기로 접수돼요' : '내용을 채웠어요 — 보내기만 누르면 돼요', 3500);
+}
 function ordTypeName(t){ return ORD_TYPE_LABEL[t] || t || '오더'; }
 function ordIcon(t){ return ORD_TYPE_ICON[t] || '📦'; }
 function ordWs(){
@@ -768,12 +853,15 @@ async function sendOrder(){
   const edit = !!(editBox && editBox.checked);
   if(edit && !confirm('파일을 고치는 오더로 접수할게요.\n노트북이 바로 고치지 않고 승인 대기로 서요 — 아래 [✅ 승인]을 눌러야 실행돼요.\n\n접수할까요?')) return;
   sync('접수 중...', 0);
-  const d = await post({action: 'queue_enqueue', type: 'claude_prompt', workspace: ordWs(),
-    payload: {prompt: text, mode: edit ? 'edit' : 'ask'}});
+  const engine = ordEngine();
+  const payload = {prompt: text, mode: edit ? 'edit' : 'ask'};
+  // auto 는 서버에 보내지 않는다(기본값) — 예전 서버에서도 오더 모양이 그대로다.
+  if(engine !== 'auto') payload.engine = engine;
+  const d = await post({action: 'queue_enqueue', type: 'claude_prompt', workspace: ordWs(), payload: payload});
   if(!d || !d.ok){ sync('접수 실패 — ' + ordErr(d), 4500); return; }
   if(inp && inp.value.trim() === text) inp.value = '';
   if(editBox && editBox.checked) editBox.checked = false;
-  sync(d.duplicate ? '같은 오더가 이미 있어요' : (edit ? '승인 대기로 접수됨 ✓' : '오더 접수됨 ✓'), 4000);
+  sync(d.duplicate ? '같은 오더가 이미 있어요' : (edit ? '승인 대기로 접수됨 ✓' : '오더 접수됨 ✓') + (engine !== 'auto' ? ' · 엔진 ' + ordEngineName(engine) : ''), 4000);
   await loadOrders();
 }
 async function decideOrder(id, decision){
@@ -1372,6 +1460,7 @@ document.addEventListener('keydown',e=>{
 renderCal();
 applyStoreLink();
 fillOrderWs();
+ordEngineLoad();
 refreshQueueStatus();                                     // 캐시가 5분 안이면 서버를 부르지 않아요
 if(serverConfigured()){ bootData(); }
 else {

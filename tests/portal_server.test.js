@@ -235,6 +235,22 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(col(edRow, 'approval_hash') === hashOf({prompt: '제목 고쳐줘', mode: 'edit'}), '승인 해시가 payload 와 묶인다');
   ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '   ', mode: 'edit'}}).code === 'bad_request', '빈 오더 거절');
 
+  // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
+  const engQ = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}});
+  ok(engQ.ok === true, '엔진을 붙인 오더도 접수');
+  const engRow = qrows().find(x => x[0] === engQ.item.id);
+  const engPayload = JSON.parse(String(col(engRow, 'payload')));
+  ok(engPayload.engine === 'agy' && engPayload.prompt === '제미나이로 요약' && engPayload.mode === 'ask', 'payload 에 engine 이 실린다(예전엔 버려졌음)', engPayload);
+  ok(col(engRow, 'approval_hash') === hashOf({prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}), '승인 해시가 engine 까지 묶는다');
+  ok(String(engQ.item.summary).indexOf('엔진 agy') >= 0, '목록 요약에 엔진이 보인다', engQ.item.summary);
+  const engAuto = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '기본으로', mode: 'ask', engine: 'auto'}});
+  ok(JSON.parse(String(col(qrows().find(x => x[0] === engAuto.item.id), 'payload'))).engine === undefined, 'auto 는 payload 에 넣지 않는다(워커 기본값)');
+  const engEdit = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '고쳐줘', mode: 'edit', engine: 'free'}});
+  ok(engEdit.ok === false && engEdit.code === 'bad_request', '모르는 엔진 이름은 거절(조용히 auto 로 바꾸지 않음)', engEdit);
+  ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '고쳐줘', mode: 'edit', engine: 'AGY'}}).ok === true, '대문자 엔진 이름은 받아준다');
+  q = post({action: 'queue_list', key: K3});
+  ok(Array.isArray(q.engines) && q.engines.join(',') === 'auto,claude,agy,freellmapi', '목록 응답에 엔진 4종', q.engines);
+
   // ⑥ 타입·워크스페이스 화이트리스트
   for (const t of ['git_push', 'smartstore_api_relay', 'rm_rf']) {
     const x = post({action: 'queue_enqueue', key: K3, type: t, workspace: 'gaegyebu', payload: {}});

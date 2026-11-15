@@ -550,6 +550,9 @@ const QQ_TYPES = {
   claude_prompt: { label: '클로드 지시', needsWorkspace: true,  idempotent: false }
 };
 const QQ_PROP_WS = 'QUEUE_WORKSPACES';            // (선택) 허용 워크스페이스 덮어쓰기
+// AI 엔진 — 노트북 lib/engines.js 의 ENGINE_IDS 와 같아야 한다.
+//   auto 는 claude → agy → freellmapi 순으로 넘어간다(워커가 판단).
+const QQ_ENGINES = ['auto', 'claude', 'agy', 'freellmapi'];
 const QQ_WS_DEFAULT = 'gaegyebu,content-hub,insurance-manager,smartstore-hub';
 const QQ_LIST_DEFAULT = 15;
 const QQ_LIST_MAX = 20;
@@ -705,8 +708,10 @@ function qqSummary_(type, p) {
   if (type === 'git_pull') s = '코드 최신화 (git pull --ff-only)';
   else if (type === 'toss_sync') s = '토스증권 → 가계부 동기화';
   else if (type === 'claude_prompt') {
+    const eng = String(p.engine || '').toLowerCase();
     s = '클로드: ' + String(p.prompt || '').replace(/\s+/g, ' ').slice(0, 160) +
-      (String(p.mode || '').toLowerCase() === 'edit' ? ' (파일 수정)' : '');
+      (String(p.mode || '').toLowerCase() === 'edit' ? ' (파일 수정)' : '') +
+      (eng && eng !== 'auto' ? ' · 엔진 ' + eng : '');
   } else if (type === 'git_push') s = '깃 푸시 → ' + String(p.branch || '(브랜치 없음)');
   else if (type === 'smartstore_api_relay') s = '스마트스토어 API ' + String(p.op || '');
   else s = Object.keys(p).length ? Object.keys(p).join(', ') : '(내용 없음)';
@@ -763,7 +768,20 @@ function qqPayloadOf_(type, p) {
   const prompt = raw.trim();
   if (!prompt) throw qqErr_('bad_request', '오더 내용을 적어주세요.');
   const edit = isObj(p) && String(p.mode || '').toLowerCase() === 'edit';
-  return JSON.stringify({ prompt: prompt, mode: edit ? 'edit' : 'ask' });
+  const out = { prompt: prompt, mode: edit ? 'edit' : 'ask' };
+  // AI 엔진(auto · claude · agy · freellmapi) — auto 는 굳이 싣지 않는다(워커 기본값과 같은 뜻).
+  const engine = qqEngineOf_(p);
+  if (engine !== 'auto') out.engine = engine;
+  return JSON.stringify(out);
+}
+/** payload.engine 를 허용 목록으로 검증한다. 모르는 값이면 거절(조용히 auto 로 바꾸지 않는다). */
+function qqEngineOf_(p) {
+  const raw = isObj(p) && p.engine != null ? String(p.engine).trim().toLowerCase() : '';
+  if (!raw) return 'auto';
+  if (QQ_ENGINES.indexOf(raw) < 0) {
+    throw qqErr_('bad_request', 'AI 엔진은 auto·claude·agy·freellmapi 중 하나여야 해요.');
+  }
+  return raw;
 }
 function qqModeOf_(payload) { return String(qqParse_(payload).mode || '').toLowerCase(); }
 
@@ -843,7 +861,7 @@ function queueList(body) {
     ok: true, at: qqNow_(), items: items, count: items.length,
     pending: c.pending, waiting: c.waiting, running: c.running, timeout: c.timeout,
     done: c.done, failed: c.failed,
-    workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES),
+    workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES), engines: QQ_ENGINES.slice(),
     approval_ttl_min: Math.round(QQ_APPROVAL_TTL_MS / 60000)
   };
 }

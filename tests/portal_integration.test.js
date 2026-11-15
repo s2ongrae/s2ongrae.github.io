@@ -357,6 +357,51 @@ console.log('R) 🤖 노트북 오더함 (포털 안 오더 창구)');
   D6.run(`applyOrderList({at:new Date().toISOString(), items:[{id:'"><b>', type:'<img src=x>', status:'WHAT', summary:'<script>x</script>', workspace:'<i>', created_at:'bad'}], workspaces:['<b>ws</b>']})`);
   ok(!/<script|<img|<i>|<b>/.test(box()) && box().indexOf('&lt;') >= 0, '알 수 없는 상태·값도 이스케이프해서 그린다');
   ok(D6.el('ord-ws').innerHTML.indexOf('&lt;b&gt;') >= 0, '작업 위치 이름도 이스케이프');
+
+  // ⑭ AI 엔진 선택칸 — 4개 · 자동 라벨은 정품 Claude→agy→FreeLLMAPI 순
+  ok(/id="ord-engine"/.test(html), 'AI 엔진 선택칸이 있다');
+  const engOpts = [...html.matchAll(/<option value="(auto|claude|agy|freellmapi)"[^>]*>([^<]*)<\/option>/g)];
+  ok(engOpts.length === 4 && engOpts.map(o => o[1]).join(',') === 'auto,claude,agy,freellmapi', '엔진 4종(auto·claude·agy·freellmapi)', engOpts.map(o => o[1]));
+  ok(engOpts[0][2].indexOf('자동') >= 0 && engOpts[0][2].indexOf('정품 Claude→agy→FreeLLMAPI') >= 0, '자동 라벨에 폴백 순서가 그대로 보인다', engOpts[0][2]);
+  D6.el('ord-engine').value = 'agy';
+  ok(D6.run('ordEngine()') === 'agy', '고른 엔진을 읽는다');
+  D6.run('ordEngineSave()');
+  ok(D6.store.get('portal_ord_engine') === '"agy"', '엔진 선택을 이 기기에 기억');
+  D6.el('ord-engine').value = 'nope';
+  ok(D6.run('ordEngine()') === 'auto', '이상한 값이면 auto 로 본다');
+  D6.el('ord-engine').value = '';
+  D6.run('ordEngineLoad()');
+  ok(D6.el('ord-engine').value === 'agy', '다시 열면 기억한 엔진으로');
+
+  // ⑮ 엔진을 고르면 payload.engine 으로, auto 면 싣지 않는다
+  D6.run('confirm = function(){ return true; }');
+  D6.el('ord-engine').value = 'agy'; D6.el('ord-edit-mode').checked = false;
+  D6.el('ord-inp').value = '제미나이로 요약해줘';
+  await D6.run('sendOrder()');
+  let beng = lastBody('queue_enqueue');
+  ok(beng && beng.payload.engine === 'agy' && beng.payload.prompt === '제미나이로 요약해줘', '고른 엔진이 payload.engine 으로 간다', beng && beng.payload);
+  D6.el('ord-engine').value = 'auto';
+  D6.el('ord-inp').value = '기본 엔진으로 해줘';
+  await D6.run('sendOrder()');
+  beng = lastBody('queue_enqueue');
+  ok(beng && beng.payload.engine === undefined && beng.payload.mode === 'ask', 'auto 는 payload 에 넣지 않는다(기본값)', beng && beng.payload);
+  D6.el('ord-engine').value = 'freellmapi';
+  D6.el('ord-inp').value = 'FreeLLMAPI 로 점검';
+  await D6.run('sendOrder()');
+  ok(lastBody('queue_enqueue').payload.engine === 'freellmapi', 'FreeLLMAPI 선택도 그대로 전달');
+
+  // ⑯ 오더 도움말 패널 — 기능 안내·예시·눌러서 채우기
+  ok(/id="ord-help"/.test(html) && /data-fill=/.test(html), '오더 도움말 패널이 있다');
+  ok(/저장소 · 최신화/.test(html) && /가계부 · 돈/.test(html) && /조회 · 분석/.test(html) && /파일 수정 \(승인 필요\)/.test(html), '기능 4갈래를 한눈에 보여준다');
+  ok(/토스증권 → 가계부 동기화/.test(html) && /\[✅ 승인\]/.test(html), '동기화 예시버튼과 승인 안내가 있다');
+  D6.run(`ordExample({dataset:{fill:'이번 달 납비만 모아줘'}})`);
+  ok(D6.el('ord-inp').value === '이번 달 납비만 모아줘' && D6.el('ord-edit-mode').checked === false, '예시를 누르면 입력칸이 채워지고(조회 예시는 수정 아님)');
+  D6.run(`ordExample({dataset:{fill:'README 오타 고쳐줘', edit:'1'}})`);
+  ok(D6.el('ord-inp').value === 'README 오타 고쳐줘' && D6.el('ord-edit-mode').checked === true, '파일 수정 예시는 체크까지 같이');
+  ok(D6.el('sync-txt').textContent.indexOf('채웠어요') >= 0, '채우면 안내 문구');
+  const nBeforeEx = D6.calls.length;
+  D6.run(`ordExample({dataset:{fill:'이빠이 채우기'}})`);
+  ok(D6.calls.length === nBeforeEx, '예시를 눌러도 저절로 보내지는 않는다(확인 뒤 보냄)');
 }
 
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);

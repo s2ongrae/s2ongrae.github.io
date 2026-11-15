@@ -49,7 +49,12 @@
 ## 🤖 노트북 오더함 (2026-11-15)
 
 - 페이지 맨 아래 `「🤖 노트북 오더함」` 카드 하나로 **오더 접수 → 승인/거절 → 결과 확인**을 포털 안에서 끝낸다(텔레그램·슬랙 없이). 오더는 `Command_Queue` 시트에 쌓이고 노트북(`hub-agent` 워커)이 집어 가 실행한다.
-- 화면: 작업 위치 선택(`ord-ws`) · `[🔄 코드 최신화]`(git_pull) · `[📈 토스 동기화]`(toss_sync) · 메모형 입력창 + `[오더 보내기]`(claude_prompt) · `파일 수정 허용` 체크 · 타임라인(`ord-list`) + `⟳` 새로고침.
+- 화면: 작업 위치 선택(`ord-ws`) · **AI 엔진 선택(`ord-engine`)** · `[🔄 코드 최신화]`(git_pull) · `[📈 토스 동기화]`(toss_sync) · **오더 도움말 패널(`ord-help`)** · 메모형 입력창 + `[오더 보내기]`(claude_prompt) · `파일 수정 허용` 체크 · 타임라인(`ord-list`) + `⟳` 새로고침.
+- **AI 엔진 선택(2026-11-15)**: `자동 (정품 Claude→agy→FreeLLMAPI)` · `정품 Claude` · `제미나이 agy` · `FreeLLMAPI`. 값은 `payload.engine` 으로 가는데 **`auto` 는 싣지 않는다**(워커 기본값과 같은 뜻이라 오더 모양을 안 바꿈). 고른 엔진은 `localStorage.portal_ord_engine` 에 기억한다.
+  - 엔진 선택이 노트북까지 닿으려면 **Code.gs 재배포가 필요**하다(`qqPayloadOf_` 가 engine 을 싣도록 고침). 예전 배포여도 화면은 그대로 동작하고 엔진값만 무시된다(오더는 auto 로 실행).
+  - 서버는 `QQ_ENGINES = ['auto','claude','agy','freellmapi']` 로 검사하고 **모르는 이름은 `bad_request`**(조용히 auto 로 바꾸지 않음). `queue_list` 응답에 `engines` 를 함께 준다(화면은 고정 목록도 갖고 있어 예전 서버에서도 그려진다).
+- **오더 도움말 패널(2026-11-15)**: `ord-help`(details) 안에 4갈래 — 🔄 저장소·최신화 / 📈 가계부·돈 / 🔎 조회·분석(파일 안 고침) / ✏️ 파일 수정(승인 필요).
+  예시 버튼(`.ord-ex`)은 `ordExample(this)` 로 `data-fill` 글을 입력칸에 **채우기만** 하고(저절로 보내지 않음), `data-edit="1"` 이면 `파일 수정 허용` 체크까지 켠다. 예시는 사용자가 확인하고 보낸다.
 - **`파일 수정 허용`(mode=edit)은 절대 바로 실행하지 않는다** → `WAITING_APPROVAL` 로 세우고 15분 안에 `[✅ 승인]`을 눌러야 `PENDING` 으로 내려간다(지나면 `EXPIRED`). 승인은 payload 해시에 묶여 있다(`approval_hash`).
 - 목록은 최근 18건(최대 20). **payload 원문은 내보내지 않는다** — 주민·전화번호는 `[REDACTED]`, 내용은 한 줄 요약. 결과·오류도 같은 규칙으로 가린다.
 - 서버가 예전 배포(오더함 모름)·`QUEUE_SHEET_ID` 미설정·시트 칸 부족·통신 실패면 **빨간 에러 대신 안내**(`ord-note`). `loadOrders()` 는 설정 전엔 요청을 보내지 않는다.
@@ -62,6 +67,7 @@
 - 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `queue_list` / `queue_enqueue` / `queue_decide`(오더함).
 - **오더함은 `work/hub-agent/gas/CommandQueue.gs` 와 100% 호환**이어야 한다: 같은 22칸(`CQ_COLS`), 같은 상태값(`PENDING`·`WAITING_APPROVAL`·`RUNNING`·`DONE`·`FAILED`·`REJECTED`·`EXPIRED`·`TIMEOUT_REVIEW`), 같은 `Audit_Log` 11칸, 같은 payload 해시(canonical JSON 의 SHA-256 — 워커 `lib/approval.js` 와 같은 값). 바꿀 때는 양쪽을 같이 고친다.
 - 오더함 화이트리스트는 `git_pull`·`toss_sync`·`claude_prompt` 셋뿐(`QQ_TYPES`). `git_push`·`smartstore_api_relay` 는 포털에서 접수하지 않는다. 작업 위치는 `QUEUE_WORKSPACES`(선택, 없으면 `gaegyebu,content-hub,insurance-manager,smartstore-hub`).
+- `claude_prompt` 의 payload 는 `{prompt, mode}` 이고, 엔진을 골랐으면 `engine` 이 더 붙는다(`{prompt, mode, engine}`). **payload 해시는 engine 까지 묶는다** — 승인 뒤 엔진이 바뀌면 노트북이 거절한다.
 - 오더함은 시트를 **쓰기도** 한다 — 쓰기는 `getScriptLock()` 안에서만(못 잡으면 `busy`). 이 잠금은 워커 스크립트의 잠금과 별개라서, 승인은 `WAITING_APPROVAL` 줄만 건드리고 쓰기 전에 그 줄을 다시 읽어 판단한다. 시트 ID 는 여전히 스크립트 속성에만.
 - `queue_status` 는 시트·드라이브를 **읽기만** 한다. 시트 ID·파일 ID 는 **스크립트 속성**에만: `QUEUE_SHEET_ID`(Command_Queue 가 있는 스프레드시트), `HEARTBEAT_FILE_ID`(선택). 응답에 ID 는 넣지 않고, 못 읽어도 예외 대신 `state:'unknown'`.
 - 토스 동기화 날짜는 드라이브 `가계부/가계부_주식스냅샷.json` 의 `latest.date`(없으면 파일 수정 시각)에서 읽는다 — 가계부 서버와 같은 파일이라 추가 설정이 없다.
