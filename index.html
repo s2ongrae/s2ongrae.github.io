@@ -175,7 +175,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ord-help>summary:hover{color:var(--blue-d)}
 .ord-help>summary .ord-help-caret{margin-left:auto;color:var(--hint);font-size:11px;transition:transform .15s}
 .ord-help[open]>summary .ord-help-caret{transform:rotate(90deg)}
-.ord-help-body{padding:2px 12px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;min-width:0}
+.ord-help-body{padding:2px 12px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;min-width:0;align-content:start}
 .ord-help-sec{min-width:0}
 .ord-help-h{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:6px}
 .ord-ex{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:8px;
@@ -365,7 +365,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
         <div class="ord-help-sec">
           <div class="ord-help-h">🔄 저장소 · 최신화</div>
           <button class="ord-ex" onclick="quickOrder('git_pull')">코드 최신화 (git pull)</button>
-          <div class="ord-help-note">노트북 폴더를 원격과 맞춥니다. 커밋 안 한 변경이 있으면 실패로 알려줘요.</div>
+          <div class="ord-help-note">커밋 안 한 변경이 있으면 실패로 알려줘요.</div>
         </div>
         <div class="ord-help-sec">
           <div class="ord-help-h">📈 가계부 · 돈</div>
@@ -385,6 +385,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
           <button class="ord-ex act" onclick="ordExample(this)" data-fill="테스트가 실패하는 부분의 원인을 찾아서 고치고, 고친 내용을 요약해줘" data-edit="1">테스트 실패 원인 찾아 고치기</button>
           <button class="ord-ex act" onclick="ordExample(this)" data-fill="index.html 헤더 링크 색을 파랑으로 바꾸고 모바일에서 깨지지 않는지 확인해줘" data-edit="1">화면 색·레이아웃 수정</button>
           <div class="ord-help-note">고치는 오더는 <b>[✅ 승인]</b>을 눌러야 실행돼요(15분 안에).</div>
+          <div class="ord-help-note">엔진은 위에서 고르세요. <b>자동</b>이면 정품 Claude → 제미나이 agy → FreeLLMAPI 순으로 넘어가요.</div>
         </div>
       </div>
     </details>
