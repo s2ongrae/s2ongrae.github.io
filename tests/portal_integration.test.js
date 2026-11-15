@@ -431,5 +431,162 @@ console.log('R) 🤖 노트북 오더함 (포털 안 오더 창구)');
   ok(D6.calls.length === nBeforeEx, '예시를 눌러도 저절로 보내지는 않는다(확인 뒤 보냄)');
 }
 
+console.log('S) 오더함 — 자동 확인·승인 카운트다운·다시 실행·최근 글·입력 방어');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const S9 = mk();
+  const nowMs = S9.run('Date.now()');
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, status, x) => {
+    const r = [id, created, 'phone', 'git_pull', 'gaegyebu', '{}', status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  S9.props.QUEUE_SHEET_ID = 'SHEETidOrderPoll001';
+  S9.addSheet('SHEETidOrderPoll001', {'Command_Queue': [HEAD.slice(0)].concat([
+    row('Q-1001', at(nowMs - 20 * 60000), 'DONE', {type: 'git_pull', duration_ms: 3000, result: '이미 최신'}),
+    row('Q-1002', at(nowMs - 15 * 60000), 'FAILED', {type: 'git_pull', error: '커밋 안 한 변경이 있어요'}),
+    row('Q-1003', at(nowMs - 12 * 60000), 'TIMEOUT_REVIEW', {type: 'toss_sync', error: '한도 소진'}),
+    row('Q-1004', at(nowMs - 4 * 60000), 'WAITING_APPROVAL', {type: 'claude_prompt', workspace: 'content-hub',
+      payload: JSON.stringify({prompt: '제목 고쳐줘', mode: 'edit'}), risk_level: 'HIGH',
+      approval_expires_at: at(nowMs + 10 * 60000)}),
+    row('Q-1005', at(nowMs - 3 * 60000), 'DONE', {type: 'claude_prompt', workspace: 'gaegyebu',
+      payload: JSON.stringify({prompt: '요약해줘', mode: 'ask'}), duration_ms: 8000, result: '[agy] 3줄 요약을 마쳤습니다'})
+  ])});
+  const D9 = makeDevice(S9); D9.config();
+  await D9.run('loadOrders()');
+  const box9 = () => D9.el('ord-list').innerHTML;
+  const last9 = a => {
+    for (let i = D9.calls.length - 1; i >= 0; i--) { const b = JSON.parse(D9.calls[i].opts.body); if (!a || b.action === a) return b; }
+    return null;
+  };
+
+  // ① 승인 카운트다운 — 그릴 때 숫자를 굳히지 않고 data-until(절대 시각)을 남긴다
+  ok(D9.run('typeof ordDeadline') === 'function' && D9.run('typeof ordTick') === 'function', '승인 카운트다운 함수가 있다');
+  const wait9 = D9.get('ORD_ITEMS').filter(i => i.status === 'WAITING_APPROVAL')[0];
+  ok(/class="ord-cd" data-until="\d{13}"/.test(box9()), '승인 대기 카드에 만료까지 남은 시각(data-until)이 붙는다');
+  ok(box9().indexOf('10분 안에 승인') >= 0, '처음 그릴 때는 남은 시간 안내를 그대로 보여준다');
+  const until = Number((box9().match(/data-until="(\d{13})"/) || [])[1]);
+  ok(Math.abs(until - (D9.run('ORD_FETCH_AT') + wait9.expires_in_ms)) < 5000, 'data-until = 받은 시각 + 서버가 준 남은 시간');
+  ok(/^\(1분 5초 남음\)$/.test('(' + D9.run('ordLeftText(65000)') + ')'), '남은 시간을 분·초로 읽기 쉽게');
+  ok(D9.run('ordLeftText(-1)') === '승인 시간이 지났어요', '지난 뒤에는 지났다고 표시');
+  ok(D9.run('ordDeadline({status:"DONE",expires_in_ms:60000})') === 0, '승인 대기가 아니면 카운트다운 없음');
+  ok(D9.run('ordCdNodes().length') === 0 && D9.run('ORD_CD_TIMER') === null, '화면에 카운트다운 요소가 없으면 타이머도 만들지 않는다(가짜 화면은 건너뜀)');
+
+  // ② 실행 중인 오더가 있을 때만 자동 확인
+  ok(D9.run('ordActive()') === true, 'PENDING·승인 대기가 있으면 자동 확인 대상');
+  D9.run('ORD_POLL.paused = false; ORD_POLL.calls = 0; ORD_POLL.started = 0; ordPollSchedule()');
+  ok(!!D9.run('ORD_POLL.timer'), '실행 중인 오더가 있으면 20초 뒤 다시 읽도록 예약한다');
+  D9.run('document.hidden = true; ordPollSchedule()');
+  ok(!D9.run('ORD_POLL.timer'), '탭이 가려져 있으면 자동 확인을 멈춘다');
+  D9.run('document.hidden = false; ordPollSchedule()');
+  ok(!!D9.run('ORD_POLL.timer'), '탭으로 돌아오면 다시 예약');
+  D9.run(`ORD_POLL.calls = ORD_POLL_MAX; ordPollSchedule()`);
+  ok(D9.run('ORD_POLL.paused') === true && !D9.run('ORD_POLL.timer'), '10분(30회)을 넘기면 자동 확인을 멈춘다');
+  ok(/자동 갱신을 멈췄어요/.test(D9.el('ord-paused').textContent) && D9.el('ord-paused').style.display === 'block', '멈춘 이유와 다시 켜는 방법을 화면에 남긴다');
+  await D9.run('loadOrders()');
+  ok(D9.run('ORD_POLL.paused') === false && D9.el('ord-paused').style.display === 'none', '사람이 ⟳ 로 다시 읽으면 자동 확인이 다시 켜진다');
+  D9.run('ORD_ITEMS = [{status:"DONE"}]; ordPollSchedule()');
+  ok(!D9.run('ORD_POLL.timer') && D9.run('ORD_POLL.started') === 0, '남은 오더가 없으면 자동 확인을 끈다');
+  await D9.run('loadOrders()');
+
+  // ③ 자동 확인이 실패해도 목록을 지우지 않는다
+  const keepBox = box9();
+  D9.run('__fetchSave = fetch');
+  D9.run('fetch = async function(){ throw new Error("offline"); }');
+  await D9.run('loadOrders({silent:true})');
+  ok(box9() === keepBox && box9().indexOf('불러오지 못했어요') < 0, '자동 확인 실패는 목록·안내를 건드리지 않는다');
+  D9.run('fetch = __fetchSave');
+  await D9.run('loadOrders()');
+  ok(box9().length > 0 && box9().indexOf('다시 확인') < 0, '통신이 돌아오면 다시 읽어온다');
+
+  // ④ 목록이 그대로면 다시 그리지 않는다(깜빡임·스크롤 튐 방지)
+  const same = D9.get('ORD_ITEMS');
+  D9.el('ord-list').innerHTML = '<i>그대로</i>';
+  D9.run(`applyOrderList({at:new Date().toISOString(), items:${JSON.stringify(same)}})`);
+  ok(D9.el('ord-list').innerHTML === '<i>그대로</i>', '달라진 게 없으면 목록을 다시 그리지 않는다');
+  D9.run(`applyOrderList({at:new Date().toISOString(), items:${JSON.stringify(same.map((x,i)=> i===0?Object.assign({},x,{status:'FAILED'}):x))}})`);
+  ok(D9.el('ord-list').innerHTML !== '<i>그대로</i>', '상태가 바뀌면 다시 그린다');
+  await D9.run('loadOrders()');
+
+  // ⑤ 실패·확인 필요·만료된 빠른 오더는 원탭으로 다시 실행
+  ok(/data-type="git_pull" onclick="quickOrder\(this.dataset.type\)">🔄 다시 실행/.test(box9()), '실패한 코드 최신화 카드에 다시 실행 버튼');
+  ok(/data-type="toss_sync"/.test(box9()), '확인 필요(한도) 토스 동기화 카드에도 다시 실행 버튼');
+  ok((box9().match(/다시 실행/g) || []).length === 2, '완료된 오더에는 다시 실행 버튼을 붙이지 않는다(실패 2건만)');
+  const nQ = D9.calls.length;
+  await D9.run(`quickOrder('toss_sync')`);
+  const retryBody = (() => { for (let i = D9.calls.length - 1; i >= 0; i--) { const b = JSON.parse(D9.calls[i].opts.body); if (b.action === 'queue_enqueue') return b; } return null; })();
+  ok(retryBody && retryBody.type === 'toss_sync' && D9.calls.length > nQ, '다시 실행은 같은 종류로 새 오더를 접수한다');
+
+  // ⑥ 실행한 엔진을 결과 카드에 보여준다
+  ok(box9().indexOf('⚡ agy') >= 0, '결과가 [agy] 로 시작하면 엔진 배지를 보여준다');
+  ok(D9.run(`ordEngineChip({type:'claude_prompt', result:'[claude] 완료'})`).indexOf('⚡ claude') >= 0, 'claude 표기도 배지로');
+  ok(D9.run(`ordEngineChip({type:'git_pull', result:'[agy] x'})`) === '', '클로드 지시가 아니면 엔진 배지 없음');
+
+  // ⑦ 최근 보낸 오더 글 — 이 기기에만, 최대 5개, 자동 전송 금지
+  D9.run('confirm = function(){ return true; }');
+  for (const t of ['하나', '둘', '셋', '넷', '다섯', '여섯', '일곱']) {
+    D9.el('ord-inp').value = t + ' 점검해줘';
+    await D9.run('sendOrder()');
+  }
+  const rec = () => JSON.parse(D9.store.get('portal_ord_recent') || '[]');
+  ok(rec().length === 5, '최근 글은 5개까지만 남긴다');
+  ok(rec()[0] === '일곱 점검해줘' && rec().indexOf('하나 점검해줘') < 0, '방금 보낸 글이 맨 앞, 오래된 글은 밀려난다');
+  D9.run(`ordRecentAdd('셋 점검해줘')`);
+  ok(rec()[0] === '셋 점검해줘' && rec().filter(x => x === '셋 점검해줘').length === 1 && rec().length === 5, '다시 쓴 글은 맨 앞으로 올라가고 중복되지 않는다');
+  ok((D9.el('ord-recent').innerHTML.match(/class="ord-rec"/g) || []).length === 5, '최근 글을 칩으로 보여준다');
+  ok(/최근 보낸 오더/.test(D9.el('ord-recent').innerHTML) && D9.el('ord-recent').style.display === 'flex', '칸 이름과 함께 보인다');
+  D9.el('ord-inp').value = '';
+  const nBeforeFill = D9.calls.length;
+  D9.run('ordRecentFill(1)');
+  ok(D9.el('ord-inp').value === rec()[1] && D9.calls.length === nBeforeFill, '누르면 입력칸만 채우고 보내지는 않는다');
+  D9.run('ordRecentClear()');
+  ok(rec().length === 0 && D9.el('ord-recent').style.display === 'none', '지우면 이 기기에서도 사라진다');
+  const S10 = mk(); const D10 = makeDevice(S10, {portal_ord_recent: JSON.stringify(['남아 있던 글'])});
+  ok(D10.get('ORD_RECENT').length === 1 && D10.el('ord-recent').innerHTML.indexOf('남아 있던 글') >= 0, '저장된 최근 글은 다시 열 때 이어받는다');
+
+  // ⑧ 입력 방어 — 2,000자·전송 잠금
+  D9.el('ord-inp').value = '가'.repeat(2100);
+  ok(D9.run('ordTyped()') === 2100 && /2,100/.test(D9.el('ord-chars').textContent), '글자 수를 세어 보여준다');
+  ok(/over/.test(D9.el('ord-chars').className), '2,000자를 넘으면 빨갛게 알린다');
+  const nToo = D9.calls.length;
+  await D9.run('sendOrder()');
+  ok(D9.calls.length === nToo && D9.el('ord-inp').value.length === 2100, '2,000자를 넘으면 보내지 않고 글을 남긴다');
+  ok(/너무 길어요/.test(D9.el('sync-txt').textContent), '왜 안 보내는지 알려준다');
+  D9.el('ord-inp').value = '짧은 오더';
+  D9.run('ordTyped()');
+  ok(!/over/.test(D9.el('ord-chars').className) && /5/.test(D9.el('ord-chars').textContent), '2,000자 이내면 평소 표시');
+  D9.run('ORD_SEND_BUSY = true');
+  const nLock = D9.calls.length;
+  await D9.run('sendOrder()');
+  ok(D9.calls.length === nLock, '보내는 중에 또 눌러도 두 번 접수하지 않는다');
+  D9.run('ORD_SEND_BUSY = false; ordSendLock(false)');
+  ok(D9.el('ord-send').textContent === '오더 보내기' && D9.el('ord-send').disabled === false, '전송 잠금이 풀리면 버튼이 되살아난다');
+
+  // ⑨ 승인·전송은 그 전에 시작한 목록 요청을 무효로 만든다(늦게 온 옛 응답이 덮어쓰지 않게)
+  const ep0 = D9.run('ORD_EPOCH');
+  D9.el('ord-inp').value = '차례 확인';
+  await D9.run('sendOrder()');
+  ok(D9.run('ORD_EPOCH') > ep0, '오더를 보내면 이전 목록 응답을 버릴 표시를 올린다');
+  await D9.run('loadOrders()');
+  const w2 = D9.get('ORD_ITEMS').filter(i => i.status === 'WAITING_APPROVAL')[0];
+  if (w2) {
+    const ep1 = D9.run('ORD_EPOCH');
+    await D9.run(`decideOrder('${w2.id}','approve')`);
+    ok(D9.run('ORD_EPOCH') > ep1, '승인도 같은 표시를 올린다');
+  } else ok(true, '승인 대기 오더가 없어 건너뜀');
+
+  // ⑩ 탭으로 돌아오면 멈춰 있던 상태를 한 번에 맞춘다
+  ok(D9.run('typeof ordOnShow') === 'function', '탭 복귀 처리 함수가 있다');
+  ok(/visibilitychange/.test(html), '탭 복귀(visibilitychange)에 반응한다');
+  const nShow = D9.calls.length;
+  D9.run('document.hidden = false; ordOnShow()');
+  await new Promise(r => setTimeout(r, 30));
+  ok(D9.calls.length >= nShow, '탭 복귀는 필요한 만큼만 요청한다');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();

@@ -58,6 +58,14 @@
 
 - 페이지 맨 아래 `「🤖 노트북 오더함」` 카드 하나로 **오더 접수 → 승인/거절 → 결과 확인**을 포털 안에서 끝낸다(텔레그램·슬랙 없이). 오더는 `Command_Queue` 시트에 쌓이고 노트북(`hub-agent` 워커)이 집어 가 실행한다.
 - 화면: 작업 위치 선택(`ord-ws`) · **AI 엔진 선택(`ord-engine`)** · `[🔄 코드 최신화]`(git_pull) · `[📈 토스 동기화]`(toss_sync) · **오더 도움말 패널(`ord-help`)** · 메모형 입력창 + `[오더 보내기]`(claude_prompt) · `파일 수정 허용` 체크 · 타임라인(`ord-list`) + `⟳` 새로고침.
+- **자동 확인(2026-11-16)**: PENDING·RUNNING·WAITING_APPROVAL 오더가 있을 때만, 탭이 보일 때(`document.hidden` 아닐 때)만 **20초 간격**으로 `queue_list` 를 다시 읽는다(`ordPollSchedule`). 남은 오더가 없으면 즉시 끄고, **30회(10분) 넘게 변화가 없으면 스스로 멈춘다** — `ord-paused` 에 "자동 갱신을 멈췄어요 … ⟳" 안내. `⟳`(사람이 직접 부르는 `loadOrders()`)는 이 카운터를 처음부터 다시 센다. 자동 확인 실패(`loadOrders({silent:true})`)는 목록·안내를 지우지 않는다. 타이머는 `setTimeout` 사슬 + `unref`(테스트·백그라운드에서 프로세스를 붙잡지 않게) — **`setInterval` 은 쓰지 않는다**.
+- **승인 카운트다운(2026-11-16)**: 승인 대기 카드는 `data-until`(받은 시각 + `expires_in_ms`)을 들고, 1초마다 `.ord-cd` 글자만 "⏳ 9분 30초 남음"으로 바꾼다(목록 전체를 다시 그리지 않음). 3분 아래면 `.soon`, 지나면 `.over` + "승인 시간이 지났어요" → 30초에 한 번만 서버와 맞춘다(서버가 그 줄을 읽을 때 `EXPIRED` 로 바꾼다).
+- **다시 실행(2026-11-16)**: `git_pull`·`toss_sync` 가 FAILED·TIMEOUT_REVIEW·EXPIRED 면 카드에 `[🔄 다시 실행]` — 같은 종류로 원탭 재접수(서버 중복 차단은 그대로).
+- **최근 보낸 오더(2026-11-16)**: 서버는 payload 원문을 돌려주지 않으므로(개인정보) **이 기기 `localStorage.portal_ord_recent` 에만** 마지막 5개를 남긴다(중복은 맨 앞으로). 칩을 누르면 입력칸을 **채우기만** 하고, `🗑` 로 이 기기 기록을 지운다. 자동 전송은 없다.
+- **입력 방어(2026-11-16)**: 2,000자(서버 `QQ_MAX_PROMPT`) 카운터 — 넘으면 빨갛게 표시하고 **보내지 않는다**(서버 거절 전에 막음). 입력에 맞춰 높이(최대 180px). 보내는 동안 `[보내는 중...]` 으로 잠가 연타 중복을 막는다(`ORD_SEND_BUSY`). 승인·전송은 `ORD_EPOCH` 를 올려 **그 전에 시작한 목록 응답이 늦게 와도 덮어쓰지 않는다**.
+- **실행 엔진 배지(2026-11-16)**: 결과가 `[agy] …` 처럼 엔진 이름으로 시작하면(워커가 붙임) 카드에 `⚡ agy`/`⚡ claude`/`⚡ 게이트웨이` 칩 — 폴백이 일어났는지 한눈에 보인다. `claude_prompt` 결과에만 붙인다.
+- **목록 다시 그리기**: `ordSig`(id·status·result·error·duration)가 같으면 `renderOrderHead` 만 다시 쓰고 목록 HTML 은 건드리지 않는다(깜빡임·스크롤 튐 방지). 그릴 때 `ord-list` 의 `scrollTop` 을 지킨다.
+- **탭 복귀(2026-11-16)**: `visibilitychange` → `ordOnShow()` — 카운트다운 재계산, 실행 중 오더가 있으면 1회 확인, 상태등 캐시가 5분을 넘겼을 때만 `queue_status` 1회.
 - **AI 엔진 선택(2026-11-15)**: `자동 (정품 Claude→agy→FreeLLMAPI)` · `정품 Claude` · `제미나이 agy` · `FreeLLMAPI`. 값은 `payload.engine` 으로 가는데 **`auto` 는 싣지 않는다**(워커 기본값과 같은 뜻이라 오더 모양을 안 바꿈). 고른 엔진은 `localStorage.portal_ord_engine` 에 기억한다.
   - 엔진 선택이 노트북까지 닿으려면 **Code.gs 재배포가 필요**하다(`qqPayloadOf_` 가 engine 을 싣도록 고침). 예전 배포여도 화면은 그대로 동작하고 엔진값만 무시된다(오더는 auto 로 실행).
   - 서버는 `QQ_ENGINES = ['auto','claude','agy','freellmapi']` 로 검사하고 **모르는 이름은 `bad_request`**(조용히 auto 로 바꾸지 않음). `queue_list` 응답에 `engines` 를 함께 준다(화면은 고정 목록도 갖고 있어 예전 서버에서도 그려진다).
@@ -67,7 +75,7 @@
 - 목록은 최근 18건(최대 20). **payload 원문은 내보내지 않는다** — 주민·전화번호는 `[REDACTED]`, 내용은 한 줄 요약. 결과·오류도 같은 규칙으로 가린다.
 - 서버가 예전 배포(오더함 모름)·`QUEUE_SHEET_ID` 미설정·시트 칸 부족·통신 실패면 **빨간 에러 대신 안내**(`ord-note`). `loadOrders()` 는 설정 전엔 요청을 보내지 않는다.
 - 화면 값은 전부 `esc()` (오더 내용·결과·상태 모두 밖에서 온 글). 새로 그리는 함수는 `renderOrders`/`applyOrderList`/`renderOrderNotice` 하나씩만 거친다.
-- 테스트: `portal_server` 9)절(규격·화이트리스트·해시·중복·만료·감사·잠금) · `portal_integration` R)절(그리기·승인/거절·Enter·XSS·안내 상태). 가짜 스프레드시트는 `tests/lib/portal_fake_server.js` 가 읽기/쓰기(`appendRow`·`getRange().setValues`)까지 흉내 낸다.
+- 테스트: `portal_server` 9)절(규격·화이트리스트·해시·중복·만료·감사·잠금) · `portal_integration` R)절(그리기·승인/거절·Enter·XSS·안내 상태) · **S)절(자동 확인 조건·10분 상한·카운트다운·다시 실행·최근 글 5개·2,000자 방어·전송 잠금·늦은 응답 차단·탭 복귀)**. 가짜 스프레드시트는 `tests/lib/portal_fake_server.js` 가 읽기/쓰기(`appendRow`·`getRange().setValues`)까지 흉내 낸다.
 
 ## 서버 (Code.gs)
 
