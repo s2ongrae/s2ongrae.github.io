@@ -105,10 +105,10 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .cal-today{background:var(--blue);color:#fff;border:none;border-radius:7px;
   padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
 .cal-today:hover{background:var(--blue-d)}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border-radius:10px;overflow:hidden}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--border);border-radius:10px;overflow:hidden}
 .cal-dow{background:var(--bg);text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:9px 4px;letter-spacing:.4px}
 .cal-dow.sun{color:var(--red)} .cal-dow.sat{color:var(--blue)}
-.cal-day{background:var(--surface);min-height:100px;padding:7px 6px;cursor:pointer;
+.cal-day{background:var(--surface);min-height:100px;padding:7px 6px;cursor:pointer;min-width:0;
   transition:background .1s;display:flex;flex-direction:column;gap:2px}
 .cal-day:hover{background:#F5F8FF}
 .cal-day.other{background:#FAFBFE}
