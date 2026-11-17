@@ -488,10 +488,9 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       <span class="mon-filters-h">🕒 통합 이력</span>
       <button class="mon-f on" data-f="all" onclick="monFilter(this)">전체</button>
       <button class="mon-f" data-f="pk" onclick="monFilter(this)">🤖 피클</button>
-      <button class="mon-f" data-f="nb" onclick="monFilter(this)">🏠 노트북</button>
-      <button class="mon-f" data-f="pc" onclick="monFilter(this)">💻 회사 PC</button>
-      <button class="mon-f" data-f="ag" onclick="monFilter(this)">⚡ 에이전트</button>
-    </div>
+      <button class="mon-f" data-f="hub" onclick="monFilter(this)">🏠 허브</button>
+      <button class="mon-f" data-f="nd" onclick="monFilter(this)">⌨️ 직접</button>
+      <button class="mon-f" data-f="pc" onclick="monFilter(this)">💻 회사 PC</button></div>
     <div class="mon-filters" id="mon-proj"></div>
     <div class="mon-feed" id="mon-feed"><div class="ord-empty">오더를 한 번 불러오면 노트북·회사 PC 가 한 일이 여기 시간순으로 쌓여요</div></div>
     <div class="mon-note" id="mon-foot"></div>
@@ -1881,7 +1880,7 @@ function monRender(force){
 }
 function monFilter(btn){
   const f = btn && btn.dataset ? String(btn.dataset.f || 'all') : 'all';
-  MON_FILTER = ['all', 'nb', 'pc', 'pk', 'ag'].indexOf(f) >= 0 ? f : 'all';
+  MON_FILTER = ['all', 'hub', 'pk', 'pc', 'nd', 'web', 'etc'].indexOf(f) >= 0 ? f : 'all';
   try {
     if(document.querySelectorAll){
       Array.prototype.forEach.call(document.querySelectorAll('#mon-filters .mon-f'), b => {

@@ -628,7 +628,7 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   S11.props.HEARTBEAT_FILE_ID = hbf.id;
   const D11 = makeDevice(S11);
   ok(/id="mon-cards"/.test(html) && /id="mon-feed"/.test(html), '포털에 작업 관제(기기 카드·통합 이력) 자리가 있다');
-  ok(/data-f="nb"/.test(html) && /data-f="pc"/.test(html) && /data-f="ag"/.test(html), '통합 이력에 노트북·회사 PC·에이전트 갈래 버튼');
+  ok(/data-f="hub"/.test(html) && /data-f="pc"/.test(html) && /data-f="nd"/.test(html), '통합 이력에 허브·회사 PC·노트북 직접 갈래 버튼');
   ok(/\.mon-grid\{grid-template-columns:minmax\(0,1fr\)\}/.test(html), '폰에서는 기기 카드를 한 줄에 하나씩');
   D11.config();
   await D11.run('refreshQueueStatus(true)');
