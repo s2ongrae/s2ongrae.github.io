@@ -59,7 +59,14 @@ run(`GH_DATA = {at: ${JSON.stringify(iso(now))}, runs_at: ${JSON.stringify(iso(n
   'insurance-manager': {commits: [{sha: '5fbdaa8', msg: '그루핑 3순위 수정: 저장해 둔 그룹 설정이 깨지지 않게', at: ${JSON.stringify(iso(now - 20 * 3600000))}}],
     run: {name: 'deploy', status: 'completed', conclusion: 'success'}}
 }}`);
-run('monRender(true); renderOrders(); renderQueueStatus(QSTAT_DATA);');
+run(`AGENT_DATA = {updated_at: ${JSON.stringify(iso(now - 2 * 60000))}, source: 'repo',
+  agent: {state: 'working', task: '포털 작업 관제 — 피클·노트북·회사 PC 현황과 프로젝트 묶음', project: 'portal', started_at: ${JSON.stringify(iso(now - 33 * 60000))}, id: 'p-1'},
+  tasks: [
+    {id: 'p-1', project: 'portal', title: '포털 작업 관제 — 피클·노트북·회사 PC 현황과 프로젝트 묶음', state: 'working', started_at: ${JSON.stringify(iso(now - 33 * 60000))}},
+    {id: 'p-0', project: 'smartstore', title: '묘한살림 위탁 후보·상세페이지 규칙 정리', state: 'done', started_at: ${JSON.stringify(iso(now - 26 * 3600000))}, ended_at: ${JSON.stringify(iso(now - 25 * 3600000))}, result: '위탁 후보 정리·가격 벤치마킹 규칙 반영'},
+    {id: 'p-2', project: 'content', title: '콘텐츠 허브 v3 화면 정리와 블로그 초안', state: 'done', started_at: ${JSON.stringify(iso(now - 18 * 3600000))}, ended_at: ${JSON.stringify(iso(now - 17 * 3600000))}, result: 'v3.3 배포·초안 전달'}
+  ]}`);
+run('monRender(true); renderOrders(); renderQueueStatus(QSTAT_DATA); monRender(true);');
 
 const cards = el('mon-cards').innerHTML;
 const feed = el('mon-feed').innerHTML;
