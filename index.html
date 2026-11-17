@@ -1561,9 +1561,17 @@ function monDevNotebook(){
       main: `다음 차례를 기다리는 오더 <b>${pend.length}</b>건`,
       sub: '노트북이 다음 확인 때 집어가요 (60초마다 확인)'});
   }
-  return monCard({name: '🏠 집 노트북', cls: 'wait', state: '상태 모름',
-    main: '노트북 상태를 아직 못 읽었어요',
-    sub: serverConfigured() ? '큐 시트 설정(QUEUE_SHEET_ID)·하트비트 파일을 확인하세요' : '⚙️ 서버 설정을 하면 노트북 상태가 보여요'});
+  // 아직 아무 신호도 없을 때 — 무엇을 하면 보이는지 정확히 알려줘요(서버가 예전 배포인 경우가 많아요)
+  const why = QSTAT_DATA && QSTAT_DATA.reason;
+  let sub = '⚙️ 서버 설정을 하면 노트북 상태가 보여요';
+  if(serverConfigured()){
+    if(!QSTAT_DATA) sub = '노트북 상태를 읽는 중이에요 — ⟳ 로 다시 확인';
+    else if(why === 'unsupported') sub = '서버가 아직 queue_status 를 모르는 배포예요 — Apps Script 를 재배포하면 켜져요';
+    else if(why === 'noconfig') sub = '스크립트 속성 QUEUE_SHEET_ID 를 넣으면 노트북 상태가 보여요';
+    else sub = '하트비트 파일(HEARTBEAT_FILE_ID)을 올리면 노트북 생존까지 보여요';
+  }
+  return monCard({name: '🏠 집 노트북', cls: 'wait', state: !QSTAT_DATA && serverConfigured() ? '확인 중' : '상태 모름',
+    main: '노트북 신호가 아직 없어요', sub: sub});
 }
 function monDevPc(){
   const best = ghLatest();
@@ -1584,6 +1592,10 @@ function monDevPc(){
 }
 function monDevQueue(){
   const s = ORD_SUM || {};
+  if(!ORD_SUM && serverConfigured()){
+    return monCard({name: '📋 오더 큐 · 자동화', cls: 'wait', state: '확인 중',
+      main: '오더함 목록을 읽는 중이에요', sub: '조금 있으면 대기·실행·승인 건수가 여기 나와요'});
+  }
   const p = numOf(s.pending) || 0, r = numOf(s.running) || 0, w = numOf(s.waiting) || 0, t = numOf(s.timeout) || 0;
   const done = numOf(s.done) || 0, failed = numOf(s.failed) || 0;
   const today = monToday();
