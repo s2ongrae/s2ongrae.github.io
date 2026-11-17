@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>미리보기 · 🖥️ 작업 관제</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F0F4FF;--surface:#fff;--border:#DDE3F0;--border2:#C8D1E8;
+  --blue:#3B7BF6;--blue-l:#EEF3FF;--blue-d:#2563EB;
+  --green:#059669;--green-l:#ECFDF5;
+  --red:#DC2626;--red-l:#FEF2F2;
+  --gold:#D97706;--gold-l:#FFFBEB;
+  --purple:#7C3AED;--purple-l:#F5F3FF;
+  --text:#0F172A;--text2:#334155;--muted:#64748B;--hint:#94A3B8;
+  --shadow:0 1px 4px rgba(15,23,42,.08),0 4px 16px rgba(15,23,42,.06);
+  --shadow-md:0 4px 16px rgba(15,23,42,.14),0 8px 32px rgba(15,23,42,.08);
+}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── 헤더 ── */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 28px;
+  position:sticky;top:0;z-index:50}
+.header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.header-left{display:flex;align-items:center;gap:20px;min-width:0}
+.header-right{display:flex;align-items:center;gap:14px;margin-left:auto}
+.brand{font-size:11px;font-weight:800;letter-spacing:2px;color:var(--muted)}
+.brand span{color:var(--blue)}
+.app-links{display:flex;gap:8px;flex-wrap:wrap}
+.app-link{display:flex;align-items:center;gap:6px;padding:6px 13px;background:var(--bg);
+  border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text2);
+  font-size:12px;font-weight:600;transition:all .15s}
+.app-link:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
+.app-link.off{opacity:.6;border-style:dashed}   /* 주소를 아직 안 넣은 링크 */
+.sync-badge{font-size:11px;color:var(--muted);min-width:80px;text-align:right}
+
+/* ── 상단 상태등 (노트북 · 밀린 명령 · 토스 동기화) ── */
+.statusbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:9px;
+  border-top:1px dashed var(--border)}
+.stat{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);
+  border-radius:999px;padding:3px 11px 3px 9px;font-size:11px;font-weight:600;color:var(--muted);
+  font-family:inherit;cursor:pointer;transition:border-color .15s,background .15s}
+.stat:hover{border-color:var(--border2);background:#fff}
+.stat .dot{width:8px;height:8px;border-radius:50%;background:var(--hint);flex-shrink:0}
+.stat .v{color:var(--text);font-weight:700}
+.stat.ok .dot{background:var(--green);box-shadow:0 0 0 3px var(--green-l)}
+.stat.warn .dot{background:var(--gold);box-shadow:0 0 0 3px var(--gold-l)}
+.stat.bad .dot{background:var(--red);box-shadow:0 0 0 3px var(--red-l)}
+.stat.off{border-style:dashed;color:var(--hint)}
+.stat-note{margin-left:auto;font-size:10px;color:var(--hint)}
+
+/* ── 페이지 레이아웃 ── */
+.page{max-width:1300px;margin:0 auto;padding:20px 20px 60px;display:flex;flex-direction:column;gap:16px}
+
+/* 할일 (상단 전체) */
+.tasks-section{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.badge{padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.badge-blue{background:var(--blue-l);color:var(--blue-d)}
+.task-tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+.task-tab{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:4px 12px;font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.task-tab.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);font-weight:600}
+.task-input-row{display:flex;gap:8px;margin-bottom:12px}
+.task-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:8px 13px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .15s}
+.task-input:focus{border-color:var(--blue);background:#fff}
+.task-input::placeholder{color:var(--hint)}
+.add-btn{background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:8px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.add-btn:hover{background:var(--blue-d)}
+.task-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.task-item{display:flex;align-items:flex-start;gap:9px;padding:10px 13px;
+  background:var(--bg);border:1px solid var(--border);border-radius:10px;transition:border-color .1s}
+.task-item:hover{border-color:var(--border2)}
+.task-item.done-item{opacity:.55}
+.task-cb{width:17px;height:17px;border-radius:5px;border:2px solid var(--border2);
+  background:#fff;cursor:pointer;flex-shrink:0;appearance:none;margin-top:2px;
+  display:grid;place-items:center;transition:all .15s}
+.task-cb:checked{background:var(--green);border-color:var(--green)}
+.task-cb:checked::after{content:'✓';color:#fff;font-size:10px;font-weight:800}
+.task-body{flex:1;min-width:0}
+.task-title{font-size:13px;font-weight:500;line-height:1.4}
+.task-title.done{text-decoration:line-through;color:var(--muted)}
+.task-note{font-size:11px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:15px;padding:1px 3px;border-radius:3px;transition:color .1s;flex-shrink:0}
+.del-btn:hover{color:var(--red)}
+.spin{text-align:center;padding:20px;color:var(--muted);font-size:13px;grid-column:1/-1}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:20px 0;grid-column:1/-1}
+
+/* 중간 행: 캘린더(좌) + 메모(우) — 1fr 은 최소폭이 min-content 라 긴 글에 칸이 밀려나요(minmax(0,1fr)) */
+.mid-row{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+
+/* ── 캘린더 ── */
+.cal-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+.cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.cal-title-txt{font-size:18px;font-weight:800}
+.cal-navs{display:flex;gap:6px;align-items:center}
+.cal-nav{background:var(--bg);border:1px solid var(--border);color:var(--text);
+  border-radius:7px;padding:5px 12px;font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s}
+.cal-nav:hover{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d)}
+.cal-today{background:var(--blue);color:#fff;border:none;border-radius:7px;
+  padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.cal-today:hover{background:var(--blue-d)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--border);border-radius:10px;overflow:hidden}
+.cal-dow{background:var(--bg);text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:9px 4px;letter-spacing:.4px}
+.cal-dow.sun{color:var(--red)} .cal-dow.sat{color:var(--blue)}
+.cal-day{background:var(--surface);min-height:100px;padding:7px 6px;cursor:pointer;min-width:0;
+  transition:background .1s;display:flex;flex-direction:column;gap:2px}
+.cal-day:hover{background:#F5F8FF}
+.cal-day.other{background:#FAFBFE}
+.cal-day.other .dn{color:var(--hint)}
+.cal-day.today{background:var(--blue-l)}
+.cal-day.today .dn{background:var(--blue);color:#fff;width:24px;height:24px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-weight:700}
+.cal-day.sun .dn{color:var(--red)} .cal-day.sat .dn{color:var(--blue)}
+.cal-day.today.sun .dn,.cal-day.today.sat .dn{color:#fff}
+.dn{font-size:12px;font-weight:600;color:var(--text);width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center}
+.day-ev{font-size:10px;font-weight:500;padding:2px 5px;border-radius:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.ev-c0{background:#EEF3FF;color:#2563EB} .ev-c1{background:#FEE2E2;color:#991B1B}
+.ev-c2{background:#FEF9C3;color:#854D0E} .ev-c3{background:#DCFCE7;color:#166534}
+.ev-c4{background:#F3E8FF;color:#6B21A8} .ev-c5{background:#FFE4E6;color:#9F1239}
+.ev-c6{background:#FFF7ED;color:#9A3412}
+.day-more{font-size:9px;color:var(--muted);padding:1px 3px}
+/* 폰에서는 칸에 글자를 욱여넣지 않고 점만 — 일정 이름은 아래 '이번 달 일정' 목록에서 읽어요 */
+.day-dots{display:none}
+.day-dots i{display:block;width:6px;height:6px;border-radius:50%;background:#2563EB}
+.day-dots i.ev-c1{background:#DC2626} .day-dots i.ev-c2{background:#CA8A04}
+.day-dots i.ev-c3{background:#16A34A} .day-dots i.ev-c4{background:#7C3AED}
+.day-dots i.ev-c5{background:#E11D48} .day-dots i.ev-c6{background:#EA580C}
+.cal-agenda{display:none;margin-top:12px;border-top:1px dashed var(--border);padding-top:4px}
+.cal-agenda>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text2);padding:8px 2px}
+.cal-agenda>summary::-webkit-details-marker{display:none}
+.cal-agenda>summary:hover{color:var(--blue-d)}
+.cal-agenda>summary .caret{margin-left:auto;color:var(--hint);font-size:11px;transition:transform .15s}
+.cal-agenda[open]>summary .caret{transform:rotate(90deg)}
+.ag-day{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--bg);cursor:pointer}
+.ag-day:last-child{border-bottom:0}
+.ag-day:hover{background:var(--blue-l)}
+.ag-date{flex:0 0 30px;text-align:center;line-height:1.2;color:var(--muted);font-size:10.5px}
+.ag-date b{display:block;font-size:14px;font-weight:800;color:var(--text)}
+.ag-day.today .ag-date b,.ag-day.today .ag-date span{color:var(--blue-d)}
+.ag-evs{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ag-ev{font-size:12px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
+.ag-time{color:var(--blue-d);font-weight:700;margin-right:5px;font-size:11px}
+.ag-more{font-size:10.5px;color:var(--hint)}
+.ag-empty{font-size:12px;color:var(--muted);padding:4px 2px}
+
+/* ── 메모 패널 ── */
+.memo-panel{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-height:500px;min-width:0}
+.memo-add-btn{width:100%;background:var(--bg);border:2px dashed var(--border2);color:var(--muted);
+  border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:all .15s;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:6px}
+.memo-add-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+.memo-list{display:flex;flex-direction:column;gap:10px}
+.memo-card{border-radius:12px;padding:14px;cursor:pointer;transition:box-shadow .15s;position:relative;border:1px solid transparent}
+.memo-card:hover{box-shadow:var(--shadow-md)}
+.memo-card.pinned::before{content:'📌';position:absolute;top:10px;right:10px;font-size:13px}
+.mc-yellow{background:#FFFDE7;border-color:#FFF176}
+.mc-blue{background:#E3F2FD;border-color:#90CAF9}
+.mc-green{background:#E8F5E9;border-color:#A5D6A7}
+.mc-pink{background:#FCE4EC;border-color:#F48FB1}
+.mc-purple{background:#F3E5F5;border-color:#CE93D8}
+.mc-white{background:#fff;border-color:var(--border2)}
+.memo-card-title{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.memo-card-body{font-size:12px;color:var(--text2);line-height:1.6;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.memo-card-date{font-size:10px;color:var(--muted);margin-top:8px}
+.memo-card-actions{display:flex;gap:4px;margin-top:10px;opacity:0;transition:opacity .15s}
+.memo-card:hover .memo-card-actions{opacity:1}
+.memo-icon-btn{background:rgba(0,0,0,.06);border:none;border-radius:6px;padding:4px 8px;
+  font-size:12px;cursor:pointer;color:var(--text2);transition:all .15s;font-family:inherit}
+.memo-icon-btn:hover{background:rgba(0,0,0,.12)}
+.memo-empty{text-align:center;padding:32px 0;color:var(--muted);font-size:13px}
+
+/* ── 🤖 노트북 오더함 ── */
+.order-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
+.ord-head-right{display:flex;align-items:center;gap:10px;min-width:0}
+.ord-hint{font-size:11px;color:var(--muted);text-align:right;overflow-wrap:anywhere}
+.ord-refresh{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text2);
+  width:30px;height:30px;font-size:15px;cursor:pointer;font-family:inherit;line-height:1;flex-shrink:0}
+.ord-refresh:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+.ord-quick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.ord-ws{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px;
+  font-size:12px;font-family:inherit;color:var(--text);max-width:170px;min-width:0}
+.ord-engine{max-width:290px;font-weight:600;font-size:11.5px}
+/* 오더 도움말 — 눌러서 입력칸을 채우는 예시 목록 */
+.ord-help{background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;min-width:0}
+.ord-help>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:var(--text2);
+  display:flex;align-items:center;gap:6px}
+.ord-help>summary::-webkit-details-marker{display:none}
+.ord-help>summary:hover{color:var(--blue-d)}
+.ord-help>summary .ord-help-caret{margin-left:auto;color:var(--hint);font-size:11px;transition:transform .15s}
+.ord-help[open]>summary .ord-help-caret{transform:rotate(90deg)}
+.ord-help-body{padding:2px 12px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;min-width:0;align-content:start}
+.ord-help-sec{min-width:0}
+.ord-help-h{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:6px}
+.ord-ex{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:8px;
+  padding:6px 9px;font-size:11.5px;line-height:1.45;font-family:inherit;color:var(--text2);cursor:pointer;margin-bottom:5px;
+  overflow-wrap:anywhere}
+.ord-ex:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.ord-ex.act{font-weight:600;color:var(--blue-d)}
+.ord-help-note{font-size:10.5px;color:var(--hint);line-height:1.5;margin-top:2px}
+.ord-btn{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 13px;
+  font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;
+  transition:border-color .15s,background .15s,color .15s;white-space:nowrap}
+.ord-btn:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
+.ord-compose{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.ord-inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  padding:10px 13px;font-size:13px;line-height:1.55;font-family:inherit;color:var(--text);
+  outline:none;resize:vertical;min-height:58px}
+.ord-inp:focus{border-color:var(--blue);background:#fff}
+.ord-inp::placeholder{color:var(--hint)}
+.ord-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ord-edit{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;min-width:0}
+.ord-list{display:flex;flex-direction:column;gap:8px;max-height:460px;overflow-y:auto;min-width:0}
+.ord-item{display:flex;gap:10px;padding:11px 12px;background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;min-width:0}
+.ord-item.st-wait{background:var(--gold-l);border-color:#FDE68A}
+.ord-item.st-run{background:var(--purple-l);border-color:#DDD6FE}
+.ord-item.st-done{background:var(--green-l);border-color:#BBF7D0}
+.ord-item.st-bad{background:var(--red-l);border-color:#FECACA}
+.ord-ic{font-size:15px;line-height:1.25;flex-shrink:0}
+.ord-main{flex:1;min-width:0}
+.ord-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ord-type{font-size:12px;font-weight:700;color:var(--text)}
+.ord-when{font-size:10px;color:var(--hint);margin-left:auto;white-space:nowrap}
+.ord-text{font-size:12px;color:var(--text2);line-height:1.55;margin-top:3px;
+  overflow-wrap:anywhere;white-space:pre-wrap}
+.ord-text.err{color:var(--red)}
+.ord-sub{font-size:10px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+.ord-acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.ord-ok,.ord-no{border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.ord-ok{background:var(--green);color:#fff;border:none}.ord-ok:hover{background:#047857}
+.ord-no{background:#fff;color:var(--red);border:1px solid #FECACA}.ord-no:hover{background:var(--red-l)}
+.ord-chip{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
+.c-wait{background:#FEF3C7;color:#92400E}.c-pend{background:var(--blue-l);color:var(--blue-d)}
+.c-run{background:#EDE9FE;color:#5B21B6}.c-done{background:#D1FAE5;color:#065F46}
+.c-fail{background:#FEE2E2;color:#991B1B}.c-off{background:#E2E8F0;color:#475569}
+.ord-note{font-size:12px;color:var(--muted);line-height:1.6;padding:14px;background:var(--bg);
+  border:1px dashed var(--border2);border-radius:10px}
+.ord-empty{font-size:12px;color:var(--muted);text-align:center;padding:18px 0}
+.ord-cd{font-variant-numeric:tabular-nums}
+.ord-cd.soon{color:#B45309;font-weight:700}
+.ord-cd.over{color:var(--red);font-weight:700}
+.ord-eng{background:#EEF2FF;color:#3730A3}
+.ord-again{background:#fff;border:1px solid var(--border);border-radius:7px;padding:6px 12px;
+  font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit}
+.ord-again:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.ord-recent{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:2px}
+.ord-recent-h{font-size:10.5px;color:var(--hint)}
+.ord-rec{max-width:100%;text-align:left;background:#fff;border:1px dashed var(--border2);border-radius:999px;
+  padding:5px 10px;font-size:11px;color:var(--text2);cursor:pointer;font-family:inherit;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ord-rec:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.ord-rec-del{border:none;background:none;color:var(--hint);cursor:pointer;font-size:12px;font-family:inherit;padding:4px 6px}
+.ord-rec-del:hover{color:var(--red)}
+.ord-chars{font-size:10.5px;color:var(--hint);margin-left:auto;font-variant-numeric:tabular-nums}
+.ord-chars.over{color:var(--red);font-weight:700}
+.ord-pause{display:none;font-size:10.5px;color:var(--hint);margin-bottom:6px}
+
+/* ── 🖥️ 작업 관제 (2026-11-17) — 노트북 · 회사 PC · 오더 큐를 관제 화면처럼 ── */
+.mon-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
+.mon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:12px}
+.mon-dev{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:11px 12px;min-width:0;transition:background .2s,border-color .2s}
+.mon-dev.run{background:var(--purple-l);border-color:#DDD6FE}
+.mon-dev.ok{background:var(--green-l);border-color:#BBF7D0}
+.mon-dev.wait{background:var(--gold-l);border-color:#FDE68A}
+.mon-dev.bad{background:var(--red-l);border-color:#FECACA}
+.mon-top{display:flex;align-items:center;gap:6px;min-width:0}
+.mon-name{font-size:11.5px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mon-dot{width:8px;height:8px;border-radius:50%;background:var(--hint);flex-shrink:0}
+.mon-dot.run{background:var(--purple);animation:monPulse 1.6s ease-in-out infinite}
+.mon-dot.ok{background:var(--green)}
+.mon-dot.wait{background:var(--gold)}
+.mon-dot.bad{background:var(--red);animation:monPulse 1.6s ease-in-out infinite}
+.mon-state{margin-left:auto;font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.mon-dev.run .mon-state{color:#5B21B6}.mon-dev.ok .mon-state{color:#047857}
+.mon-dev.wait .mon-state{color:#92400E}.mon-dev.bad .mon-state{color:#991B1B}
+.mon-main{font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:6px;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mon-main b{color:var(--text);font-weight:700}
+.mon-sub{font-size:10px;color:var(--hint);line-height:1.5;margin-top:4px;overflow-wrap:anywhere}
+.mon-bar{height:4px;border-radius:999px;background:#E2E8F0;overflow:hidden;margin-top:7px}
+.mon-bar i{display:block;height:100%;width:38%;border-radius:999px;background:var(--purple);animation:monSlide 1.5s ease-in-out infinite}
+@keyframes monSlide{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
+@keyframes monPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.mon-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 6px}
+.mon-filters-h{font-size:10.5px;font-weight:700;color:var(--muted);margin-right:2px}
+.mon-f{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 11px;font-size:10.5px;
+  color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
+.mon-f:hover{border-color:var(--blue);color:var(--blue-d)}
+.mon-f.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);font-weight:700}
+.mon-feed{display:flex;flex-direction:column;max-height:360px;overflow-y:auto;min-width:0}
+.mon-ev{display:flex;gap:8px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid var(--bg)}
+.mon-ev:last-child{border-bottom:none}
+.mon-t{flex:0 0 46px;font-size:10px;color:var(--hint);font-variant-numeric:tabular-nums;padding-top:1px}
+.mon-w{flex:0 0 auto;font-size:10px;font-weight:700;white-space:nowrap;padding-top:1px}
+.mon-w.nb{color:#5B21B6}.mon-w.pc{color:var(--blue-d)}.mon-w.ag{color:#047857}.mon-w.q{color:#92400E}.mon-w.pk{color:#B45309}
+.mon-tx{flex:1;min-width:0;font-size:11.5px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
+.mon-tx b{color:var(--text)}
+.mon-tx em{font-style:normal;color:var(--hint)}
+.mon-note{font-size:10.5px;color:var(--hint);line-height:1.55;margin-top:8px}
+/* 오더 생애주기 — 뭘 할 거다(예정) → 하는 중 → 끝냈다 */
+.ord-steps{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-top:6px}
+.ord-stp{font-size:9.5px;border:1px solid var(--border);border-radius:999px;padding:1px 7px;background:#fff;color:var(--hint);white-space:nowrap}
+.ord-stp.done{color:#047857;border-color:#BBF7D0}
+.ord-stp.now{color:#5B21B6;border-color:#C7D2FE;background:#EEF2FF;font-weight:700}
+.ord-stp.bad{color:#991B1B;border-color:#FECACA;background:var(--red-l);font-weight:700}
+.ord-stp-sep{font-size:9px;color:var(--hint)}
+.ord-elapsed{font-variant-numeric:tabular-nums}
+.ord-stale{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;
+  background:var(--gold-l);color:#92400E;border:1px solid #FDE68A}
+.ord-stale.bad{background:var(--red-l);color:#991B1B;border-color:#FECACA}
+
+/* ── 모달 ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:200;
+  align-items:center;justify-content:center;padding:20px}
+.overlay.on{display:flex}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:460px;
+  box-shadow:var(--shadow-md);max-height:90vh;overflow-y:auto}
+.modal-inner{padding:26px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-size:15px;font-weight:700}
+.mclose{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)}
+.mclose:hover{color:var(--text)}
+.ff{margin-bottom:13px}
+.ff label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;letter-spacing:.4px;text-transform:uppercase}
+.ff input,.ff textarea,.ff select{width:100%;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .15s}
+.ff input:focus,.ff textarea:focus{border-color:var(--blue);background:#fff}
+.ff textarea{resize:vertical;min-height:100px}
+.time-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.mbtn-cancel{background:var(--bg);border:1px solid var(--border);color:var(--text2);
+  border-radius:8px;padding:8px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.mbtn-ok{background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.mbtn-ok:hover{background:var(--blue-d)}
+.mbtn-del{background:var(--red-l);color:var(--red);border:none;border-radius:8px;
+  padding:8px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.color-picker{display:flex;gap:8px;flex-wrap:wrap}
+.color-chip{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s}
+.color-chip.sel{border-color:var(--text);transform:scale(1.15)}
+.ev-item-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px}
+.ev-del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:14px;margin-left:auto}
+.ev-del-btn:hover{color:var(--red)}
+
+@media(max-width:900px){.mid-row{grid-template-columns:minmax(0,1fr)}.memo-panel{min-height:0}}
+/* 손가락에는 hover 가 없다 — 눌러야만 보이던 메모 버튼은 늘 보이게 */
+@media(hover:none){.memo-card-actions{opacity:1}}
+@media(max-width:700px){.header{padding:8px 12px}.header-row{gap:8px;flex-wrap:nowrap;align-items:center}
+  .header-left{gap:6px;min-width:0}.header-right{gap:6px}
+  .brand{font-size:8px;letter-spacing:.4px;white-space:nowrap}.app-links{gap:3px;flex-wrap:nowrap}
+  .app-links .app-link span{display:none}.app-links .app-link{padding:0 6px;height:34px;font-size:14px;line-height:1}   /* 폰: 링크가 늘어도 비좁지 않게 아이콘만 */
+  .header-right .app-link{padding:0 9px;height:34px;font-size:14px;min-width:34px;justify-content:center}
+  .header-right .app-link span{display:none}
+  #today-str{display:none}   /* 날짜는 달력에 있으니 헤더 한 줄을 비워요 */
+  .sync-badge{min-width:0;font-size:10px}
+  /* 오더함: 폰에서는 작업 위치가 한 줄, 버튼 둘이 나머지 반씩 */
+  .ord-quick .ord-ws{flex:1 1 100%;max-width:none}
+  .ord-quick .ord-btn{flex:1 1 0;min-width:0;text-align:center}
+  .ord-list{max-height:none}
+  .ord-refresh{width:34px;height:34px}
+  /* 관제: 폰은 기기 카드를 한 줄에 하나씩, 이력은 스크롤 없이 */
+  .mon-grid{grid-template-columns:minmax(0,1fr)}
+  .mon-feed{max-height:none}
+  /* 상태등은 폰에서 한 줄로 (넘치면 옆으로 밀어서) — 헤더가 화면을 먹지 않게 */
+  .statusbar{margin-top:7px;padding-top:7px;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .statusbar::-webkit-scrollbar{display:none}
+  .stat{font-size:10.5px;padding:5px 10px 5px 8px;white-space:nowrap;flex:0 0 auto}.stat-note{display:none}}
+@media(max-width:349px){.brand{display:none}}
+@media(max-width:600px){.page{padding:14px 12px calc(40px + env(safe-area-inset-bottom))}
+  .task-grid{grid-template-columns:minmax(0,1fr)}
+  .tasks-section,.cal-card,.memo-panel,.order-card,.mon-card{padding:16px}
+  .task-cb{width:20px;height:20px}
+  .del-btn{font-size:17px;padding:5px 6px}
+  .cal-nav,.cal-today{padding:8px 14px;min-height:36px}
+  .overlay{padding:12px}.modal-inner{padding:20px}}
+/* 폰 달력 (2026-11-15): 칸에는 점만, 일정 이름은 아래 목록에서 — 두 글자로 잘리던 칸 글자를 없앰 */
+@media(max-width:560px){.cal-day{min-height:58px;padding:4px 2px;gap:3px;align-items:center}
+  .cal-day .dn{width:22px;height:22px;font-size:11.5px}
+  .cal-dow{padding:7px 2px;font-size:10.5px}
+  .day-ev,.day-more{display:none}
+  .day-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;padding:1px 0 3px}
+  .cal-agenda{display:block}}
+</style>
+</head><body><div class="page" style="padding-top:24px">
+  <div class="mon-card">
+    <div class="section-head">
+      <div class="section-title">🖥️ 작업 관제 <span class="badge badge-blue">작업 중 1 · 승인 1</span></div>
+      <div class="ord-head-right">
+        <span class="ord-hint">최근 확인 10:43 · 자동 갱신</span>
+        <button class="ord-refresh" aria-label="새로고침">⟳</button>
+      </div>
+    </div>
+    <div class="mon-grid"><div class="mon-dev wait">
+    <div class="mon-top"><span class="mon-dot wait"></span><span class="mon-name">🤖 피클</span><span class="mon-state">기록 없음</span></div>
+    <div class="mon-main">피클이 한 일·하는 일이 여기 나와요</div>
+    
+    <div class="mon-sub">작업을 시작할 때·끝낼 때 status/agent.json 에 스스로 남게요</div>
+    
+  </div><div class="mon-dev run">
+    <div class="mon-top"><span class="mon-dot run"></span><span class="mon-name">🏠 집 노트북</span><span class="mon-state">작업 중</span></div>
+    <div class="mon-main"><b>클로드 지시</b> · 콘텐츠 허브 — 클로드: 콘텐츠 허브 11월 3주차 카드 3장 문구 다듬고 미리보기 링크 정리</div>
+    <div class="mon-bar"><i></i></div>
+    <div class="mon-sub">⏱ <span class="ord-elapsed" data-since="1794879308860">8분 45초</span>째 실행 중 · 접수 10:34 · 다음 차례 1건 · 마지막 응답 방금</div>
+    
+  </div><div class="mon-dev ok">
+    <div class="mon-top"><span class="mon-dot ok"></span><span class="mon-name">💻 회사 PC</span><span class="mon-state">최근 작업</span></div>
+    <div class="mon-main"><b>포털</b> · fix(관제): 읽기 전 상태를 확인 중으로, 서버가 예전 배포면 재배포 안내</div>
+    
+    <div class="mon-sub">12분 전 푸시 · a99b7a0 · ✅ CI 통과</div>
+    <div class="mon-note" style="margin-top:4px">PC엔 도는 프로그램이 없어 GitHub 푸시가 유일한 신호예요</div>
+  </div><div class="mon-dev wait">
+    <div class="mon-top"><span class="mon-dot wait"></span><span class="mon-name">📋 오더 큐 · 자동화</span><span class="mon-state">승인 1</span></div>
+    <div class="mon-main">대기 <b>1</b> · 실행 <b>1</b> · 승인 <b>1</b></div>
+    <div class="mon-bar"><i></i></div>
+    <div class="mon-sub">누적 완료 8 · 실패 5 · 오늘 끝냄 1건 · 마지막 완료 10:03</div>
+    <div class="mon-note" style="margin-top:5px">🔄 자동 확인 준비 중</div>
+  </div></div>
+    <div class="mon-filters">
+      <span class="mon-filters-h">🕒 통합 이력</span>
+      <button class="mon-f on">전체</button>
+      <button class="mon-f">🤖 피클</button>
+      <button class="mon-f">🏠 노트북</button>
+      <button class="mon-f">💻 회사 PC</button>
+      <button class="mon-f">⚡ 에이전트</button>
+    </div>
+    <div class="mon-filters"><button class="mon-f on" data-p="all" onclick="monProjFilter(this)">전체 <b>진행 1 · 승인 1 · 예정 1</b></button><button class="mon-f" data-p="smartstore" onclick="monProjFilter(this)">🛒 묘한살림</button><button class="mon-f" data-p="content" onclick="monProjFilter(this)">🎬 콘텐츠허브 <b>진행 1</b></button><button class="mon-f" data-p="gaegyebu" onclick="monProjFilter(this)">📒 가계부 <b>예정 1</b></button><button class="mon-f" data-p="insurance" onclick="monProjFilter(this)">🏦 보험관리툴 <b>승인 1</b></button><button class="mon-f" data-p="portal" onclick="monProjFilter(this)">🖥️ 포털·연동</button><button class="mon-f" data-p="life" onclick="monProjFilter(this)">📋 생활·행정</button></div>
+    <div class="mon-feed"><div class="mon-ev"><span class="mon-t">10:40</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">🔄 <b>코드 최신화</b> · 대기 · 가계부 <em>코드 최신화 (git pull --ff-only)</em></span></div><div class="mon-ev"><span class="mon-t">10:37</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">💬 <b>클로드 지시</b> · 승인 대기 · 보험관리툴 <em>클로드: 보장분석 표 담보 이름 규칙 정리 (파일 수정)</em></span></div><div class="mon-ev"><span class="mon-t">10:35</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">💬 <b>클로드 지시</b> · 실행 중 · 콘텐츠 허브 <em>클로드: 콘텐츠 허브 11월 3주차 카드 3장 문구 다듬고 미리보기 링크 정리</em></span></div><div class="mon-ev"><span class="mon-t">10:31</span><span class="mon-w pc">💻 회사 PC</span><span class="mon-tx">📤 <b>포털</b> · fix(관제): 읽기 전 상태를 확인 중으로, 서버가 예전 배포면 재배포 안내 <em>a99b7a0</em></span></div><div class="mon-ev"><span class="mon-t">10:03</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">📈 <b>토스 동기화</b> · 완료 <em>토스 동기화 완료 · 날짜별 기록 6일</em></span></div><div class="mon-ev"><span class="mon-t">09:33</span><span class="mon-w pc">💻 회사 PC</span><span class="mon-tx">📤 <b>포털</b> · polish(관제): 승인 대기·대기 상태를 노트북 카드에 먼저 보여주고 CI 줄바꿈 정리 <em>c9f748a</em></span></div><div class="mon-ev"><span class="mon-t">09:19</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">💬 <b>클로드 지시</b> · 실패 · 스마트스토어 <em>엔진: 정품 Claude Code(claude) 폴백: claude→timeout</em></span></div><div class="mon-ev"><span class="mon-t">06:43</span><span class="mon-w ag">⚡ 에이전트</span><span class="mon-tx">📤 <b>콘텐츠 허브</b> · Merge pull request #1 from s2ongrae/agent/ui-visibility-v3 <em>c8fe95b</em></span></div><div class="mon-ev"><span class="mon-t">04:43</span><span class="mon-w pc">💻 회사 PC</span><span class="mon-tx">📤 <b>가계부</b> · refactor: JS 로직을 app.js로 분리 <em>d6f4a72</em></span></div><div class="mon-ev"><span class="mon-t">11/16 14:43</span><span class="mon-w pc">💻 회사 PC</span><span class="mon-tx">📤 <b>보험관리툴</b> · 그루핑 3순위 수정: 저장해 둔 그룹 설정이 깨지지 않게 <em>5fbdaa8</em></span></div></div>
+    <div class="mon-note">🍋 피클 = status/agent.json(작업 시작·종료 때 기록) · 🏠 노트북 = 오더함 시트(Command_Queue) + 하트비트 · 💻 회사 PC = GitHub 공개 저장소 커밋(데몬 없음 — 실시간 신호 아님) · ⚡ 에이전트 = agent/* 브랜치를 머지한 커밋 · https 로 연 화면에서만 GitHub 기록을 읽어요 · GitHub 확인 10:43</div>
+  </div>
+  <div class="order-card">
+    <div class="section-head"><div class="section-title">🤖 노트북 오더함 <span class="badge badge-blue">대기 2</span></div></div>
+    <div class="ord-list" style="max-height:none"><div class="ord-item st-run">
+      <div class="ord-ic">💬</div>
+      <div class="ord-main">
+        <div class="ord-line">
+          <span class="ord-type">클로드 지시</span>
+          <span class="ord-chip c-run">실행 중</span>
+          
+          <span class="ord-when">10:34</span>
+        </div>
+        <div class="ord-text">클로드: 콘텐츠 허브 11월 3주차 카드 3장 문구 다듬고 미리보기 링크 정리</div>
+        <div class="ord-sub">콘텐츠 허브 · Q-20261117-101502-ab12 · 실행 notebook</div>
+        
+        
+        <div class="ord-sub">⏱ <span class="ord-elapsed" data-since="1794879308860">8분 45초</span>째 실행 중 · 시작 10:35</div>
+        <div class="ord-steps"><span class="ord-stp done" title="접수 10:34">① 접수</span><span class="ord-stp-sep">›</span><span class="ord-stp now" title="시작 10:35">② 실행 중</span><span class="ord-stp-sep">›</span><span class="ord-stp">③ 결과</span></div>
+        
+      </div>
+    </div><div class="ord-item ">
+      <div class="ord-ic">🔄</div>
+      <div class="ord-main">
+        <div class="ord-line">
+          <span class="ord-type">코드 최신화</span>
+          <span class="ord-chip c-pend">대기</span>
+          
+          <span class="ord-when">10:40</span>
+        </div>
+        <div class="ord-text">코드 최신화 (git pull --ff-only)</div>
+        <div class="ord-sub">가계부 · Q-20261117-100800-cd34 · 노트북이 다음 확인 때 실행해요</div>
+        
+        
+        
+        <div class="ord-steps"><span class="ord-stp done" title="접수 10:40">① 접수</span><span class="ord-stp-sep">›</span><span class="ord-stp now" title="노트북이 다음 확인 때 집어 갑니다">② 실행 차례</span><span class="ord-stp-sep">›</span><span class="ord-stp">③ 결과</span></div>
+        
+      </div>
+    </div><div class="ord-item st-wait">
+      <div class="ord-ic">💬</div>
+      <div class="ord-main">
+        <div class="ord-line">
+          <span class="ord-type">클로드 지시</span>
+          <span class="ord-chip c-wait">승인 대기</span>
+          
+          <span class="ord-when">10:37</span>
+        </div>
+        <div class="ord-text">클로드: 보장분석 표 담보 이름 규칙 정리 (파일 수정)</div>
+        <div class="ord-sub">보험관리툴 · Q-20261117-101010-ef56</div>
+        
+        <div class="ord-sub"><span class="ord-cd" data-until="1794880313860">⏳ 8분 안에 승인해야 실행돼요</span></div>
+        
+        <div class="ord-steps"><span class="ord-stp done" title="접수 10:37">① 접수</span><span class="ord-stp-sep">›</span><span class="ord-stp now" title="승인해야 실행돼요">② 승인 대기</span><span class="ord-stp-sep">›</span><span class="ord-stp">③ 결과</span></div>
+        <div class="ord-acts"><button class="ord-ok" data-id="Q-20261117-101010-ef56" onclick="decideOrder(this.dataset.id,'approve')">✅ 승인</button><button class="ord-no" data-id="Q-20261117-101010-ef56" onclick="decideOrder(this.dataset.id,'reject')">🚫 거절</button></div>
+      </div>
+    </div><div class="ord-item st-done">
+      <div class="ord-ic">📈</div>
+      <div class="ord-main">
+        <div class="ord-line">
+          <span class="ord-type">토스 동기화</span>
+          <span class="ord-chip c-done">완료</span>
+          
+          <span class="ord-when">10:02</span>
+        </div>
+        <div class="ord-text">✅ 토스 동기화 완료 · 날짜별 기록 6일
+토스증권 → 가계부 동기화</div>
+        <div class="ord-sub">Q-20261117-095500-gh78 · 19초 걸림 · 10:03 끝 · 실행 notebook</div>
+        
+        
+        
+        <div class="ord-steps"><span class="ord-stp done" title="접수 10:02">① 접수</span><span class="ord-stp-sep">›</span><span class="ord-stp done" title="시작 10:02">② 실행</span><span class="ord-stp-sep">›</span><span class="ord-stp done" title="끝 10:03">③ 끝냄</span></div>
+        
+      </div>
+    </div><div class="ord-item st-bad">
+      <div class="ord-ic">💬</div>
+      <div class="ord-main">
+        <div class="ord-line">
+          <span class="ord-type">클로드 지시</span>
+          <span class="ord-chip c-fail">실패</span>
+          
+          <span class="ord-when">09:08</span>
+        </div>
+        <div class="ord-text err">⚠️ 엔진: 정품 Claude Code(claude) 폴백: claude→timeout
+클로드: 상세페이지 문구 점검 (파일 수정)</div>
+        <div class="ord-sub">스마트스토어 · Q-20261117-092200-ij90 · 10분 1초 걸림 · 09:19 끝</div>
+        
+        
+        
+        <div class="ord-steps"><span class="ord-stp done" title="접수 09:08">① 접수</span><span class="ord-stp-sep">›</span><span class="ord-stp done" title="시작 09:09">② 실행</span><span class="ord-stp-sep">›</span><span class="ord-stp bad" title="끝 09:19">③ 실패</span></div>
+        
+      </div>
+    </div></div>
+  </div>
+  <div style="text-align:center;font-size:11px;color:var(--hint)">미리보기 — index.html 의 실제 CSS·렌더 함수로 그린 화면(데이터는 샘플)</div>
+</div>
+<div style="text-align:center;font-size:11px;color:var(--hint);margin:8px 0">▼ 폰(390px) 화면 — 같은 화면을 390px 폭에 그린 것</div>
+<iframe id="phone" title="폰 화면" style="display:block;width:390px;height:900px;border:1px solid #C8D1E8;border-radius:12px;margin:0 auto;background:#fff"></iframe>
+<template id="phone-src"><!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>미리보기 · 🖥️ 작업 관제</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F0F4FF;--surface:#fff;--border:#DDE3F0;--border2:#C8D1E8;
+  --blue:#3B7BF6;--blue-l:#EEF3FF;--blue-d:#2563EB;
+  --green:#059669;--green-l:#ECFDF5;
+  --red:#DC2626;--red-l:#FEF2F2;
+  --gold:#D97706;--gold-l:#FFFBEB;
+  --purple:#7C3AED;--purple-l:#F5F3FF;
+  --text:#0F172A;--text2:#334155;--muted:#64748B;--hint:#94A3B8;
+  --shadow:0 1px 4px rgba(15,23,42,.08),0 4px 16px rgba(15,23,42,.06);
+  --shadow-md:0 4px 16px rgba(15,23,42,.14),0 8px 32px rgba(15,23,42,.08);
+}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── 헤더 ── */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 28px;
+  position:sticky;top:0;z-index:50}
+.header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.header-left{display:flex;align-items:center;gap:20px;min-width:0}
+.header-right{display:flex;align-items:center;gap:14px;margin-left:auto}
+.brand{font-size:11px;font-weight:800;letter-spacing:2px;color:var(--muted)}
+.brand span{color:var(--blue)}
+.app-links{display:flex;gap:8px;flex-wrap:wrap}
+.app-link{display:flex;align-items:center;gap:6px;padding:6px 13px;background:var(--bg);
+  border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text2);
+  font-size:12px;font-weight:600;transition:all .15s}
+.app-link:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
+.app-link.off{opacity:.6;border-style:dashed}   /* 주소를 아직 안 넣은 링크 */
+.sync-badge{font-size:11px;color:var(--muted);min-width:80px;text-align:right}
+
+/* ── 상단 상태등 (노트북 · 밀린 명령 · 토스 동기화) ── */
+.statusbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:9px;
+  border-top:1px dashed var(--border)}
+.stat{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);
+  border-radius:999px;padding:3px 11px 3px 9px;font-size:11px;font-weight:600;color:var(--muted);
+  font-family:inherit;cursor:pointer;transition:border-color .15s,background .15s}
+.stat:hover{border-color:var(--border2);background:#fff}
+.stat .dot{width:8px;height:8px;border-radius:50%;background:var(--hint);flex-shrink:0}
+.stat .v{color:var(--text);font-weight:700}
+.stat.ok .dot{background:var(--green);box-shadow:0 0 0 3px var(--green-l)}
+.stat.warn .dot{background:var(--gold);box-shadow:0 0 0 3px var(--gold-l)}
+.stat.bad .dot{background:var(--red);box-shadow:0 0 0 3px var(--red-l)}
+.stat.off{border-style:dashed;color:var(--hint)}
+.stat-note{margin-left:auto;font-size:10px;color:var(--hint)}
+
+/* ── 페이지 레이아웃 ── */
+.page{max-width:1300px;margin:0 auto;padding:20px 20px 60px;display:flex;flex-direction:column;gap:16px}
+
+/* 할일 (상단 전체) */
+.tasks-section{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.badge{padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.badge-blue{background:var(--blue-l);color:var(--blue-d)}
+.task-tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto}
+.task-tab{background:var(--bg);border:1px solid var(--border);border-radius:7px;
+  padding:4px 12px;font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.task-tab.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);font-weight:600}
+.task-input-row{display:flex;gap:8px;margin-bottom:12px}
+.task-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:8px 13px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .15s}
+.task-input:focus{border-color:var(--blue);background:#fff}
+.task-input::placeholder{color:var(--hint)}
+.add-btn{background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:8px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.add-btn:hover{background:var(--blue-d)}
+.task-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.task-item{display:flex;align-items:flex-start;gap:9px;padding:10px 13px;
+  background:var(--bg);border:1px solid var(--border);border-radius:10px;transition:border-color .1s}
+.task-item:hover{border-color:var(--border2)}
+.task-item.done-item{opacity:.55}
+.task-cb{width:17px;height:17px;border-radius:5px;border:2px solid var(--border2);
+  background:#fff;cursor:pointer;flex-shrink:0;appearance:none;margin-top:2px;
+  display:grid;place-items:center;transition:all .15s}
+.task-cb:checked{background:var(--green);border-color:var(--green)}
+.task-cb:checked::after{content:'✓';color:#fff;font-size:10px;font-weight:800}
+.task-body{flex:1;min-width:0}
+.task-title{font-size:13px;font-weight:500;line-height:1.4}
+.task-title.done{text-decoration:line-through;color:var(--muted)}
+.task-note{font-size:11px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:15px;padding:1px 3px;border-radius:3px;transition:color .1s;flex-shrink:0}
+.del-btn:hover{color:var(--red)}
+.spin{text-align:center;padding:20px;color:var(--muted);font-size:13px;grid-column:1/-1}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:20px 0;grid-column:1/-1}
+
+/* 중간 행: 캘린더(좌) + 메모(우) — 1fr 은 최소폭이 min-content 라 긴 글에 칸이 밀려나요(minmax(0,1fr)) */
+.mid-row{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+
+/* ── 캘린더 ── */
+.cal-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+.cal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.cal-title-txt{font-size:18px;font-weight:800}
+.cal-navs{display:flex;gap:6px;align-items:center}
+.cal-nav{background:var(--bg);border:1px solid var(--border);color:var(--text);
+  border-radius:7px;padding:5px 12px;font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s}
+.cal-nav:hover{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d)}
+.cal-today{background:var(--blue);color:#fff;border:none;border-radius:7px;
+  padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.cal-today:hover{background:var(--blue-d)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--border);border-radius:10px;overflow:hidden}
+.cal-dow{background:var(--bg);text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:9px 4px;letter-spacing:.4px}
+.cal-dow.sun{color:var(--red)} .cal-dow.sat{color:var(--blue)}
+.cal-day{background:var(--surface);min-height:100px;padding:7px 6px;cursor:pointer;min-width:0;
+  transition:background .1s;display:flex;flex-direction:column;gap:2px}
+.cal-day:hover{background:#F5F8FF}
+.cal-day.other{background:#FAFBFE}
+.cal-day.other .dn{color:var(--hint)}
+.cal-day.today{background:var(--blue-l)}
+.cal-day.today .dn{background:var(--blue);color:#fff;width:24px;height:24px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-weight:700}
+.cal-day.sun .dn{color:var(--red)} .cal-day.sat .dn{color:var(--blue)}
+.cal-day.today.sun .dn,.cal-day.today.sat .dn{color:#fff}
+.dn{font-size:12px;font-weight:600;color:var(--text);width:24px;height:24px;
+  display:flex;align-items:center;justify-content:center}
+.day-ev{font-size:10px;font-weight:500;padding:2px 5px;border-radius:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.ev-c0{background:#EEF3FF;color:#2563EB} .ev-c1{background:#FEE2E2;color:#991B1B}
+.ev-c2{background:#FEF9C3;color:#854D0E} .ev-c3{background:#DCFCE7;color:#166534}
+.ev-c4{background:#F3E8FF;color:#6B21A8} .ev-c5{background:#FFE4E6;color:#9F1239}
+.ev-c6{background:#FFF7ED;color:#9A3412}
+.day-more{font-size:9px;color:var(--muted);padding:1px 3px}
+/* 폰에서는 칸에 글자를 욱여넣지 않고 점만 — 일정 이름은 아래 '이번 달 일정' 목록에서 읽어요 */
+.day-dots{display:none}
+.day-dots i{display:block;width:6px;height:6px;border-radius:50%;background:#2563EB}
+.day-dots i.ev-c1{background:#DC2626} .day-dots i.ev-c2{background:#CA8A04}
+.day-dots i.ev-c3{background:#16A34A} .day-dots i.ev-c4{background:#7C3AED}
+.day-dots i.ev-c5{background:#E11D48} .day-dots i.ev-c6{background:#EA580C}
+.cal-agenda{display:none;margin-top:12px;border-top:1px dashed var(--border);padding-top:4px}
+.cal-agenda>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text2);padding:8px 2px}
+.cal-agenda>summary::-webkit-details-marker{display:none}
+.cal-agenda>summary:hover{color:var(--blue-d)}
+.cal-agenda>summary .caret{margin-left:auto;color:var(--hint);font-size:11px;transition:transform .15s}
+.cal-agenda[open]>summary .caret{transform:rotate(90deg)}
+.ag-day{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--bg);cursor:pointer}
+.ag-day:last-child{border-bottom:0}
+.ag-day:hover{background:var(--blue-l)}
+.ag-date{flex:0 0 30px;text-align:center;line-height:1.2;color:var(--muted);font-size:10.5px}
+.ag-date b{display:block;font-size:14px;font-weight:800;color:var(--text)}
+.ag-day.today .ag-date b,.ag-day.today .ag-date span{color:var(--blue-d)}
+.ag-evs{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ag-ev{font-size:12px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
+.ag-time{color:var(--blue-d);font-weight:700;margin-right:5px;font-size:11px}
+.ag-more{font-size:10.5px;color:var(--hint)}
+.ag-empty{font-size:12px;color:var(--muted);padding:4px 2px}
+
+/* ── 메모 패널 ── */
+.memo-panel{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-height:500px;min-width:0}
+.memo-add-btn{width:100%;background:var(--bg);border:2px dashed var(--border2);color:var(--muted);
+  border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:all .15s;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:6px}
+.memo-add-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+.memo-list{display:flex;flex-direction:column;gap:10px}
+.memo-card{border-radius:12px;padding:14px;cursor:pointer;transition:box-shadow .15s;position:relative;border:1px solid transparent}
+.memo-card:hover{box-shadow:var(--shadow-md)}
+.memo-card.pinned::before{content:'📌';position:absolute;top:10px;right:10px;font-size:13px}
+.mc-yellow{background:#FFFDE7;border-color:#FFF176}
+.mc-blue{background:#E3F2FD;border-color:#90CAF9}
+.mc-green{background:#E8F5E9;border-color:#A5D6A7}
+.mc-pink{background:#FCE4EC;border-color:#F48FB1}
+.mc-purple{background:#F3E5F5;border-color:#CE93D8}
+.mc-white{background:#fff;border-color:var(--border2)}
+.memo-card-title{font-size:13px;font-weight:700;margin-bottom:6px;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.memo-card-body{font-size:12px;color:var(--text2);line-height:1.6;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.memo-card-date{font-size:10px;color:var(--muted);margin-top:8px}
+.memo-card-actions{display:flex;gap:4px;margin-top:10px;opacity:0;transition:opacity .15s}
+.memo-card:hover .memo-card-actions{opacity:1}
+.memo-icon-btn{background:rgba(0,0,0,.06);border:none;border-radius:6px;padding:4px 8px;
+  font-size:12px;cursor:pointer;color:var(--text2);transition:all .15s;font-family:inherit}
+.memo-icon-btn:hover{background:rgba(0,0,0,.12)}
+.memo-empty{text-align:center;padding:32px 0;color:var(--muted);font-size:13px}
+
+/* ── 🤖 노트북 오더함 ── */
+.order-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
+.ord-head-right{display:flex;align-items:center;gap:10px;min-width:0}
+.ord-hint{font-size:11px;color:var(--muted);text-align:right;overflow-wrap:anywhere}
+.ord-refresh{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text2);
+  width:30px;height:30px;font-size:15px;cursor:pointer;font-family:inherit;line-height:1;flex-shrink:0}
+.ord-refresh:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+.ord-quick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.ord-ws{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px;
+  font-size:12px;font-family:inherit;color:var(--text);max-width:170px;min-width:0}
+.ord-engine{max-width:290px;font-weight:600;font-size:11.5px}
+/* 오더 도움말 — 눌러서 입력칸을 채우는 예시 목록 */
+.ord-help{background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;min-width:0}
+.ord-help>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:var(--text2);
+  display:flex;align-items:center;gap:6px}
+.ord-help>summary::-webkit-details-marker{display:none}
+.ord-help>summary:hover{color:var(--blue-d)}
+.ord-help>summary .ord-help-caret{margin-left:auto;color:var(--hint);font-size:11px;transition:transform .15s}
+.ord-help[open]>summary .ord-help-caret{transform:rotate(90deg)}
+.ord-help-body{padding:2px 12px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;min-width:0;align-content:start}
+.ord-help-sec{min-width:0}
+.ord-help-h{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.3px;margin-bottom:6px}
+.ord-ex{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--border);border-radius:8px;
+  padding:6px 9px;font-size:11.5px;line-height:1.45;font-family:inherit;color:var(--text2);cursor:pointer;margin-bottom:5px;
+  overflow-wrap:anywhere}
+.ord-ex:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.ord-ex.act{font-weight:600;color:var(--blue-d)}
+.ord-help-note{font-size:10.5px;color:var(--hint);line-height:1.5;margin-top:2px}
+.ord-btn{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 13px;
+  font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;
+  transition:border-color .15s,background .15s,color .15s;white-space:nowrap}
+.ord-btn:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
+.ord-compose{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.ord-inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  padding:10px 13px;font-size:13px;line-height:1.55;font-family:inherit;color:var(--text);
+  outline:none;resize:vertical;min-height:58px}
+.ord-inp:focus{border-color:var(--blue);background:#fff}
+.ord-inp::placeholder{color:var(--hint)}
+.ord-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ord-edit{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;min-width:0}
+.ord-list{display:flex;flex-direction:column;gap:8px;max-height:460px;overflow-y:auto;min-width:0}
+.ord-item{display:flex;gap:10px;padding:11px 12px;background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;min-width:0}
+.ord-item.st-wait{background:var(--gold-l);border-color:#FDE68A}
+.ord-item.st-run{background:var(--purple-l);border-color:#DDD6FE}
+.ord-item.st-done{background:var(--green-l);border-color:#BBF7D0}
+.ord-item.st-bad{background:var(--red-l);border-color:#FECACA}
+.ord-ic{font-size:15px;line-height:1.25;flex-shrink:0}
+.ord-main{flex:1;min-width:0}
+.ord-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ord-type{font-size:12px;font-weight:700;color:var(--text)}
+.ord-when{font-size:10px;color:var(--hint);margin-left:auto;white-space:nowrap}
+.ord-text{font-size:12px;color:var(--text2);line-height:1.55;margin-top:3px;
+  overflow-wrap:anywhere;white-space:pre-wrap}
+.ord-text.err{color:var(--red)}
+.ord-sub{font-size:10px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+.ord-acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.ord-ok,.ord-no{border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.ord-ok{background:var(--green);color:#fff;border:none}.ord-ok:hover{background:#047857}
+.ord-no{background:#fff;color:var(--red);border:1px solid #FECACA}.ord-no:hover{background:var(--red-l)}
+.ord-chip{padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;white-space:nowrap}
+.c-wait{background:#FEF3C7;color:#92400E}.c-pend{background:var(--blue-l);color:var(--blue-d)}
+.c-run{background:#EDE9FE;color:#5B21B6}.c-done{background:#D1FAE5;color:#065F46}
+.c-fail{background:#FEE2E2;color:#991B1B}.c-off{background:#E2E8F0;color:#475569}
+.ord-note{font-size:12px;color:var(--muted);line-height:1.6;padding:14px;background:var(--bg);
+  border:1px dashed var(--border2);border-radius:10px}
+.ord-empty{font-size:12px;color:var(--muted);text-align:center;padding:18px 0}
+.ord-cd{font-variant-numeric:tabular-nums}
+.ord-cd.soon{color:#B45309;font-weight:700}
+.ord-cd.over{color:var(--red);font-weight:700}
+.ord-eng{background:#EEF2FF;color:#3730A3}
+.ord-again{background:#fff;border:1px solid var(--border);border-radius:7px;padding:6px 12px;
+  font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit}
+.ord-again:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.ord-recent{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:2px}
+.ord-recent-h{font-size:10.5px;color:var(--hint)}
+.ord-rec{max-width:100%;text-align:left;background:#fff;border:1px dashed var(--border2);border-radius:999px;
+  padding:5px 10px;font-size:11px;color:var(--text2);cursor:pointer;font-family:inherit;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ord-rec:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.ord-rec-del{border:none;background:none;color:var(--hint);cursor:pointer;font-size:12px;font-family:inherit;padding:4px 6px}
+.ord-rec-del:hover{color:var(--red)}
+.ord-chars{font-size:10.5px;color:var(--hint);margin-left:auto;font-variant-numeric:tabular-nums}
+.ord-chars.over{color:var(--red);font-weight:700}
+.ord-pause{display:none;font-size:10.5px;color:var(--hint);margin-bottom:6px}
+
+/* ── 🖥️ 작업 관제 (2026-11-17) — 노트북 · 회사 PC · 오더 큐를 관제 화면처럼 ── */
+.mon-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
+.mon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:12px}
+.mon-dev{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:11px 12px;min-width:0;transition:background .2s,border-color .2s}
+.mon-dev.run{background:var(--purple-l);border-color:#DDD6FE}
+.mon-dev.ok{background:var(--green-l);border-color:#BBF7D0}
+.mon-dev.wait{background:var(--gold-l);border-color:#FDE68A}
+.mon-dev.bad{background:var(--red-l);border-color:#FECACA}
+.mon-top{display:flex;align-items:center;gap:6px;min-width:0}
+.mon-name{font-size:11.5px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mon-dot{width:8px;height:8px;border-radius:50%;background:var(--hint);flex-shrink:0}
+.mon-dot.run{background:var(--purple);animation:monPulse 1.6s ease-in-out infinite}
+.mon-dot.ok{background:var(--green)}
+.mon-dot.wait{background:var(--gold)}
+.mon-dot.bad{background:var(--red);animation:monPulse 1.6s ease-in-out infinite}
+.mon-state{margin-left:auto;font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.mon-dev.run .mon-state{color:#5B21B6}.mon-dev.ok .mon-state{color:#047857}
+.mon-dev.wait .mon-state{color:#92400E}.mon-dev.bad .mon-state{color:#991B1B}
+.mon-main{font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:6px;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mon-main b{color:var(--text);font-weight:700}
+.mon-sub{font-size:10px;color:var(--hint);line-height:1.5;margin-top:4px;overflow-wrap:anywhere}
+.mon-bar{height:4px;border-radius:999px;background:#E2E8F0;overflow:hidden;margin-top:7px}
+.mon-bar i{display:block;height:100%;width:38%;border-radius:999px;background:var(--purple);animation:monSlide 1.5s ease-in-out infinite}
+@keyframes monSlide{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
+@keyframes monPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.mon-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 6px}
+.mon-filters-h{font-size:10.5px;font-weight:700;color:var(--muted);margin-right:2px}
+.mon-f{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 11px;font-size:10.5px;
+  color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
+.mon-f:hover{border-color:var(--blue);color:var(--blue-d)}
+.mon-f.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);font-weight:700}
+.mon-feed{display:flex;flex-direction:column;max-height:360px;overflow-y:auto;min-width:0}
+.mon-ev{display:flex;gap:8px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid var(--bg)}
+.mon-ev:last-child{border-bottom:none}
+.mon-t{flex:0 0 46px;font-size:10px;color:var(--hint);font-variant-numeric:tabular-nums;padding-top:1px}
+.mon-w{flex:0 0 auto;font-size:10px;font-weight:700;white-space:nowrap;padding-top:1px}
+.mon-w.nb{color:#5B21B6}.mon-w.pc{color:var(--blue-d)}.mon-w.ag{color:#047857}.mon-w.q{color:#92400E}.mon-w.pk{color:#B45309}
+.mon-tx{flex:1;min-width:0;font-size:11.5px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
+.mon-tx b{color:var(--text)}
+.mon-tx em{font-style:normal;color:var(--hint)}
+.mon-note{font-size:10.5px;color:var(--hint);line-height:1.55;margin-top:8px}
+/* 오더 생애주기 — 뭘 할 거다(예정) → 하는 중 → 끝냈다 */
+.ord-steps{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-top:6px}
+.ord-stp{font-size:9.5px;border:1px solid var(--border);border-radius:999px;padding:1px 7px;background:#fff;color:var(--hint);white-space:nowrap}
+.ord-stp.done{color:#047857;border-color:#BBF7D0}
+.ord-stp.now{color:#5B21B6;border-color:#C7D2FE;background:#EEF2FF;font-weight:700}
+.ord-stp.bad{color:#991B1B;border-color:#FECACA;background:var(--red-l);font-weight:700}
+.ord-stp-sep{font-size:9px;color:var(--hint)}
+.ord-elapsed{font-variant-numeric:tabular-nums}
+.ord-stale{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;
+  background:var(--gold-l);color:#92400E;border:1px solid #FDE68A}
+.ord-stale.bad{background:var(--red-l);color:#991B1B;border-color:#FECACA}
+
+/* ── 모달 ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:200;
+  align-items:center;justify-content:center;padding:20px}
+.overlay.on{display:flex}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:460px;
+  box-shadow:var(--shadow-md);max-height:90vh;overflow-y:auto}
+.modal-inner{padding:26px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-size:15px;font-weight:700}
+.mclose{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted)}
+.mclose:hover{color:var(--text)}
+.ff{margin-bottom:13px}
+.ff label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;letter-spacing:.4px;text-transform:uppercase}
+.ff input,.ff textarea,.ff select{width:100%;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border-color .15s}
+.ff input:focus,.ff textarea:focus{border-color:var(--blue);background:#fff}
+.ff textarea{resize:vertical;min-height:100px}
+.time-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.mbtn-cancel{background:var(--bg);border:1px solid var(--border);color:var(--text2);
+  border-radius:8px;padding:8px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.mbtn-ok{background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.mbtn-ok:hover{background:var(--blue-d)}
+.mbtn-del{background:var(--red-l);color:var(--red);border:none;border-radius:8px;
+  padding:8px 15px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.color-picker{display:flex;gap:8px;flex-wrap:wrap}
+.color-chip{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s}
+.color-chip.sel{border-color:var(--text);transform:scale(1.15)}
+.ev-item-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border-radius:8px;margin-bottom:6px}
+.ev-del-btn{background:none;border:none;color:var(--hint);cursor:pointer;font-size:14px;margin-left:auto}
+.ev-del-btn:hover{color:var(--red)}
+
+@media(max-width:900px){.mid-row{grid-template-columns:minmax(0,1fr)}.memo-panel{min-height:0}}
+/* 손가락에는 hover 가 없다 — 눌러야만 보이던 메모 버튼은 늘 보이게 */
+@media(hover:none){.memo-card-actions{opacity:1}}
+@media(max-width:700px){.header{padding:8px 12px}.header-row{gap:8px;flex-wrap:nowrap;align-items:center}
+  .header-left{gap:6px;min-width:0}.header-right{gap:6px}
+  .brand{font-size:8px;letter-spacing:.4px;white-space:nowrap}.app-links{gap:3px;flex-wrap:nowrap}
+  .app-links .app-link span{display:none}.app-links .app-link{padding:0 6px;height:34px;font-size:14px;line-height:1}   /* 폰: 링크가 늘어도 비좁지 않게 아이콘만 */
+  .header-right .app-link{padding:0 9px;height:34px;font-size:14px;min-width:34px;justify-content:center}
+  .header-right .app-link span{display:none}
+  #today-str{display:none}   /* 날짜는 달력에 있으니 헤더 한 줄을 비워요 */
+  .sync-badge{min-width:0;font-size:10px}
+  /* 오더함: 폰에서는 작업 위치가 한 줄, 버튼 둘이 나머지 반씩 */
+  .ord-quick .ord-ws{flex:1 1 100%;max-width:none}
+  .ord-quick .ord-btn{flex:1 1 0;min-width:0;text-align:center}
+  .ord-list{max-height:none}
+  .ord-refresh{width:34px;height:34px}
+  /* 관제: 폰은 기기 카드를 한 줄에 하나씩, 이력은 스크롤 없이 */
+  .mon-grid{grid-template-columns:minmax(0,1fr)}
+  .mon-feed{max-height:none}
+  /* 상태등은 폰에서 한 줄로 (넘치면 옆으로 밀어서) — 헤더가 화면을 먹지 않게 */
+  .statusbar{margin-top:7px;padding-top:7px;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .statusbar::-webkit-scrollbar{display:none}
+  .stat{font-size:10.5px;padding:5px 10px 5px 8px;white-space:nowrap;flex:0 0 auto}.stat-note{display:none}}
+@media(max-width:349px){.brand{display:none}}
+@media(max-width:600px){.page{padding:14px 12px calc(40px + env(safe-area-inset-bottom))}
+  .task-grid{grid-template-columns:minmax(0,1fr)}
+  .tasks-section,.cal-card,.memo-panel,.order-card,.mon-card{padding:16px}
+  .task-cb{width:20px;height:20px}
+  .del-btn{font-size:17px;padding:5px 6px}
+  .cal-nav,.cal-today{padding:8px 14px;min-height:36px}
+  .overlay{padding:12px}.modal-inner{padding:20px}}
+/* 폰 달력 (2026-11-15): 칸에는 점만, 일정 이름은 아래 목록에서 — 두 글자로 잘리던 칸 글자를 없앰 */
+@media(max-width:560px){.cal-day{min-height:58px;padding:4px 2px;gap:3px;align-items:center}
+  .cal-day .dn{width:22px;height:22px;font-size:11.5px}
+  .cal-dow{padding:7px 2px;font-size:10.5px}
+  .day-ev,.day-more{display:none}
+  .day-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;padding:1px 0 3px}
+  .cal-agenda{display:block}}
+</style>
+</head><body><div class="page" style="padding:10px"><div class="mon-card">
+    <div class="section-head">
+      <div class="section-title">🖥️ 작업 관제 <span class="badge badge-blue">작업 중 1 · 승인 1</span></div>
+      <div class="ord-head-right">
+        <span class="ord-hint">최근 확인 10:43 · 자동 갱신</span>
+        <button class="ord-refresh" aria-label="새로고침">⟳</button>
+      </div>
+    </div>
+    <div class="mon-grid"><div class="mon-dev wait">
+    <div class="mon-top"><span class="mon-dot wait"></span><span class="mon-name">🤖 피클</span><span class="mon-state">기록 없음</span></div>
+    <div class="mon-main">피클이 한 일·하는 일이 여기 나와요</div>
+    
+    <div class="mon-sub">작업을 시작할 때·끝낼 때 status/agent.json 에 스스로 남게요</div>
+    
+  </div><div class="mon-dev run">
+    <div class="mon-top"><span class="mon-dot run"></span><span class="mon-name">🏠 집 노트북</span><span class="mon-state">작업 중</span></div>
+    <div class="mon-main"><b>클로드 지시</b> · 콘텐츠 허브 — 클로드: 콘텐츠 허브 11월 3주차 카드 3장 문구 다듬고 미리보기 링크 정리</div>
+    <div class="mon-bar"><i></i></div>
+    <div class="mon-sub">⏱ <span class="ord-elapsed" data-since="1794879308860">8분 45초</span>째 실행 중 · 접수 10:34 · 다음 차례 1건 · 마지막 응답 방금</div>
+    
+  </div><div class="mon-dev ok">
+    <div class="mon-top"><span class="mon-dot ok"></span><span class="mon-name">💻 회사 PC</span><span class="mon-state">최근 작업</span></div>
+    <div class="mon-main"><b>포털</b> · fix(관제): 읽기 전 상태를 확인 중으로, 서버가 예전 배포면 재배포 안내</div>
+    
+    <div class="mon-sub">12분 전 푸시 · a99b7a0 · ✅ CI 통과</div>
+    <div class="mon-note" style="margin-top:4px">PC엔 도는 프로그램이 없어 GitHub 푸시가 유일한 신호예요</div>
+  </div><div class="mon-dev wait">
+    <div class="mon-top"><span class="mon-dot wait"></span><span class="mon-name">📋 오더 큐 · 자동화</span><span class="mon-state">승인 1</span></div>
+    <div class="mon-main">대기 <b>1</b> · 실행 <b>1</b> · 승인 <b>1</b></div>
+    <div class="mon-bar"><i></i></div>
+    <div class="mon-sub">누적 완료 8 · 실패 5 · 오늘 끝냄 1건 · 마지막 완료 10:03</div>
+    <div class="mon-note" style="margin-top:5px">🔄 자동 확인 준비 중</div>
+  </div></div>
+    <div class="mon-filters">
+      <span class="mon-filters-h">🕒 통합 이력</span>
+      <button class="mon-f on">전체</button>
+      <button class="mon-f">🤖 피클</button>
+      <button class="mon-f">🏠 노트북</button>
+      <button class="mon-f">💻 회사 PC</button>
+      <button class="mon-f">⚡ 에이전트</button>
+    </div>
+    <div class="mon-filters"><button class="mon-f on" data-p="all" onclick="monProjFilter(this)">전체 <b>진행 1 · 승인 1 · 예정 1</b></button><button class="mon-f" data-p="smartstore" onclick="monProjFilter(this)">🛒 묘한살림</button><button class="mon-f" data-p="content" onclick="monProjFilter(this)">🎬 콘텐츠허브 <b>진행 1</b></button><button class="mon-f" data-p="gaegyebu" onclick="monProjFilter(this)">📒 가계부 <b>예정 1</b></button><button class="mon-f" data-p="insurance" onclick="monProjFilter(this)">🏦 보험관리툴 <b>승인 1</b></button><button class="mon-f" data-p="portal" onclick="monProjFilter(this)">🖥️ 포털·연동</button><button class="mon-f" data-p="life" onclick="monProjFilter(this)">📋 생활·행정</button></div>
+    <div class="mon-feed"><div class="mon-ev"><span class="mon-t">10:40</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">🔄 <b>코드 최신화</b> · 대기 · 가계부 <em>코드 최신화 (git pull --ff-only)</em></span></div><div class="mon-ev"><span class="mon-t">10:37</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">💬 <b>클로드 지시</b> · 승인 대기 · 보험관리툴 <em>클로드: 보장분석 표 담보 이름 규칙 정리 (파일 수정)</em></span></div><div class="mon-ev"><span class="mon-t">10:35</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">💬 <b>클로드 지시</b> · 실행 중 · 콘텐츠 허브 <em>클로드: 콘텐츠 허브 11월 3주차 카드 3장 문구 다듬고 미리보기 링크 정리</em></span></div><div class="mon-ev"><span class="mon-t">10:31</span><span class="mon-w pc">💻 회사 PC</span><span class="mon-tx">📤 <b>포털</b> · fix(관제): 읽기 전 상태를 확인 중으로, 서버가 예전 배포면 재배포 안내 <em>a99b7a0</em></span></div><div class="mon-ev"><span class="mon-t">10:03</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">📈 <b>토스 동기화</b> · 완료 <em>토스 동기화 완료 · 날짜별 기록 6일</em></span></div><div class="mon-ev"><span class="mon-t">09:33</span><span class="mon-w pc">💻 회사 PC</span><span class="mon-tx">📤 <b>포털</b> · polish(관제): 승인 대기·대기 상태를 노트북 카드에 먼저 보여주고 CI 줄바꿈 정리 <em>c9f748a</em></span></div><div class="mon-ev"><span class="mon-t">09:19</span><span class="mon-w nb">🏠 노트북</span><span class="mon-tx">💬 <b>클로드 지시</b> · 실패 · 스마트스토어 <em>엔진: 정품 Claude Code(claude) 폴백: claude→timeout</em></span></div><div class="mon-ev"><span class="mon-t">06:43</span><span class="mon-w ag">⚡ 에이전트</span><span class="mon-tx">📤 <b>콘텐츠 허브</b> · Merge pull request #1 from s2ongrae/agent/ui-visibility-v3 <em>c8fe95b</em></span></div><div class="mon-ev"><span class="mon-t">04:43</span><span class="mon-w pc">💻 회사 PC</span><span class="mon-tx">📤 <b>가계부</b> · refactor: JS 로직을 app.js로 분리 <em>d6f4a72</em></span></div><div class="mon-ev"><span class="mon-t">11/16 14:43</span><span class="mon-w pc">💻 회사 PC</span><span class="mon-tx">📤 <b>보험관리툴</b> · 그루핑 3순위 수정: 저장해 둔 그룹 설정이 깨지지 않게 <em>5fbdaa8</em></span></div></div>
+    <div class="mon-note">🍋 피클 = status/agent.json(작업 시작·종료 때 기록) · 🏠 노트북 = 오더함 시트(Command_Queue) + 하트비트 · 💻 회사 PC = GitHub 공개 저장소 커밋(데몬 없음 — 실시간 신호 아님) · ⚡ 에이전트 = agent/* 브랜치를 머지한 커밋 · https 로 연 화면에서만 GitHub 기록을 읽어요 · GitHub 확인 10:43</div>
+  </div></div></body></html></template>
+<script>document.getElementById('phone').srcdoc = document.getElementById('phone-src').innerHTML;</script>
+</body></html>

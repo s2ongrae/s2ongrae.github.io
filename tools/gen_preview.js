@@ -64,18 +64,12 @@ run('monRender(true); renderOrders(); renderQueueStatus(QSTAT_DATA);');
 const cards = el('mon-cards').innerHTML;
 const feed = el('mon-feed').innerHTML;
 const ordList = el('ord-list').innerHTML;
+const projChips = el('mon-proj').innerHTML;
 const badge = el('mon-badge').textContent;
 const note = el('mon-note').textContent;
 const foot = el('mon-foot').textContent;
 
-const out = `<!DOCTYPE html>
-<html lang="ko"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>미리보기 · 🖥️ 작업 관제</title>
-<style>${STYLE}</style>
-</head><body>
-<div class="page" style="padding-top:24px">
-  <div class="mon-card">
+const MON = `<div class="mon-card">
     <div class="section-head">
       <div class="section-title">🖥️ 작업 관제 <span class="badge badge-blue">${badge}</span></div>
       <div class="ord-head-right">
@@ -87,20 +81,38 @@ const out = `<!DOCTYPE html>
     <div class="mon-filters">
       <span class="mon-filters-h">🕒 통합 이력</span>
       <button class="mon-f on">전체</button>
+      <button class="mon-f">🤖 피클</button>
       <button class="mon-f">🏠 노트북</button>
       <button class="mon-f">💻 회사 PC</button>
       <button class="mon-f">⚡ 에이전트</button>
     </div>
+    <div class="mon-filters">${projChips}</div>
     <div class="mon-feed">${feed}</div>
     <div class="mon-note">${foot}</div>
-  </div>
+  </div>`;
+const page = (body) => `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>미리보기 · 🖥️ 작업 관제</title>
+<style>${STYLE}</style>
+</head><body>${body}</body></html>`;
+
+const desktop = page(`<div class="page" style="padding-top:24px">
+  ${MON}
   <div class="order-card">
     <div class="section-head"><div class="section-title">🤖 노트북 오더함 <span class="badge badge-blue">대기 2</span></div></div>
     <div class="ord-list" style="max-height:none">${ordList}</div>
   </div>
   <div style="text-align:center;font-size:11px;color:var(--hint)">미리보기 — index.html 의 실제 CSS·렌더 함수로 그린 화면(데이터는 샘플)</div>
-</div>
-</body></html>`;
+</div>`);
+const phone = page(`<div class="page" style="padding:10px">${MON}</div>`);
+
+const out = desktop.replace('</body>', `
+<div style="text-align:center;font-size:11px;color:var(--hint);margin:8px 0">▼ 폰(390px) 화면 — 같은 화면을 390px 폭에 그린 것</div>
+<iframe id="phone" title="폰 화면" style="display:block;width:390px;height:900px;border:1px solid #C8D1E8;border-radius:12px;margin:0 auto;background:#fff"></iframe>
+<template id="phone-src">${phone.replace(/<\/template/gi, '<\\/template')}</template>
+<script>document.getElementById('phone').srcdoc = document.getElementById('phone-src').innerHTML;</script>
+</body>`);
 const OUT = path.join(ROOT, process.argv[2] || 'preview/work-console.html');
 fs.mkdirSync(path.dirname(OUT), {recursive: true});
 fs.writeFileSync(OUT, out);
