@@ -55,6 +55,7 @@ function doPost(e) {
       case 'queue_list':        return out(queueList(body));      // 🤖 오더함 — 최근 오더
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
       case 'queue_decide':      return out(queueDecide(body));    // 🤖 오더함 — 승인/거절
+      case 'agent_beat':        return out(agentBeat_(body));      // ⌨️ 노트북 직접작업 상태
       default:                  return out({ ok: false, error: '알 수 없는 요청이에요.' });
     }
   } catch (err) {
@@ -581,6 +582,23 @@ function agentStatus() {
       };
     });
     res.tasks = res.tasks.slice(0, 40);
+    // ⌨️ 노트북 직접작업(free) 상태 — 있으면 direct 블록으로 함께 준다(없거나 깨져도 예외 없이)
+    const dfs = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    if (dfs.hasNext()) {
+      const dfa = dfs.next().getFilesByName(AD_FILE);
+      if (dfa.hasNext()) {
+        const dd = JSON.parse(dfa.next().getBlob().getDataAsString());
+        if (isObj(dd) && isObj(dd.agent)) {
+          const dm = Date.parse(String(dd.updated_at || ''));
+          res.direct = {
+            state: clip(dd.agent.state, 12), project: clip(dd.agent.project, 24),
+            task: qqMask_(dd.agent.task, 60), started_at: clip(dd.agent.started_at, 40),
+            updated_at: clip(dd.updated_at, 40),
+            min: isFinite(dm) ? Math.max(0, Math.round((Date.now() - dm) / 60000)) : null
+          };
+        }
+      }
+    }
   } catch (err) {
     Logger.log('agent_status: ' + String((err && err.message) || err));
     res.note = '상태 파일을 읽지 못했어요';
@@ -630,7 +648,7 @@ const QQ_PROP_WS = 'QUEUE_WORKSPACES';            // (선택) 허용 워크스�
 // AI 엔진 — 노트북 lib/engines.js 의 ENGINE_IDS 와 같아야 한다.
 //   auto 는 claude → agy → freellmapi 순으로 넘어간다(워커가 판단).
 const QQ_ENGINES = ['auto', 'claude', 'agy', 'freellmapi'];
-const QQ_WS_DEFAULT = 'gaegyebu,content-hub,insurance-manager,smartstore-hub';
+const QQ_WS_DEFAULT = 'gaegyebu,content-hub,insurance-manager,smartstore-hub,s2ongrae.github.io';
 const QQ_LIST_DEFAULT = 15;
 const QQ_LIST_MAX = 20;
 const QQ_SCAN_ROWS = 400;                          // 목록·중복 확인용으로 아래에서 읽는 줄 수
@@ -1052,5 +1070,50 @@ function queueDecide(body) {
       ok: true, id: id, decision: decision, changed: true,
       status: decision === 'approve' ? 'PENDING' : 'REJECTED', at: now, audit: true
     };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⌨️ 노트북 직접작업(free) 상태 — $PROFILE free 함수가 시작/종료 때 POST
+//
+//  {action:'agent_beat', key, state:'working'|'idle', project, task}
+//  → Drive 김성래포털/포털_agent_직접.json 에 지금 상태 + 최근 8건 이력을 남긴다.
+//  포털 관제의 '⌨️ 노트북·직접' 카드와 agent_status.direct 가 이 파일을 읽는다.
+// ═══════════════════════════════════════════════════════════════
+const AD_FILE = '포털_agent_직접.json';
+
+function agentBeat_(body) {
+  const b = isObj(body) ? body : {};
+  const st = String(b.state || '').toLowerCase() === 'idle' ? 'idle' : 'working';
+  return qqLock_(function () {
+    const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    const folder = fo.hasNext() ? fo.next() : DriveApp.createFolder(PORTAL_FOLDER);
+    const it = folder.getFilesByName(AD_FILE);
+    const f = it.hasNext() ? it.next() : null;
+    let d = null;
+    if (f) { try { d = JSON.parse(f.getBlob().getDataAsString()); } catch (_) { d = null; } }
+    if (!isObj(d)) d = { version: 1, agent: null, history: [] };
+    if (!Array.isArray(d.history)) d.history = [];
+    const now = new Date().toISOString();
+    const prev = isObj(d.agent) ? d.agent : {};
+    if (st === 'idle') {
+      const s0 = Date.parse(String(prev.started_at || ''));
+      d.history.unshift({
+        project: clip(prev.project, 24), started_at: clip(prev.started_at, 40), ended_at: now,
+        dur_min: isFinite(s0) ? Math.max(0, Math.round((Date.now() - s0) / 60000)) : 0
+      });
+      d.history = d.history.slice(0, 8);
+      d.agent = { state: 'idle', project: clip(prev.project, 24), task: qqMask_(prev.task, 60), started_at: clip(prev.started_at, 40) };
+    } else {
+      d.agent = {
+        state: 'working', project: clip(b.project, 24), task: qqMask_(b.task, 60),
+        started_at: String((prev.state === 'working' && prev.started_at) ? prev.started_at : now).slice(0, 40)
+      };
+    }
+    d.version = 1;
+    d.updated_at = now;
+    const js = JSON.stringify(d);
+    if (f) f.setContent(js); else folder.createFile(AD_FILE, js, 'application/json');
+    return { ok: true, state: st };
   });
 }

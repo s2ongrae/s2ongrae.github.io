@@ -6,7 +6,7 @@ const memo = (id,x={})=>Object.assign({id,title:'제목'+id,body:'내용'+id,col
 
 console.log('1) 접근 통제');
 let r = S.doGet(); ok(r.ok===false && r.error==='POST로만 사용할 수 있어요.' && Object.keys(r).length===2, 'doGet은 안내 문구만(캘린더·메모 안 줌)');
-for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide']){
+for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide','agent_beat']){
   r = post({action:a}); ok(r.error==='unauthorized', `키 없이 ${a} 거절`);
   r = post({action:a, key:'x'.repeat(64)}); ok(r.error==='unauthorized', `틀린 키로 ${a} 거절`);
 }
@@ -415,3 +415,40 @@ console.log('10) 🤖 피클 상태 파일 (agent_status) — 드라이브 포�
 
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);
 process.exit(fail?1:0);
+
+console.log('11) ⌨️ 노트북 직접작업 상태 (agent_beat) — 드라이브 포털_agent_직접.json');
+{
+  const K5 = S.props.SECRET_KEY;
+  let r = post({action:'agent_beat', key:K5, state:'working', project:'portal', task:'포털 관제 010-1234-5678'});
+  ok(r.ok===true && r.state==='working', 'working 상태를 받아 기록');
+  const folder = S.ROOT.folders.filter(f=>f.name==='김성래포털')[0];
+  const f = folder && folder.files.filter(x=>x.name==='포털_agent_직접.json')[0];
+  ok(!!f, '드라이브에 직접작업 상태 파일이 생긴다');
+  const d1 = JSON.parse(f.content);
+  ok(d1.agent.state==='working' && d1.agent.project==='portal' && String(d1.agent.task).indexOf('010-1234-5678')<0, '작업명의 전화번호는 가려서 저장');
+  ok(!!Date.parse(d1.updated_at) && !!Date.parse(d1.agent.started_at), '갱신·시작 시각을 남긴다');
+
+  r = post({action:'agent_status', key:K5});
+  ok(r.ok===true && r.direct && r.direct.state==='working' && r.direct.project==='portal', 'agent_status 에 direct 블록이 붙는다');
+  ok(typeof r.direct.min==='number' && r.direct.min>=0, 'direct 에 경과 분(min)을 준다');
+
+  r = post({action:'agent_beat', key:K5, state:'idle'});
+  const d2 = JSON.parse(f.content);
+  ok(r.ok===true && d2.agent.state==='idle', 'idle 이면 쉬는 중으로');
+  ok(d2.history.length===1 && d2.history[0].project==='portal' && typeof d2.history[0].dur_min==='number', 'idle 때 이력 한 줄(프로젝트·소요 분)');
+
+  r = post({action:'agent_beat', key:K5, state:'SLEEP', project:'x'});
+  ok(r.ok===true && JSON.parse(f.content).agent.state==='working', '이상한 state 는 working 으로 정규화');
+
+  for(let i=0;i<12;i++){ post({action:'agent_beat', key:K5, state:'working', project:'p'+i}); post({action:'agent_beat', key:K5, state:'idle'}); }
+  ok(JSON.parse(f.content).history.length<=8, '이력은 최대 8건만 보관');
+
+  S.setLock(true);
+  r = post({action:'agent_beat', key:K5, state:'working'});
+  ok(r.ok===false, '동시 저장(잠금) 중이면 거절');
+  S.setLock(false);
+
+  f.content='not json';
+  r = post({action:'agent_status', key:K5});
+  ok(r.ok===true && !r.direct, '직접작업 파일이 깨져도 예외 없이 direct 없이 응답');
+}
