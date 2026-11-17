@@ -1,20 +1,22 @@
 {
   "version": 1,
-  "updated_at": "2026-11-17T10:55:00+09:00",
+  "updated_at": "2026-11-17T11:02:00+09:00",
   "agent": {
-    "state": "working",
-    "task": "포털 작업 관제 — 피클·노트북·회사 PC 현황과 프로젝트 묶음",
+    "state": "idle",
+    "task": "",
     "project": "portal",
-    "started_at": "2026-11-17T10:12:00+09:00",
-    "id": "p-20261117-monitor"
+    "started_at": "",
+    "id": ""
   },
   "tasks": [
     {
       "id": "p-20261117-monitor",
       "project": "portal",
       "title": "포털 작업 관제(피클·노트북·회사 PC) + 프로젝트 필터",
-      "state": "working",
-      "started_at": "2026-11-17T10:12:00+09:00"
+      "state": "done",
+      "started_at": "2026-11-17T10:12:00+09:00",
+      "ended_at": "2026-11-17T11:02:00+09:00",
+      "result": "관제 화면·피클 상태·프로젝트 칩 배포 · 테스트 593건 통과"
     },
     {
       "id": "p-20261116-store",
