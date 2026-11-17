@@ -1445,7 +1445,7 @@ function ghCached(){
 function ghSave(d){ GH_DATA = d; try { localStorage.setItem(GH_KEY, JSON.stringify(d)); } catch(e) {} }
 function ghCommit(c){
   const cm = (c && c.commit) || {}, a = cm.author || {};
-  return {sha: String((c && c.sha) || '').slice(0, 7), msg: String(cm.message || '').split('\n')[0].slice(0, 140), at: String(a.date || '')};
+  return {sha: String((c && c.sha) || '').slice(0, 7), msg: String(cm.message || '').split('\n')[0].slice(0, 140), at: String(a.date || ''), email: String((a.email || '')).toLowerCase()};
 }
 function ghErrText(e){
   const s = e && e.status;
@@ -1791,6 +1791,8 @@ function monDevQueue(){
   return monCard({name: '📋 오더 큐 · 자동화', cls: cls, state: state, main: main, sub: sub, bar: r > 0, extra: extra});
 }
 
+function ghWho(c){const m=String((c&&c.msg)||''),e=String((c&&c.email)||'').toLowerCase();if(/^Merge pull request #\d+ from [\w.-]+\/agent\//i.test(m))return 'hub';if(e.indexOf('+pickle@')>=0)return 'pk';if(e.indexOf('+work@')>=0||e.indexOf('@redwit.io')>=0)return 'pc';if(e.indexOf('+notebook@')>=0)return 'nd';if(e.indexOf('users.noreply.github.com')>=0)return 'web';return 'etc';}
+const GH_WHO_TXT={hub:'🏠 노트북·허브',pk:'🤖 피클',pc:'💻 회사 PC',nd:'⌨️ 노트북·직접',web:'🌐 웹',etc:'❓ 공용'};
 /* ── 통합 이력 (노트북 오더 + 회사 PC 커밋) ── */
 function monEvents(){
   const evs = [];
