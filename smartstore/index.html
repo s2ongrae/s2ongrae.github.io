@@ -207,6 +207,7 @@ section[data-tab]{padding-top:12px}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2521;color:#fff;font-size:12px;padding:9px 14px;border-radius:999px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 </style>
+<link rel="stylesheet" href="wide.css?v=20261117c">
 </head>
 <body>
 
@@ -247,6 +248,7 @@ section[data-tab]{padding-top:12px}
   <section data-tab="dash">
     <div class="kpis" id="kpis"></div>
 
+    <div class="dash-top">
     <div class="card">
       <div class="card-t"><h2>개인판매자 45건 상한</h2><span class="hint">구매확정 50건 기준</span></div>
       <div class="gauge-top">
@@ -264,6 +266,30 @@ section[data-tab]{padding-top:12px}
         </div>
         <span class="saved" id="gSaved"></span>
       </div>
+    </div>
+
+    <div class="card perf">
+      <div class="card-t">
+        <h2>상품 성과</h2>
+        <select id="perfMonth" class="perf-month" aria-label="성과 월"></select>
+        <span class="hint" id="perfStamp">미입력</span>
+      </div>
+      <div class="perf-row">
+        <div class="pv"><i>조회</i><b id="pViews">—</b></div>
+        <div class="pv"><i>구매</i><b id="pPaid">—</b></div>
+        <div class="pv"><i>취소</i><b id="pCanceled">—</b></div>
+        <div class="pv"><i>반품</i><b id="pReturned">—</b></div>
+        <div class="pv"><i>전환율</i><b id="pCvr">—</b></div>
+      </div>
+      <div class="perf-act">
+        <button class="btn primary" id="perfEdit">성과 입력</button>
+        <button class="btn ghost" id="perfExport">내보내기</button>
+        <label class="btn ghost" for="perfFile" id="perfImport">불러오기</label>
+        <input type="file" id="perfFile" accept=".json,application/json" hidden>
+        <button class="btn ghost" id="perfSync">구매수 → 게이지</button>
+      </div>
+      <p class="note" id="perfNote">성과 데이터 미입력 상태입니다. 판매자센터 통계를 확인한 뒤 [성과 입력]에서 등록하세요.</p>
+    </div>
     </div>
 
     <div class="list-tools">
@@ -385,6 +411,6 @@ section[data-tab]{padding-top:12px}
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=20261117e"></script>
+<script src="app.js?v=20261117f"></script>
 </body>
 </html>

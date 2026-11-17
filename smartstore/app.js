@@ -11,6 +11,7 @@ const LS = {
   closing: 'myohan.closing',
   runbook: 'myohan.runbook',
   tab: 'myohan.tab',
+  metrics: 'myohan.metrics',
 };
 
 const $ = (sel, root) => (root || document).querySelector(sel);
@@ -147,8 +148,48 @@ $('#lockBtn').addEventListener('click', () => {
   }
 });
 
+/* ─────────────────────────── 성과 지표 ───────────────────────────
+ * 조회·구매·취소·반품은 아직 자동 수집 경로가 없다(M1 수동, M2 GAS/커머스API).
+ * 저장 모양(월 버킷): { v:1, buckets:{ 'YYYY-MM': { 코드: { views, paid_orders,
+ *   canceled_orders, returned_orders, updated_at, source } } } }
+ * 내보내기 JSON 은 M2 가 그대로 읽을 수 있게 8필드 레코드 배열(sku_id, period, …)이다.
+ */
+const mkey = (d) => {
+  const x = d || new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${x.getFullYear()}-${p(x.getMonth() + 1)}`;
+};
+const monthLabel = (k) => String(k || '').replace('-', '년 ') + '월';
+const mAll = () => {
+  const m = readLS(LS.metrics, null);
+  return m && m.v === 1 && m.buckets && typeof m.buckets === 'object' ? m : { v: 1, buckets: {} };
+};
+const mSave = (m) => writeLS(LS.metrics, m);
+const mRec = (period, code) => {
+  const b = mAll().buckets[period];
+  return (b && b[code]) || null;
+};
+const mNum = (v) => (v == null ? '—' : fmt(v));
+const mCvr = (rec) => {
+  if (!rec) return '—';
+  const views = Number(rec.views) || 0;
+  const paid = Number(rec.paid_orders) || 0;
+  if (!views) return '—';
+  return `${((paid / views) * 100).toFixed(1)}%`;
+};
+let PERIOD = mkey();
+
+function seedMetricsFromModel() {
+  const seeded = MODEL && MODEL.metrics && MODEL.metrics.buckets;
+  if (!seeded || !Object.keys(seeded).length) return;
+  const cur = readLS(LS.metrics, null);
+  if (cur && cur.v === 1 && cur.buckets && Object.keys(cur.buckets).length) return;
+  mSave({ v: 1, buckets: seeded });
+}
+
 /* ─────────────────────────── 렌더 ─────────────────────────── */
 function renderAll() {
+  seedMetricsFromModel();
   renderFreshness();
   renderKpis();
   renderGauge();
@@ -156,6 +197,7 @@ function renderAll() {
   renderRunbook();
   renderCalcOptions();
   renderClosing();
+  renderPerf();
   applyMask();
   $('#builtAt').textContent = MODEL.generatedAt
     ? `화면 데이터 생성 ${new Date(MODEL.generatedAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`
@@ -243,6 +285,7 @@ function renderList() {
   $('#listCnt').textContent = `${list.length}종 · ${sort === 'risk' ? '마진 낮은 순' : sort === 'price' ? '판매가 높은 순' : '이름 순'}`;
 
   $('#skuList').innerHTML = list.map((s) => {
+    const rec = mRec(PERIOD, s.code);
     const statusPill = s.soldOut
       ? '<span class="chip off">품절</span>'
       : s.options && s.options.total && s.options.sellable < s.options.total
@@ -267,12 +310,18 @@ function renderList() {
     <article class="sku${stale ? ' stale' : ''}">
       <div class="sku-head">
         <span class="nm">${esc(s.name)}${stale ? '<span class="stale-badge">미확인</span>' : ''}</span>
-        <span class="pill ${s.grade === 'WARN' ? 'warn' : s.grade === 'CRIT' ? 'crit' : s.grade === 'UNKNOWN' ? 'mute' : ''}">${s.marginPct == null ? '확인불가' : `${s.marginPct}%`}</span>
+        <span class="mgn ${s.grade === 'WARN' ? 'warn' : s.grade === 'CRIT' ? 'crit' : s.grade === 'UNKNOWN' ? 'mute' : ''}">${s.marginPct == null ? '—' : `${s.marginPct}<small>%</small>`}</span>
       </div>
       <div class="nums">
         <div><label>판매가</label><b>${won(s.salePrice)}</b></div>
         <div><label>공급+배송</label><b class="secretv">${secret(num(s.supplyPrice) == null ? null : num(s.supplyPrice) + (num(s.shipFee) || 0), '원')}</b></div>
         <div><label>한 건 순익</label><b class="secretv">${secret(s.profitKrw, '원')}</b></div>
+      </div>
+      <div class="mrow">
+        <div><i>조회</i><b>${mNum(rec ? rec.views : null)}</b></div>
+        <div><i>구매</i><b>${mNum(rec ? rec.paid_orders : null)}</b></div>
+        <div><i>전환율</i><b>${mCvr(rec)}</b></div>
+        <div><i>반품</i><b class="${rec && Number(rec.returned_orders) >= 1 ? 'hot' : ''}">${mNum(rec ? rec.returned_orders : null)}</b></div>
       </div>
       <div class="chips">
         ${statusPill}${missing}${exposure}${expired}
@@ -596,6 +645,210 @@ $('#refreshInfo').addEventListener('click', () => {
     <p class="note">이 페이지에는 공급가·마진이 암호문으로만 들어 있습니다. 암호는 이 기기에만 저장됩니다.</p>
   `);
 });
+
+/* ── 성과 패널 ── */
+function perfMonths() {
+  const set = new Set(Object.keys(mAll().buckets));
+  for (let i = 0; i < 6; i += 1) {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    set.add(mkey(d));
+  }
+  return Array.from(set).sort().reverse();
+}
+
+function renderPerf() {
+  if (!$('#pViews')) return; // 마크업이 없는 배포본에서는 조용히 건너뛴다
+  const months = perfMonths();
+  if (!months.includes(PERIOD)) PERIOD = months[0];
+  const sel = $('#perfMonth');
+  const sig = months.join(',');
+  if (sel && sel.dataset.sig !== sig) {
+    sel.innerHTML = months.map((k) => `<option value="${k}">${monthLabel(k)}</option>`).join('');
+    sel.dataset.sig = sig;
+  }
+  if (sel) sel.value = PERIOD;
+
+  const rows = mAll().buckets[PERIOD] || {};
+  const sum = { views: 0, paid: 0, canceled: 0, returned: 0, n: 0, stamp: '' };
+  (MODEL.skus || []).forEach((s) => {
+    const r = rows[s.code];
+    if (!r) return;
+    sum.views += Number(r.views) || 0;
+    sum.paid += Number(r.paid_orders) || 0;
+    sum.canceled += Number(r.canceled_orders) || 0;
+    sum.returned += Number(r.returned_orders) || 0;
+    sum.n += 1;
+    if (r.updated_at && r.updated_at > sum.stamp) sum.stamp = r.updated_at;
+  });
+
+  const set = (id, text, muted) => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('mute', !!muted);
+  };
+  if (!sum.n) {
+    ['#pViews', '#pPaid', '#pCanceled', '#pReturned', '#pCvr'].forEach((id) => set(id, '—', true));
+    $('#perfStamp').textContent = '미입력';
+    $('#perfNote').textContent = '성과 데이터 미입력 상태입니다. 판매자센터 통계를 확인한 뒤 [성과 입력]에서 등록하세요.';
+    return;
+  }
+  set('#pViews', fmt(sum.views));
+  set('#pPaid', fmt(sum.paid));
+  set('#pCanceled', fmt(sum.canceled));
+  set('#pReturned', fmt(sum.returned));
+  set('#pCvr', sum.views ? `${((sum.paid / sum.views) * 100).toFixed(1)}%` : '—');
+  const stamp = sum.stamp ? new Date(sum.stamp).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }) : '';
+  $('#perfStamp').textContent = `${sum.n}종 기록${stamp ? ` · ${stamp} 갱신` : ''}`;
+  $('#perfNote').textContent = `순구매 ${fmt(Math.max(0, sum.paid - sum.canceled))}건 · 취소 ${fmt(sum.canceled)}건 · 반품 ${fmt(sum.returned)}건 · 45건 게이지는 연 누적(결제−취소) 기준입니다.`;
+}
+
+function openPerfSheet() {
+  const rows = mAll().buckets[PERIOD] || {};
+  const body = (MODEL.skus || []).map((s) => {
+    const r = rows[s.code] || {};
+    const cell = (k, v) => `<td><input type="number" min="0" inputmode="numeric" data-code="${esc(s.code)}" data-k="${k}" value="${v == null || v === '' ? '' : Number(v)}" aria-label="${esc(s.name)} ${k}"></td>`;
+    return `<tr><td>${esc(s.name)}</td>${cell('views', r.views)}${cell('paid_orders', r.paid_orders)}${cell('canceled_orders', r.canceled_orders)}${cell('returned_orders', r.returned_orders)}</tr>`;
+  }).join('');
+  openSheet(`
+    <h3>성과 입력 · ${esc(monthLabel(PERIOD))}</h3>
+    <p>판매자센터 통계에서 확인한 숫자를 넣고 저장하세요. 빈 칸은 기존 값을 그대로 둡니다.</p>
+    <div class="perf-table-wrap">
+      <table class="perf-table">
+        <thead><tr><th>상품</th><th>조회</th><th>구매</th><th>취소</th><th>반품</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+    <button class="btn primary" id="perfSave">저장</button>
+    <p class="note">구매 = 결제완료, 취소 = 발송 전 취소. 반품은 게이지에서 차감하지 않습니다(보수적 상한).</p>
+  `);
+  $('#perfSave').addEventListener('click', savePerfSheet);
+}
+
+function savePerfSheet() {
+  const m = mAll();
+  const bucket = Object.assign({}, m.buckets[PERIOD] || {});
+  const now = new Date().toISOString();
+  const touched = {};
+  $$('#sheetIn .perf-table input').forEach((inp) => {
+    if (inp.value === '') return;
+    const code = inp.dataset.code;
+    const k = inp.dataset.k;
+    const v = Math.max(0, Math.floor(Number(inp.value) || 0));
+    touched[code] = touched[code] || Object.assign({ views: 0, paid_orders: 0, canceled_orders: 0, returned_orders: 0 }, bucket[code] || {});
+    touched[code][k] = v;
+  });
+  $('#sheet').hidden = true;
+  if (!Object.keys(touched).length) {
+    toast('바뀐 값이 없습니다');
+    return;
+  }
+  Object.keys(touched).forEach((code) => {
+    bucket[code] = Object.assign({}, touched[code], { updated_at: now, source: 'manual' });
+  });
+  m.buckets[PERIOD] = bucket;
+  mSave(m);
+  renderPerf();
+  renderList();
+  toast('성과 저장');
+}
+
+function exportMetrics() {
+  const m = mAll();
+  const records = [];
+  Object.keys(m.buckets).sort().forEach((period) => {
+    Object.keys(m.buckets[period]).forEach((code) => {
+      const r = m.buckets[period][code];
+      records.push({
+        sku_id: code, period,
+        views: r.views, paid_orders: r.paid_orders,
+        canceled_orders: r.canceled_orders, returned_orders: r.returned_orders,
+        updated_at: r.updated_at || '', source: r.source === 'api' ? 'api' : 'manual',
+      });
+    });
+  });
+  if (!records.length) { toast('내보낼 지표가 없습니다'); return; }
+  const blob = new Blob([JSON.stringify({ version: 1, updated_at: new Date().toISOString(), records }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `myohan-metrics-${todayStr().replace(/-/g, '')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast(`${records.length}건 내보냈습니다`);
+}
+
+function importMetrics(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const raw = JSON.parse(String(reader.result));
+      const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.records) ? raw.records : null);
+      const codes = new Set((MODEL.skus || []).map((s) => s.code));
+      const m = mAll();
+      const num = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+      };
+      let n = 0;
+      const put = (period, code, r) => {
+        if (!/^\d{4}-\d{2}$/.test(String(period || '')) || !codes.has(code) || !r) return;
+        m.buckets[period] = m.buckets[period] || {};
+        m.buckets[period][code] = {
+          views: num(r.views), paid_orders: num(r.paid_orders),
+          canceled_orders: num(r.canceled_orders), returned_orders: num(r.returned_orders),
+          updated_at: typeof r.updated_at === 'string' ? r.updated_at : new Date().toISOString(),
+          source: r.source === 'api' ? 'api' : 'manual',
+        };
+        n += 1;
+      };
+      if (list) list.forEach((r) => r && put(r.period, r.sku_id, r));
+      else if (raw && raw.buckets) Object.keys(raw.buckets).forEach((p) => Object.keys(raw.buckets[p]).forEach((c) => put(p, c, raw.buckets[p][c])));
+      if (!n) throw new Error('empty');
+      mSave(m);
+      renderPerf();
+      renderList();
+      toast(`${n}건 불러왔습니다`);
+    } catch (e) {
+      toast('형식이 맞지 않습니다');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function syncGaugeFromMetrics() {
+  const year = PERIOD.slice(0, 4);
+  const m = mAll();
+  let paid = 0;
+  let canceled = 0;
+  Object.keys(m.buckets).forEach((p) => {
+    if (p.slice(0, 4) !== year) return;
+    Object.keys(m.buckets[p]).forEach((code) => {
+      paid += Number(m.buckets[p][code].paid_orders) || 0;
+      canceled += Number(m.buckets[p][code].canceled_orders) || 0;
+    });
+  });
+  const proposed = Math.max(0, Math.min(99, paid - canceled));
+  const cur = Number(readLS(LS.orders, 0)) || 0;
+  if (proposed === cur) { toast('게이지가 이미 같습니다'); return; }
+  const diff = proposed - cur;
+  const ok = confirm(`게이지 ${cur} → ${proposed} (차이 ${diff > 0 ? '+' : ''}${diff})\n\n${year}년 누적: 결제완료 ${paid} − 발송 전 취소 ${canceled} = ${proposed}건\n일일 마감에 이미 넣은 건수와 겹치지 않는지 확인하세요.`);
+  if (!ok) return;
+  setGauge(proposed);
+  toast(`게이지를 ${proposed}건으로 맞췄습니다`);
+}
+
+if ($('#perfMonth')) {
+  $('#perfMonth').addEventListener('change', (e) => { PERIOD = e.target.value; renderPerf(); renderList(); });
+  $('#perfEdit').addEventListener('click', openPerfSheet);
+  $('#perfExport').addEventListener('click', exportMetrics);
+  $('#perfFile').addEventListener('change', (e) => { importMetrics(e.target.files && e.target.files[0]); e.target.value = ''; });
+  $('#perfSync').addEventListener('click', syncGaugeFromMetrics);
+}
 
 /* 시작 */
 boot().then(() => {
