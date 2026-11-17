@@ -528,12 +528,17 @@ $('#dSave').addEventListener('click', () => {
     sales: Number($('#dSales').value) || 0,
     returns: Number($('#dReturns').value) || 0,
   };
-  const all = readLS(LS.closing, []).filter((r) => r.date !== date);
-  all.push(entry);
-  writeLS(LS.closing, all);
+  const all = readLS(LS.closing, []);
+  const prev = all.find((r) => r.date === date);
+  const delta = entry.orders - (prev ? Number(prev.orders) || 0 : 0);
+  const next = all.filter((r) => r.date !== date);
+  next.push(entry);
+  writeLS(LS.closing, next);
+  // 45건 게이지 = 기존 누적 + 오늘 기록의 차이(같은 날 재저장하면 차이만 반영)
+  setGauge(Number(readLS(LS.orders, 0)) + delta);
   $('#dOrders').value = ''; $('#dSales').value = ''; $('#dReturns').value = '';
   renderClosing();
-  toast(`${date.slice(5)} 마감 저장`);
+  toast(delta ? `${date.slice(5)} 마감 저장 · 게이지 ${delta > 0 ? '+' : ''}${delta}` : `${date.slice(5)} 마감 저장`);
 });
 
 $('#entries').addEventListener('click', (ev) => {
@@ -541,7 +546,10 @@ $('#entries').addEventListener('click', (ev) => {
   if (!btn) return;
   const date = btn.dataset.del;
   if (!confirm(`${date} 기록을 지울까요?`)) return;
-  writeLS(LS.closing, readLS(LS.closing, []).filter((r) => r.date !== date));
+  const all = readLS(LS.closing, []);
+  const row = all.find((r) => r.date === date);
+  writeLS(LS.closing, all.filter((r) => r.date !== date));
+  if (row) setGauge(Number(readLS(LS.orders, 0)) - (Number(row.orders) || 0));
   renderClosing();
 });
 $('#dDate').addEventListener('change', renderClosing);
