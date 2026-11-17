@@ -80,7 +80,7 @@ const MON = `<div class="mon-card">
     <div class="section-head">
       <div class="section-title">🖥️ 작업 관제 <span class="badge badge-blue">${badge}</span></div>
       <div class="ord-head-right">
-        <span class="ord-hint">${note}</span>
+        <span class="ord-hint" id="mon-note">${note}</span>
         <button class="ord-refresh" aria-label="새로고침">⟳</button>
       </div>
     </div>
@@ -93,7 +93,7 @@ const MON = `<div class="mon-card">
       <button class="mon-f">💻 회사 PC</button>
       <button class="mon-f">⚡ 에이전트</button>
     </div>
-    <div class="mon-filters">${projChips}</div>
+    <div class="mon-filters" id="mon-proj">${projChips}</div>
     <div class="mon-feed">${feed}</div>
     <div class="mon-note">${foot}</div>
   </div>`;
