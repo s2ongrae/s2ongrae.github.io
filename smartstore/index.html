@@ -73,9 +73,9 @@ section[data-tab]{padding-top:12px}
 .gauge-top .stage.crit{background:var(--crit-soft);color:var(--crit)}
 .bar{position:relative;height:12px;border-radius:999px;background:var(--line-2);overflow:hidden}
 .bar>i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--good);transition:width .35s ease}
+.bar>u{position:absolute;top:0;bottom:0;width:1px;background:rgba(43,32,20,.18)}
 .bar.warn>i{background:var(--warn)} .bar.crit>i{background:var(--crit)}
-.ticks{display:flex;justify-content:space-between;gap:6px;margin-top:5px;font-size:9.5px;color:var(--ink-3)}
-.ticks span{white-space:nowrap}
+.ticks{margin-top:5px;font-size:9.5px;color:var(--ink-3);line-height:1.5}
 .gauge-act{margin-top:8px;font-size:12px;color:var(--ink-2);background:var(--line-2);border-radius:10px;padding:8px 10px}
 .gauge-act b{color:var(--ink)}
 .gauge-edit{display:flex;align-items:center;gap:8px;margin-top:10px}
@@ -253,10 +253,8 @@ section[data-tab]{padding-top:12px}
         <span class="now" id="gNow">0</span><span class="cap">/ 45건 결제완료</span>
         <span class="stage" id="gStage">정상</span>
       </div>
-      <div class="bar" id="gBar"><i style="width:0%"></i></div>
-      <div class="ticks">
-        <span>0</span><span>35 유입 중단</span><span>42 판매중지</span><span>44 긴급</span><span>45</span>
-      </div>
+      <div class="bar" id="gBar"><i style="width:0%"></i><u style="left:77.8%"></u><u style="left:93.3%"></u></div>
+      <div class="ticks">35 유입 중단 · 42 전 상품 판매중지 · 44 긴급 · 상한 45건</div>
       <div class="gauge-act" id="gAct">결제완료 건수를 넣으면 다음에 할 일을 알려 줍니다.</div>
       <div class="gauge-edit">
         <div class="stepper">

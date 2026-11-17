@@ -499,13 +499,14 @@ function renderClosing() {
   const avgMargin = MODEL.summary && MODEL.summary.avgMarginPct != null ? MODEL.summary.avgMarginPct : 0;
   const fee = Math.round(sales * ((MODEL.store ? MODEL.store.feeRatePct : 4.95) / 100));
   const profit = Math.round(sales * (avgMargin / 100));
+  const has = rows.length > 0;
 
   $('#mOrders').textContent = `${orders}건`;
-  $('#mSales').textContent = MASK ? '•••' : `${fmt(sales)}원`;
+  $('#mSales').textContent = !has ? '-' : (MASK ? '•••' : `${fmt(sales)}원`);
   $('#mAov').textContent = orders ? (MASK ? '•••' : `${fmt(Math.round(sales / orders))}원`) : '-';
-  $('#mFee').textContent = MASK ? '•••' : `${fmt(fee)}원`;
-  $('#mProfit').textContent = MASK ? '•••' : `${fmt(profit)}원`;
-  $('#mTax').textContent = MASK ? '•••' : `${fmt(Math.round(profit * 0.3))}~${fmt(Math.round(profit * 0.35))}원`;
+  $('#mFee').textContent = !has ? '-' : (MASK ? '•••' : `${fmt(fee)}원`);
+  $('#mProfit').textContent = !has ? '-' : (MASK ? '•••' : `${fmt(profit)}원`);
+  $('#mTax').textContent = !has ? '-' : (MASK ? '•••' : `${fmt(Math.round(profit * 0.3))}~${fmt(Math.round(profit * 0.35))}원`);
 
   $('#entryCnt').textContent = rows.length ? `${rows.length}일 기록` : '';
   $('#entries').innerHTML = rows.length
