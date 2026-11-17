@@ -187,7 +187,7 @@ function renderKpis() {
   const warn = (s.warnCount || 0) + (s.critCount || 0);
   const items = [
     { k: '판매중', v: s.skuCount, u: '종', cls: '' },
-    { k: '평균 마진', v: MASK ? '•••' : (s.avgMarginPct == null ? '-' : s.avgMarginPct), u: MASK ? '' : '%', cls: 'good' },
+    { k: '평균 마진', v: s.avgMarginPct == null ? '-' : s.avgMarginPct, u: '%', cls: 'good' },
     { k: '마진 경고', v: warn, u: '종', cls: warn ? 'warn' : '' },
     { k: '품절', v: s.soldOutCount || 0, u: '종', cls: (s.soldOutCount || 0) ? 'crit' : '' },
   ];
@@ -267,7 +267,7 @@ function renderList() {
     <article class="sku${stale ? ' stale' : ''}">
       <div class="sku-head">
         <span class="nm">${esc(s.name)}${stale ? '<span class="stale-badge">미확인</span>' : ''}</span>
-        <span class="pill ${s.grade === 'WARN' ? 'warn' : s.grade === 'CRIT' ? 'crit' : s.grade === 'UNKNOWN' ? 'mute' : ''}">${MASK ? gradeLabel(s.grade) : `${s.marginPct == null ? '-' : s.marginPct}%`}</span>
+        <span class="pill ${s.grade === 'WARN' ? 'warn' : s.grade === 'CRIT' ? 'crit' : s.grade === 'UNKNOWN' ? 'mute' : ''}">${s.marginPct == null ? '확인불가' : `${s.marginPct}%`}</span>
       </div>
       <div class="nums">
         <div><label>판매가</label><b>${won(s.salePrice)}</b></div>
@@ -284,7 +284,7 @@ function renderList() {
       <details>
         <summary>상세</summary>
         <div class="dtl">
-          <div><span>마진율</span><span class="secretv">${secret(s.marginPct, '%')} · ${gradeLabel(s.grade)}</span></div>
+          <div><span>마진율</span><span>${s.marginPct == null ? '-' : s.marginPct + '%'} · ${gradeLabel(s.grade)}</span></div>
           <div><span>반품 1건</span><span class="secretv">${s.returnImpact && s.returnImpact.roundTripKrw ? `왕복 ${secret(s.returnImpact.roundTripKrw, '원')} · 순익 ${s.returnImpact.unitsOfProfit == null ? '-' : (MASK ? '•••' : s.returnImpact.unitsOfProfit + '건분')}` : '정보 없음'}</span></div>
           <div><span>15% 최소가</span><span class="secretv">${secret(s.breakevenSalePrice, '원')}</span></div>
           <div><span>배송비</span><span>${(num(s.shipFee) || 0) === 0 ? '무료' : won(s.shipFee)}</span></div>
@@ -343,6 +343,7 @@ function renderRunbook() {
         <span class="step-no">${done.includes(i) ? '✓' : i + 1}</span>
         <span class="step-t">${esc(s.t)}</span>
         <span class="step.min">${esc(s.min)}</span>
+        <span class="step-cv">▾</span>
       </button>
       <div class="step-body" hidden>
         <p>${esc(s.body)}</p>
@@ -361,6 +362,7 @@ $('#runbook').addEventListener('click', (ev) => {
     const body = top.parentElement.querySelector('.step-body');
     body.hidden = !body.hidden;
     top.setAttribute('aria-expanded', String(!body.hidden));
+    top.parentElement.classList.toggle('open', !body.hidden);
     return;
   }
   const doneBtn = ev.target.closest('[data-done]');
@@ -460,16 +462,18 @@ function calc() {
   const v = $('#oVerdict');
   if (margin < 0) {
     v.className = 'verdict crit';
-    v.textContent = `역마진입니다. 한 건 팔 때마다 ${fmt(Math.abs(profit))}원이 나갑니다. 판매가를 올리거나 상품을 내리세요.`;
+    v.textContent = MASK
+      ? '역마진입니다. 한 건 팔 때마다 돈이 나갑니다. 판매가를 올리거나 상품을 내리세요.'
+      : `역마진입니다. 한 건 팔 때마다 ${fmt(Math.abs(profit))}원이 나갑니다. 판매가를 올리거나 상품을 내리세요.`;
   } else if (margin < 8) {
     v.className = 'verdict crit';
     v.textContent = `마진 ${margin}% — 심각선(8%) 미만입니다. 판매중지 검토 대상입니다.`;
   } else if (margin < 15) {
     v.className = 'verdict warn';
-    v.textContent = `마진 ${margin}% — 주의선(15%) 미만입니다. 광고를 태우지 말고 묶음배송용으로만 두세요. 반품 1건이면 순익 ${units || '-'}건이 사라집니다.`;
+    v.textContent = `마진 ${margin}% — 주의선(15%) 미만입니다. 광고를 태우지 말고 묶음배송용으로만 두세요.${MASK || !units ? '' : ` 반품 1건이면 순익 ${units}건이 사라집니다.`}`;
   } else {
     v.className = 'verdict';
-    v.textContent = `마진 ${margin}% — 기준(15%)을 넘습니다. 15%를 지키는 최소 판매가는 ${breakeven ? fmt(breakeven) + '원' : '-'}입니다.`;
+    v.textContent = `마진 ${margin}% — 기준(15%)을 넘습니다.${MASK ? '' : ` 15%를 지키는 최소 판매가는 ${breakeven ? fmt(breakeven) + '원' : '-'}입니다.`}`;
   }
 }
 ['cSale', 'cSupply', 'cShip', 'cReturn', 'cFee', 'cReserve'].forEach((id) => {
@@ -584,4 +588,7 @@ $('#refreshInfo').addEventListener('click', () => {
 });
 
 /* 시작 */
-boot();
+boot().then(() => {
+  const last = readLS(LS.tab, 'dash');
+  if (MODEL && ['dash', 'order', 'calc', 'close'].includes(last)) goTab(last);
+});

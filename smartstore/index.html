@@ -74,9 +74,8 @@ section[data-tab]{padding-top:12px}
 .bar{position:relative;height:12px;border-radius:999px;background:var(--line-2);overflow:hidden}
 .bar>i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--good);transition:width .35s ease}
 .bar.warn>i{background:var(--warn)} .bar.crit>i{background:var(--crit)}
-.ticks{position:relative;height:16px;margin-top:2px;font-size:9.5px;color:var(--ink-3)}
-.ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap}
-.ticks span::before{content:"";position:absolute;left:50%;top:-4px;width:1px;height:4px;background:var(--line)}
+.ticks{display:flex;justify-content:space-between;gap:6px;margin-top:5px;font-size:9.5px;color:var(--ink-3)}
+.ticks span{white-space:nowrap}
 .gauge-act{margin-top:8px;font-size:12px;color:var(--ink-2);background:var(--line-2);border-radius:10px;padding:8px 10px}
 .gauge-act b{color:var(--ink)}
 .gauge-edit{display:flex;align-items:center;gap:8px;margin-top:10px}
@@ -127,6 +126,8 @@ section[data-tab]{padding-top:12px}
 .step.done .step-no{background:var(--good);color:#fff}
 .step-t{font-weight:700;font-size:13.5px;letter-spacing:-.2px}
 .step.min{font-size:11px;color:var(--ink-3);margin-left:auto;flex:0 0 auto}
+.step-cv{font-size:10px;color:var(--ink-3);transition:transform .18s}
+.step.open .step-cv{transform:rotate(180deg)}
 .step-body{padding:0 13px 12px;font-size:12.5px;color:var(--ink-2)}
 .step-body p{margin:0 0 7px}
 .step-body .chk{display:flex;gap:7px;background:var(--warn-soft);border-radius:9px;padding:8px 9px;color:#7c5110;font-size:12px;margin-bottom:8px}
@@ -183,7 +184,7 @@ section[data-tab]{padding-top:12px}
 .lock h1{font-size:19px;margin:0 0 4px;letter-spacing:-.5px}
 .lock p{font-size:12.5px;color:var(--ink-3);margin:0 0 20px;line-height:1.55}
 .lock input{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px;font-size:15px;text-align:center;letter-spacing:1px;background:var(--card)}
-.lock .row{display:flex;align-items:center;gap:7px;justify-content:center;margin:12px 0 14px;font-size:12px;color:var(--ink-2)}
+.lock .row{display:flex;align-items:center;gap:7px;justify-content:center;margin:12px 0 14px;font-size:12px;color:var(--ink-2);white-space:nowrap}
 .lock .err{color:var(--crit);font-size:12px;min-height:17px;margin-top:10px}
 .lock .small{font-size:11px;color:var(--ink-3);margin-top:18px;line-height:1.6}
 
@@ -217,7 +218,7 @@ section[data-tab]{padding-top:12px}
     <p>공급가·마진 데이터는 암호화되어 있습니다.<br>암호를 넣으면 이 기기에서 열립니다.</p>
     <form id="lockForm" autocomplete="off">
       <input id="pass" type="password" inputmode="text" autocomplete="current-password" placeholder="암호" aria-label="암호">
-      <div class="row"><input id="remember" type="checkbox" checked> <label for="remember">이 기기에 기억하기</label></div>
+      <div class="row"><input id="remember" type="checkbox" checked> <label for="remember">이 기기에 기억</label></div>
       <button class="btn primary" type="submit" id="unlockBtn">열기</button>
       <div class="err" id="lockErr" role="alert"></div>
     </form>
@@ -254,8 +255,7 @@ section[data-tab]{padding-top:12px}
       </div>
       <div class="bar" id="gBar"><i style="width:0%"></i></div>
       <div class="ticks">
-        <span style="left:77.8%">35 유입중단</span>
-        <span style="left:93.3%">42 락</span>
+        <span>0</span><span>35 유입 중단</span><span>42 판매중지</span><span>44 긴급</span><span>45</span>
       </div>
       <div class="gauge-act" id="gAct">결제완료 건수를 넣으면 다음에 할 일을 알려 줍니다.</div>
       <div class="gauge-edit">
