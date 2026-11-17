@@ -367,5 +367,51 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(all.indexOf(SHEET) < 0 && all.indexOf(K3) < 0, '오더함 응답에 시트 ID·비밀 키가 없다');
 }
 
+console.log('10) 🤖 피클 상태 파일 (agent_status) — 드라이브 포털_에이전트상태.json');
+{
+  const K4 = S.props.SECRET_KEY;
+  const nowMs = S.run('Date.now()');
+  const at = ms => new Date(ms).toISOString();
+  let r = post({action: 'agent_status', key: K4});
+  ok(r.ok === true && typeof r.connected === 'boolean' && !r.agent, '폴더·파일이 아직 없어도 예외 없이 상태만 돌려준다');
+
+  const found = S.ROOT.folders.filter(f => f.name === '김성래포털');
+  const folder = found.length ? found[0] : S.ROOT.createFolder('김성래포털');
+  r = post({action: 'agent_status', key: K4});
+  ok(r.ok === true && (r.connected === false ? /기록이 없|폴더/.test(String(r.note || '')) : true), '상태 파일이 없으면 기록 없음 안내');
+
+  const f = folder.createFile('포털_에이전트상태.json', JSON.stringify({
+    version: 1, updated_at: at(nowMs - 3 * 60000),
+    agent: {state: 'working', task: '포털 관제 개선', project: 'portal', started_at: at(nowMs - 20 * 60000), id: 't1'},
+    tasks: [
+      {id: 't1', project: 'portal', title: '포털 관제 개선', state: 'working', started_at: at(nowMs - 20 * 60000)},
+      {id: 't0', project: 'gaegyebu', title: '가계부 점검 010-1234-5678', state: 'done', started_at: at(nowMs - 90 * 60000), ended_at: at(nowMs - 60 * 60000), result: '공모주 일정 정리 완료'}
+    ]
+  }));
+  r = post({action: 'agent_status', key: K4});
+  ok(r.ok === true && r.connected === true && r.min === 3, '최근 갱신 시각과 나이(분)를 준다');
+  ok(r.agent && r.agent.state === 'working' && r.agent.task === '포털 관제 개선' && r.agent.project === 'portal' && r.agent.stale === false, '지금 하는 일·프로젝트·정체 여부');
+  ok(Array.isArray(r.tasks) && r.tasks.length === 2 && r.tasks[1].ended_at && r.tasks[1].result === '공모주 일정 정리 완료', '최근 작업 목록과 결과');
+  ok(JSON.stringify(r).indexOf('010-1234-5678') < 0 && JSON.stringify(r).indexOf('[REDACTED]') >= 0, '제목의 전화번호는 가려서 내보낸다');
+  ok(!JSON.stringify(r).includes(f.id), '파일 ID 는 응답에 넣지 않는다');
+
+  f.content = JSON.stringify({updated_at: at(nowMs - 45 * 60000), agent: {state: 'working', task: '오래 걸리는 일', project: 'portal'}, tasks: []});
+  r = post({action: 'agent_status', key: K4});
+  ok(r.agent.stale === true && r.stale === true, '30분 넘게 갱신이 없으면 stale 로 표시');
+
+  f.content = JSON.stringify({updated_at: at(nowMs), agent: {state: 'idle'}, tasks: [{id: 'x'}]});
+  r = post({action: 'agent_status', key: K4});
+  ok(r.agent.state === 'idle' && r.agent.stale === false && r.tasks[0].title === '', '쉬는 중이면 stale 아님, 모자란 칸은 빈 값');
+
+  f.content = 'not json';
+  r = post({action: 'agent_status', key: K4});
+  ok(r.ok === true && r.connected === false && /읽을 수 없/.test(String(r.note || '')), '깨진 파일은 예외 없이 안내');
+
+  f.content = JSON.stringify({version: 1, updated_at: at(nowMs), agent: {state: 'idle'}, tasks: new Array(40).fill({id: 'y', title: 'x', state: 'done'})});
+  r = post({action: 'agent_status', key: K4});
+  ok(r.tasks.length <= 12, '작업 목록은 최대 12건만 내보낸다');
+  ok(post({action: 'agent_status', key: 'x'.repeat(64)}).error === 'unauthorized', '키 없이는 피클 상태도 안 준다');
+}
+
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);
 process.exit(fail?1:0);

@@ -51,6 +51,7 @@ function doPost(e) {
       case 'loadMemos':         return out(loadMemos());
       case 'saveMemos':         return out(saveMemos(body));
       case 'queue_status':      return out(queueStatus());   // 포털 상단 상태등(읽기 전용)
+      case 'agent_status':      return out(agentStatus());        // 🤖 피클이 남긴 작업 상태(읽기 전용)
       case 'queue_list':        return out(queueList(body));      // 🤖 오더함 — 최근 오더
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
       case 'queue_decide':      return out(queueDecide(body));    // 🤖 오더함 — 승인/거절
@@ -366,6 +367,9 @@ const QS_PROP_HEARTBEAT = 'HEARTBEAT_FILE_ID';
 const QS_TAB = 'Command_Queue';
 const QS_TOSS_FOLDER = '가계부';
 const QS_TOSS_FILE = '가계부_주식스냅샷.json';
+const AS_FILE = '포털_에이전트상태.json';      // 🤖 피클이 직접 덮어쓰는 상태 파일(드라이브 김성래포털)
+const AS_MAX_TASKS = 12;
+const AS_MAX_TEXT = 160;
 const QS_HB_OK_MIN = 5;                  // 5분 이내 = 초록
 const QS_HB_WARN_MIN = 60;               // 5분~1시간 = 노랑, 그 뒤는 빨강
 const QS_PENDING_LATE_MIN = 15;           // 15분 넘게 PENDING 이면 빨강
@@ -522,6 +526,66 @@ function tossSyncStatus_() {
   if (days <= QS_TOSS_OK_DAYS) state = 'ok';
   else if (days <= QS_TOSS_WARN_DAYS) state = 'warn';
   return { state: state, date: date, days: days, at: clip(latest && latest.at, 40) };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🤖 피클(총괄 AI) 작업 상태 — 드라이브 김성래포털/포털_에이전트상태.json
+//
+//  피클은 일을 시작할 때·끝낼 때 이 파일을 통째로 덮어씁니다(가벼운 JSON 한 장).
+//  포털은 그걸 읽어서 "피클이 지금 무엇을 하는지 · 무엇을 했는지"를 보여줍니다.
+//
+//   { "version": 1, "updated_at": "2026-11-17T10:40:00+09:00",
+//     "agent": { "state": "working|idle", "task": "...", "project": "portal", "started_at": "...", "id": "..." },
+//     "tasks": [ { "id":"...", "project":"portal", "title":"...", "state":"working|done|failed",
+//               "started_at":"...", "ended_at":"...", "result":"..." } ] }
+//
+//  · 읽기 전용 — 폴더·파일을 만들지 않는다(없으면 안내만).
+//  · 이름·전화·주민번호·키 모양은 내보내기 직전에 가립니다(qqMask_).
+//  · 30분 넘게 갱신이 없으면 state 를 stale 로 알려 화면이 "응답 없음"을 보여준다.
+// ═══════════════════════════════════════════════════════════════
+const AS_STALE_MIN = 30;
+function agentStatus() {
+  const res = { ok: true, at: new Date().toISOString(), connected: false, updated_at: '', agent: null, tasks: [], note: '' };
+  let f = null;
+  try {
+    const folders = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    if (!folders.hasNext()) { res.note = '포털 폴더가 아직 없어요'; return res; }
+    const files = folders.next().getFilesByName(AS_FILE);
+    if (!files.hasNext()) { res.note = '아직 피클 기록이 없어요'; return res; }
+    f = files.next();
+    let d = null;
+    try { d = JSON.parse(f.getBlob().getDataAsString()); } catch (_) { d = null; }
+    if (!isObj(d)) { res.note = '상태 파일을 읽을 수 없어요'; return res; }
+    res.connected = true;
+    res.updated_at = clip(d.updated_at, 40);
+    const upMs = Date.parse(res.updated_at);
+    res.min = isFinite(upMs) ? Math.max(0, Math.round((Date.now() - upMs) / 60000)) : null;
+    res.stale = res.min !== null && res.min >= AS_STALE_MIN;
+    const a = d.agent;
+    if (isObj(a)) {
+      res.agent = {
+        state: clip(a.state, 16), task: qqMask_(a.task, AS_MAX_TEXT), project: clip(a.project, 24),
+        started_at: clip(a.started_at, 40), id: clip(a.id, 40),
+        // 진행 중인데 30분 넘게 소식이 없으면 멈춘 것 같다고 알려줘요
+        stale: res.stale && String(a.state || '').toLowerCase() === 'working'
+      };
+    }
+    const list = Array.isArray(d.tasks) ? d.tasks.slice(0, AS_MAX_TASKS) : [];
+    res.tasks = list.map(function (t) {
+      const o = isObj(t) ? t : {};
+      return {
+        id: clip(o.id, 40), project: clip(o.project, 24),
+        title: qqMask_(o.title, AS_MAX_TEXT), state: clip(o.state, 12),
+        started_at: clip(o.started_at, 40), ended_at: clip(o.ended_at, 40),
+        result: qqMask_(o.result, AS_MAX_TEXT)
+      };
+    });
+    res.tasks = res.tasks.slice(0, 40);
+  } catch (err) {
+    Logger.log('agent_status: ' + String((err && err.message) || err));
+    res.note = '상태 파일을 읽지 못했어요';
+  }
+  return res;
 }
 
 // ═══════════════════════════════════════════════════════════════

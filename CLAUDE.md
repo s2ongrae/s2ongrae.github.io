@@ -79,22 +79,25 @@
 
 ## 🖥️ 작업 관제 (2026-11-17)
 
-- 오더함 **위**에 `「🖥️ 작업 관제」` 카드(`#mon-card`) 하나. 기기별 카드 3개(`#mon-cards`) + 통합 이력(`#mon-feed`) + `⟳`(`monRefresh(true)`).
+- 오더함 **위**에 `「🖥️ 작업 관제」` 카드(`#mon-card`) 하나. 기기 카드 4개(`#mon-cards`) + 통합 이력(`#mon-feed`) + `⟳`(`monRefresh(true)`).
+  - **🤖 피클** = `status/agent.json`(공개, 개인정보 없음) 또는 서버 `agent_status`(드라이브 비공개 파일). 진행 중이면 작업·프로젝트·경과(1초), 30분 넘게 갱신이 없으면 **응답 없음**, 쉬는 중이면 마지막으로 끝낸 일과 결과.
   - **🏠 집 노트북** = `queue_status` 의 `heartbeat` + `queue_list` 의 `RUNNING` 오더. 실행 중이면 종류·작업 위치·요약, `⏱ 경과`(1초마다), 접수 시각. 하트비트가 10분 넘게 끊기면 **응답 없음**.
   - **💻 회사 PC** = 브라우저가 GitHub(`api.github.com`)을 직접 읽은 **공개 저장소 4곳**(가계부·콘텐츠 허브·보험관리툴·포털)의 커밋·CI. PC에는 도는 데몬이 없으므로 이게 유일한 신호 — 카드에 그렇게 밝힌다. 가장 최근 푸시가 10분 이내=방금 작업 / 1시간 이내=최근 작업 / 그 뒤=조용함.
   - **📋 오더 큐 · 자동화** = `queue_list` 가 주는 건수(PENDING·RUNNING·승인 대기·TIMEOUT_REVIEW·누적 완료/실패) + 오늘 끝낸 건수 + 자동 확인 상태.
 - **정체 의심(`ordStale`)**: `RUNNING` 인데 `claimed_at`(없으면 `created_at`)부터 **20분**(워커 `CQ.STALE_MS`) 넘으면 노랑 `정체 의심`, **1시간** 넘으면 빨강 `멈춘 것 같아요`. 시트의 RUNNING 은 노트북이 죽어도 지워지지 않으므로(포털이 쓸 수 없음) 이 배지가 그 자리를 메운다. 오더 카드에도 `⚠ ⏱ …째 정체 의심` 배지.
 - **생애주기(`ordSteps`)**: 오더마다 `① 접수 › ② 실행(차례/실행 중/승인 대기) › ③ 결과(끝냄/실패/실행 안 함)` 알약 3개. `PENDING`=② 실행 차례, `RUNNING`=② 실행 중, `DONE`=①②③ done, `FAILED`/`TIMEOUT_REVIEW`=③ 실패, `REJECTED`/`EXPIRED`=② 실행 안 함.
-- **통합 이력(`monEvents`)**: 오더 이벤트(끝난 오더는 `finished_at`, 그 외 `created_at`)와 GitHub 커밋을 시간 내림차순으로 섞어 최대 24건. 출처 배지 = `🏠 노트북` / `💻 회사 PC` / `⚡ 에이전트`(`Merge pull request #N from …/agent/…` 커밋만). 갈래 버튼(`data-f` = all/nb/pc/ag)은 `MON_FILTER`.
-- **GitHub 호출 예절**: 커밋 5분(`GH_TTL`)·CI 15분(`GH_RUN_TTL`) 캐시를 `localStorage.portal_gh_cache` 에. 로그인 없이 **시간당 60회**뿐이라 `⟳` 없이는 캐시가 신선하면 부르지 않는다. 403/429 면 `limited` → "호출 한도" 안내 + 저장된 기록 유지. **`ghCanFetch()` = https 페이지에서만**(http·파일로 열면 브라우저가 섞인 요청을 막음) — 테스트 가짜 화면에는 `location` 이 없어 자동 호출이 일어나지 않는다.
-- **그리기 규칙**: `monRender()` 는 `ordSig`+오더시각+건수+GitHub/상태등 시각+필터 서명이 같으면 아무것도 안 건드린다. 경과 시간은 `ordTick` 이 `.ord-elapsed[data-since]` 글자만 1초마다 바꾼다(`ordTickStart` 는 `.ord-cd` 또는 `.ord-elapsed` 가 있을 때만 타이머).
-- **서버 확장(재배포 필요)**: `Code.gs` `qqItem_` 가 `claimed_at`·`claimed_by` 를, `heartbeatStatus_` 가 `current`·`current_type`·`daemon`·`processed`·`polls`·`version` 을 함께 준다. 예전 배포여도 화면은 그대로 동작하고(접수 시각 기준·하트비트 현재 작업 칸 없음), 재배포하면 경과 시간이 정확해지고 오더 목록에 없어도 하트비트만으로 "지금 작업"이 보인다.
-- 테스트: `portal_integration` **T)절**(정체 의심 임계값·생애주기·카드 3개·CI 표기·통합 이력 정렬/필터/이스케이프·다시 그리기 서명·GitHub 미호출) · `portal_server` 8)절(하트비트 현재 작업) · ⑬-2(claimed 필드).
+- **프로젝트 묶음(2026-11-17)**: `PROJ_LIST` = `smartstore`(🛒 묘한살림) · `content`(🎬 콘텐츠허브) · `gaegyebu`(📒 가계부) · `insurance`(🏦 보험관리툴) · `portal`(🖥️ 포털·연동) · `life`(📋 생활·행정). 오더는 `PROJ_OF_WS[workspace]`(토스 동기화는 가계부, 작업 위치가 없으면 생활·행정), 커밋은 `PROJ_OF_REPO`, 피클 작업은 `task.project`. `#mon-proj` 칩이 프로젝트별 `진행 N · 승인 N · 예정 N` 을 보여주고 누르면 `MON_PROJ` 필터(이력에만 적용).
+- **통합 이력(`monEvents`)**: 오더 이벤트(끝난 오더는 `finished_at`, 그 외 `created_at`) · GitHub 커밋 · 피클 작업(`agentEvents`)을 시간 내림차순으로 섞어 최대 24건. 출처 배지 = `🤖 피클` / `🏠 노트북` / `💻 회사 PC` / `⚡ 에이전트`(`Merge pull request #N from …/agent/…` 커밋만). 갈래 버튼(`data-f` = all/pk/nb/pc/ag)은 `MON_FILTER`.
+- **피클 상태 파일 규격(`status/agent.json`)**: `{version, updated_at, agent:{state:'working|idle', task, project, started_at, id}, tasks:[{id, project, title, state:'working|done|failed|planned', started_at, ended_at, result}]}`. **공개 저장소이므로 사람 이름·전화·계좌·금액 상세는 쓰지 않는다**(제목은 일 종류만). 피클이 일을 시작·끝낼 때 이 파일을 직접 덮어쓴다. 서버로도 읽으려면 드라이브 `김성래포털/포털_에이전트상태.json` 에 같은 모양으로 두면 `agent_status` 가 읽어 주고(`min`·`stale` 계산, 전화·주민 가림), 포털은 둘 중 `updated_at` 이 더 최신인 쪽을 쓴다.
+- **GitHub 호출 예절**: 커밋 5분(`GH_TTL`)·CI 15분(`GH_RUN_TTL`) 캐시를 `localStorage.portal_gh_cache` 에. 로그인 없이 **시간당 60회**뿐이라 `⟳` 없이는 캐시가 신선하면 부르지 않는다. 403/429 면 `limited` → "호출 한도" 안내 + 저장된 기록 유지. **`ghCanFetch()` = https 페이지에서만**(http·파일로 열면 브라우저가 섞인 요청을 막음) — 테스트 가짜 화면에는 `location` 이 없어 자동 호출이 일어나지 않는다. 피클 상태 파일은 `agentCanFetch()`(http/https) 로 같은 방식으로 막는다.
+- **그리기 규칙**: `monRender()` 는 `ordSig`+오더시각+건수+GitHub/상태등/피클 시각+필터 서명이 같으면 아무것도 안 건드린다. 경과 시간은 `ordTick` 이 `.ord-elapsed[data-since]` 글자만 1초마다 바꾼다(`ordTickStart` 는 `.ord-cd` 또는 `.ord-elapsed` 가 있을 때만 타이머).
+- **서버 확장(재배포 필요)**: `Code.gs` `qqItem_` 가 `claimed_at`·`claimed_by` 를, `heartbeatStatus_` 가 `current`·`current_type`·`daemon`·`processed`·`polls`·`version` 을, `agentStatus()` 가 드라이브 `포털_에이전트상태.json`(읽기 전용·가림)을 준다. 예전 배포여도 화면은 그대로 동작하고(접수 시각 기준·하트비트·피클 서버 기록 없음), 재배포하면 경과 시간이 정확해지고 오더 목록에 없어도 하트비트만으로 "지금 작업"이 보인다.
+- 테스트: `portal_integration` **T)절**(정체 의심 임계값·생애주기·카드 4개·CI 표기·통합 이력 정렬/필터/이스케이프·다시 그리기 서명·GitHub 미호출) · **U)절**(프로젝트 묶음·칩·필터, 피클 카드 3상태, 피클 이력) · `portal_server` 8)절(하트비트 현재 작업) · ⑬-2(claimed 필드) · 10)절(agent_status 가림/상한/예외).
 
 ## 서버 (Code.gs)
 
 - POST 전용, 모든 요청에 비밀 키. `doGet` 은 안내 문구만.
-- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `queue_list` / `queue_enqueue` / `queue_decide`(오더함).
+- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태), `queue_list` / `queue_enqueue` / `queue_decide`(오더함).
 - **오더함은 `work/hub-agent/gas/CommandQueue.gs` 와 100% 호환**이어야 한다: 같은 22칸(`CQ_COLS`), 같은 상태값(`PENDING`·`WAITING_APPROVAL`·`RUNNING`·`DONE`·`FAILED`·`REJECTED`·`EXPIRED`·`TIMEOUT_REVIEW`), 같은 `Audit_Log` 11칸, 같은 payload 해시(canonical JSON 의 SHA-256 — 워커 `lib/approval.js` 와 같은 값). 바꿀 때는 양쪽을 같이 고친다.
 - 오더함 화이트리스트는 `git_pull`·`toss_sync`·`claude_prompt` 셋뿐(`QQ_TYPES`). `git_push`·`smartstore_api_relay` 는 포털에서 접수하지 않는다. 작업 위치는 `QUEUE_WORKSPACES`(선택, 없으면 `gaegyebu,content-hub,insurance-manager,smartstore-hub`).
 - `claude_prompt` 의 payload 는 `{prompt, mode}` 이고, 엔진을 골랐으면 `engine` 이 더 붙는다(`{prompt, mode, engine}`). **payload 해시는 engine 까지 묶는다** — 승인 뒤 엔진이 바뀌면 노트북이 거절한다.

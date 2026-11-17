@@ -275,7 +275,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 
 /* ── 🖥️ 작업 관제 (2026-11-17) — 노트북 · 회사 PC · 오더 큐를 관제 화면처럼 ── */
 .mon-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
-.mon-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.mon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:12px}
 .mon-dev{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:11px 12px;min-width:0;transition:background .2s,border-color .2s}
 .mon-dev.run{background:var(--purple-l);border-color:#DDD6FE}
 .mon-dev.ok{background:var(--green-l);border-color:#BBF7D0}
@@ -310,7 +310,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .mon-ev:last-child{border-bottom:none}
 .mon-t{flex:0 0 46px;font-size:10px;color:var(--hint);font-variant-numeric:tabular-nums;padding-top:1px}
 .mon-w{flex:0 0 auto;font-size:10px;font-weight:700;white-space:nowrap;padding-top:1px}
-.mon-w.nb{color:#5B21B6}.mon-w.pc{color:var(--blue-d)}.mon-w.ag{color:#047857}.mon-w.q{color:#92400E}
+.mon-w.nb{color:#5B21B6}.mon-w.pc{color:var(--blue-d)}.mon-w.ag{color:#047857}.mon-w.q{color:#92400E}.mon-w.pk{color:#B45309}
 .mon-tx{flex:1;min-width:0;font-size:11.5px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
 .mon-tx b{color:var(--text)}
 .mon-tx em{font-style:normal;color:var(--hint)}
@@ -483,10 +483,12 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
     <div class="mon-filters" id="mon-filters">
       <span class="mon-filters-h">🕒 통합 이력</span>
       <button class="mon-f on" data-f="all" onclick="monFilter(this)">전체</button>
+      <button class="mon-f" data-f="pk" onclick="monFilter(this)">🤖 피클</button>
       <button class="mon-f" data-f="nb" onclick="monFilter(this)">🏠 노트북</button>
       <button class="mon-f" data-f="pc" onclick="monFilter(this)">💻 회사 PC</button>
       <button class="mon-f" data-f="ag" onclick="monFilter(this)">⚡ 에이전트</button>
     </div>
+    <div class="mon-filters" id="mon-proj"></div>
     <div class="mon-feed" id="mon-feed"><div class="ord-empty">오더를 한 번 불러오면 노트북·회사 PC 가 한 일이 여기 시간순으로 쌓여요</div></div>
     <div class="mon-note" id="mon-foot"></div>
   </div>
@@ -1297,6 +1299,7 @@ function ordOnShow(){
   const c = qstatCached();
   if(serverConfigured() && !qstatFresh(c)) refreshQueueStatus();   // 5분 캐시가 지났을 때만 (호출 아껴요)
   if(ghCanFetch()) ghRefresh(false).then(() => monRender()).catch(() => {});   // 캐시가 5분 지났을 때만 실제 호출
+  agentLoad(false).then(() => monRender()).catch(() => {});
 }
 if(typeof document !== 'undefined' && document.addEventListener){
   document.addEventListener('visibilitychange', () => { if(!ordHidden()) ordOnShow(); });
@@ -1329,7 +1332,23 @@ const GH_REPOS = [
 const GH_KEY = 'portal_gh_cache';
 const GH_TTL = 5 * 60000;               // 커밋은 5분
 const GH_RUN_TTL = 15 * 60000;          // CI 는 15분 — 로그인 없이 시간당 60회라 아껴요
+const AGENT_JSON = './status/agent.json';   // 피클이 작업 시작·종료 때 덮어쓰는 공개 상태 파일(개인정보 없음)
+const AGENT_TTL = 60 * 1000;
+const AGENT_STALE_MIN = 30;             // 30분 넘게 갱신이 없으면 '응답 없음'
+// 진행 중인 프로젝트 — 오더 작업 위치·GitHub 저장소·피클 작업이 같은 이름으로 모여요
+const PROJ_LIST = [
+  {id: 'smartstore', name: '묘한살림', icon: '🛒'},
+  {id: 'content', name: '콘텐츠허브', icon: '🎬'},
+  {id: 'gaegyebu', name: '가계부', icon: '📒'},
+  {id: 'insurance', name: '보험관리툴', icon: '🏦'},
+  {id: 'portal', name: '포털·연동', icon: '🖥️'},
+  {id: 'life', name: '생활·행정', icon: '📋'}
+];
+const PROJ_OF_WS = {'smartstore-hub': 'smartstore', 'content-hub': 'content', 'gaegyebu': 'gaegyebu', 'insurance-manager': 'insurance'};
+const PROJ_OF_REPO = {'smartstore-hub': 'smartstore', 'content-hub': 'content', 'gaegyebu': 'gaegyebu',
+  'insurance-manager': 'insurance', 's2ongrae.github.io': 'portal', 'hub-agent': 'portal'};
 let GH_DATA = null, GH_BUSY = false, MON_FILTER = 'all', MON_SIG = '', QSTAT_DATA = null, ORD_SUM = null;
+let AGENT_DATA = null, AGENT_BUSY = false, MON_PROJ = 'all';
 
 function monDur(ms){
   const n = numOf(ms);
@@ -1502,7 +1521,163 @@ function ghCiText(id){
   return '';
 }
 
+/* ── 🤖 피클(총괄 AI) 상태 — status/agent.json · 서버 agent_status ── */
+function agentCanFetch(){
+  try { return typeof fetch === 'function' && typeof location !== 'undefined' && /^https?:$/.test(location.protocol); }
+  catch(e) { return false; }
+}
+function agentCached(){
+  if(AGENT_DATA) return AGENT_DATA;
+  try {
+    const c = JSON.parse(localStorage.getItem('portal_agent_cache') || 'null');
+    if(c && (c.tasks || c.agent)) return c;
+  } catch(e) {}
+  return null;
+}
+function agentSave(d){ AGENT_DATA = d; try { localStorage.setItem('portal_agent_cache', JSON.stringify(d)); } catch(e) {} }
+/** 둘 중 더 최근에 쓰인 쪽(updated_at) — 서버(드라이브)와 저장소 파일을 같이 읽어요 */
+function agentNewer(a, b){
+  if(!a) return b || null;
+  if(!b) return a;
+  return (Date.parse(b.updated_at) || 0) > (Date.parse(a.updated_at) || 0) ? b : a;
+}
+async function agentLoad(force){
+  const c = agentCached();
+  if(!force && c && (Date.now() - (Date.parse(c.fetched_at) || 0)) < AGENT_TTL){ AGENT_DATA = c; return c; }
+  if(AGENT_BUSY) return AGENT_DATA;
+  AGENT_BUSY = true;
+  let fromServer = null, fromFile = null;
+  try{
+    const jobs = [];
+    if(serverConfigured()){
+      jobs.push(post({action: 'agent_status'}).then(d => {
+        if(d && d.ok === true && typeof d.connected !== 'undefined') fromServer = d;   // 예전 배포면 ok:false → 조용히 넘어감
+      }).catch(() => {}));
+    }
+    if(agentCanFetch()){
+      jobs.push(fetch(AGENT_JSON + '?t=' + Math.floor(Date.now() / AGENT_TTL), {cache: 'no-cache'})
+        .then(r => (r && r.ok) ? r.json() : null)
+        .then(d => { if(d && (Array.isArray(d.tasks) || d.agent)) fromFile = d; })
+        .catch(() => {}));
+    }
+    if(jobs.length) await Promise.all(jobs);
+    const pick = agentNewer(fromServer && fromServer.connected ? fromServer : null, fromFile);
+    if(pick){
+      const merged = Object.assign({}, pick);
+      if(!merged.updated_at) merged.updated_at = (fromFile && fromFile.updated_at) || (fromServer && fromServer.updated_at) || '';
+      merged.fetched_at = new Date().toISOString();
+      merged.source = (pick === fromServer) ? 'drive' : 'repo';
+      agentSave(merged);
+    }
+  } finally { AGENT_BUSY = false; }
+  return AGENT_DATA;
+}
+/** 피클이 남긴 작업들 — 진행 중인 것과 최근 끝난 것을 시간순 이벤트로 */
+function agentEvents(){
+  const d = AGENT_DATA;
+  const evs = [];
+  if(!d) return evs;
+  const seen = {};
+  const lab = {working: '작업 중', done: '끝냄', failed: '실패', planned: '예정'};
+  (Array.isArray(d.tasks) ? d.tasks : []).forEach(t => {
+    if(!t) return;
+    const st = String(t.state || '').toLowerCase();
+    const at = Date.parse(String(t.ended_at || t.started_at || ''));
+    if(!isFinite(at)) return;
+    if(t.id) seen[t.id] = true;
+    evs.push({at: at, who: 'pk', whoTxt: '🤖 피클', proj: t.project || 'life', ic: '🍋',
+      tx: `<b>${esc(t.title || '작업')}</b> · ${esc(lab[st] || st || '기록')}` +
+        (t.result ? ` <em>${esc(ordShort(t.result, 70))}</em>` : '')});
+  });
+  const cur = d.agent;
+  if(cur && String(cur.state || '').toLowerCase() === 'working' && !(cur.id && seen[cur.id])){
+    const at = Date.parse(String(cur.started_at || ''));
+    if(isFinite(at)) evs.push({at: at, who: 'pk', whoTxt: '🤖 피클', proj: cur.project || 'life', ic: '🍋',
+      tx: `<b>${esc(cur.task || '작업')}</b> · 작업 중`});
+  }
+  return evs;
+}
+
+/* ── 프로젝트(묶음) — 오더 작업 위치·GitHub 저장소·피클 작업을 같은 이름으로 묶어요 ── */
+function projOf(id){ return PROJ_LIST.filter(p => p.id === id)[0] || null; }
+function projLabel(id){ const p = projOf(id); return p ? (p.icon + ' ' + p.name) : '📋 기타'; }
+/** 오더 하나가 어느 프로젝트인가 — 토스 동기화는 가계부, 그 외는 작업 위치 */
+function ordProject(it){
+  if(!it) return 'life';
+  if(it.type === 'toss_sync') return 'gaegyebu';
+  return PROJ_OF_WS[it.workspace] || 'life';
+}
+/** 프로젝트별 진행·예정·승인 대기·오늘 끝남 */
+function projStats(){
+  const st = {};
+  PROJ_LIST.forEach(p => { st[p.id] = {run: 0, pend: 0, wait: 0, done: 0}; });
+  const today = monToday();
+  ORD_ITEMS.forEach(it => {
+    const p = ordProject(it);
+    if(!st[p]) return;
+    const s = String(it.status || '');
+    if(s === 'RUNNING') st[p].run++;
+    else if(s === 'PENDING') st[p].pend++;
+    else if(s === 'WAITING_APPROVAL') st[p].wait++;
+    else if(s === 'DONE' && String(it.finished_at || '').slice(0, 10) === today) st[p].done++;
+  });
+  return st;
+}
+function monCountText(c){
+  const parts = [];
+  if(c && c.run) parts.push('진행 ' + c.run);
+  if(c && c.wait) parts.push('승인 ' + c.wait);
+  if(c && c.pend) parts.push('예정 ' + c.pend);
+  return parts.length ? ' <b>' + parts.join(' · ') + '</b>' : '';
+}
+function monProjChips(){
+  const st = projStats();
+  const all = {run: 0, pend: 0, wait: 0};
+  PROJ_LIST.forEach(p => { all.run += st[p.id].run; all.pend += st[p.id].pend; all.wait += st[p.id].wait; });
+  const chip = (id, label, c) => `<button class="mon-f${MON_PROJ === id ? ' on' : ''}" data-p="${esc(id)}" onclick="monProjFilter(this)">${label}${monCountText(c)}</button>`;
+  return chip('all', '전체', all) + PROJ_LIST.map(p => chip(p.id, p.icon + ' ' + esc(p.name), st[p.id])).join('');
+}
+function monProjFilter(btn){
+  const p = btn && btn.dataset ? String(btn.dataset.p || 'all') : 'all';
+  MON_PROJ = (p === 'all' || projOf(p)) ? p : 'all';
+  monRender(true);
+}
+
 /* ── 기기 카드 3개 ── */
+function monDevPickle(){
+  const d = AGENT_DATA;
+  const cur = d && d.agent ? d.agent : null;
+  const running = !!(cur && String(cur.state || '').toLowerCase() === 'working');
+  const upMs = Date.parse(String((d && d.updated_at) || ''));
+  const ageMin = isFinite(upMs) ? Math.max(0, Math.round((Date.now() - upMs) / 60000)) : null;
+  const stale = running && (cur.stale === true || (ageMin !== null && ageMin >= AGENT_STALE_MIN));
+  if(!d){
+    return monCard({name: '🤖 피클', cls: 'wait', state: '기록 없음',
+      main: '피클이 한 일·하는 일이 여기 나와요',
+      sub: '작업을 시작할 때·끝낼 때 status/agent.json 에 스스로 남게요'});
+  }
+  if(running){
+    const since = Date.parse(String(cur.started_at || ''));
+    const sub = (isFinite(since) ? '⏱ <span class="ord-elapsed" data-since="' + since + '">' + esc(monDur(Date.now() - since)) + '</span>째 · 시작 ' + esc(clockText(cur.started_at)) : '작업 중') +
+      (ageMin === null ? '' : ' · 마지막 기록 ' + esc(agoText(ageMin) || '방금'));
+    return monCard({name: '🤖 피클', cls: stale ? 'bad' : 'run', state: stale ? '응답 없음' : '작업 중',
+      main: `<b>${esc(projLabel(cur.project))}</b> · ${esc(cur.task || '작업 중')}`,
+      sub: stale ? ('마지막 기록 ' + esc(agoText(ageMin)) + ' — 오래 걸리면 멈춘 걸 수 있어요') : sub,
+      bar: !stale,
+      extra: stale ? '<div class="ord-stale bad">⚠ 30분 넘게 소식이 없어요</div>' : ''});
+  }
+  const last = (Array.isArray(d.tasks) ? d.tasks : []).filter(t => t && t.ended_at)
+    .sort((a, b) => (Date.parse(b.ended_at) || 0) - (Date.parse(a.ended_at) || 0))[0];
+  if(last){
+    const ok = !/fail/i.test(String(last.state || ''));
+    const at = Date.parse(String(last.ended_at)) || 0;
+    const min = at ? Math.max(0, Math.round((Date.now() - at) / 60000)) : null;
+    return monCard({name: '🤖 피클', cls: ok ? 'ok' : 'wait', state: ok ? '쉴 준비' : '실패 있음',
+      main: `<b>${esc(projLabel(last.project))}</b> · ${esc(last.title || '작업')}`,
+      sub: (min === null ? '' : esc(agoText(min) || '방금') + ' 끝냄 · ') + esc(ordShort(last.result || '', 60) || '결과 기록 없음')});
+  }
+  return monCard({name: '🤖 피클', cls: 'ok', state: '대기 중', main: '지금 하는 작업은 없어요', sub: '다음에 맡길 일을 오더함에 적어주세요'});
+}
 function monCard(o){
   return `<div class="mon-dev ${o.cls || ''}">
     <div class="mon-top"><span class="mon-dot ${o.cls || ''}"></span><span class="mon-name">${esc(o.name)}</span><span class="mon-state">${esc(o.state)}</span></div>
@@ -1623,7 +1798,7 @@ function monEvents(){
     if(!at) return;
     const lab = (ORD_STATUS[st] || {t: st || '오더'}).t;
     const body = (st === 'DONE' ? (it.result || it.summary) : (it.error || it.summary)) || '';
-    evs.push({at: at, who: 'nb', whoTxt: '🏠 노트북', ic: ordIcon(it.type),
+    evs.push({at: at, who: 'nb', whoTxt: '🏠 노트북', proj: ordProject(it), ic: ordIcon(it.type),
       tx: `<b>${esc(ordTypeName(it.type))}</b> · ${esc(lab)}` +
         (it.workspace ? ' · ' + esc(ordWsName(it.workspace)) : '') +
         (body ? ` <em>${esc(ordShort(body, 70))}</em>` : '')});
@@ -1633,23 +1808,29 @@ function monEvents(){
       const t = Date.parse(String(c.at || ''));
       if(!isFinite(t)) return;
       const ag = ghAgentCommit(c);
-      evs.push({at: t, who: ag ? 'ag' : 'pc', whoTxt: ag ? '⚡ 에이전트' : '💻 회사 PC', ic: '📤',
+      evs.push({at: t, who: ag ? 'ag' : 'pc', whoTxt: ag ? '⚡ 에이전트' : '💻 회사 PC', proj: PROJ_OF_REPO[R.id] || 'life', ic: '📤',
         tx: `<b>${esc(R.name)}</b> · ${esc(ordShort(c.msg, 90) || '(메시지 없음)')} <em>${esc(String(c.sha || ''))}</em>`});
     });
   });
+  agentEvents().forEach(e => evs.push(e));
   evs.sort((a, b) => b.at - a.at);
   return evs;
 }
 function monFeedHtml(){
-  const evs = monEvents().filter(e => MON_FILTER === 'all' || e.who === MON_FILTER);
-  if(!evs.length) return `<div class="ord-empty">${MON_FILTER === 'all' ? '아직 보여줄 이력이 없어요' : '이 갈래에는 아직 이력이 없어요'}</div>`;
+  const evs = monEvents().filter(e => (MON_FILTER === 'all' || e.who === MON_FILTER) &&
+    (MON_PROJ === 'all' || e.proj === MON_PROJ));
+  if(!evs.length){
+    const why = (MON_FILTER !== 'all' || MON_PROJ !== 'all');
+    return `<div class="ord-empty">${why ? '이 갈래에는 아직 이력이 없어요' : '아직 보여줄 이력이 없어요'}</div>`;
+  }
   return evs.slice(0, MON_FEED_MAX).map(e =>
     `<div class="mon-ev"><span class="mon-t">${esc(monStamp(e.at))}</span>` +
     `<span class="mon-w ${e.who}">${esc(e.whoTxt)}</span>` +
     `<span class="mon-tx">${e.ic} ${e.tx}</span></div>`).join('');
 }
 function monFootText(){
-  const bits = ['🏠 노트북 = 오더함 시트(Command_Queue) + 하트비트',
+  const bits = ['🍋 피클 = status/agent.json(작업 시작·종료 때 기록)',
+    '🏠 노트북 = 오더함 시트(Command_Queue) + 하트비트',
     '💻 회사 PC = GitHub 공개 저장소 커밋(데몬 없음 — 실시간 신호 아님)',
     '⚡ 에이전트 = agent/* 브랜치를 머지한 커밋'];
   const add = [];
@@ -1675,10 +1856,13 @@ function monRender(force){
   const sig = ordSig(ORD_ITEMS) + '\u0003' + (ORD_AT || '') + '\u0003' + (ORD_SUM ? JSON.stringify(ORD_SUM) : '') +
     '\u0003' + (GH_DATA ? (GH_DATA.at || '') + '|' + (GH_DATA.runs_at || '') + '|' + (GH_DATA.limited ? 1 : 0) : '') +
     '\u0003' + (QSTAT_DATA ? (QSTAT_DATA.at || '') + JSON.stringify(QSTAT_DATA.heartbeat || {}) + (QSTAT_DATA.at ? '' : '') : '') +
-    '\u0003' + MON_FILTER + '\u0003' + (ORD_POLL.timer ? 1 : 0) + (ORD_POLL.paused ? 1 : 0);
+    '\u0003' + (AGENT_DATA ? (AGENT_DATA.updated_at || '') + '|' + JSON.stringify(AGENT_DATA.agent || {}) + '|' + (AGENT_DATA.tasks || []).length : '') +
+    '\u0003' + MON_FILTER + '\u0003' + MON_PROJ + '\u0003' + (ORD_POLL.timer ? 1 : 0) + (ORD_POLL.paused ? 1 : 0);
   if(!force && sig === MON_SIG) return;
   MON_SIG = sig;
-  cards.innerHTML = [monDevNotebook(), monDevPc(), monDevQueue()].join('');
+  cards.innerHTML = [monDevPickle(), monDevNotebook(), monDevPc(), monDevQueue()].join('');
+  const proj = document.getElementById('mon-proj');
+  if(proj) proj.innerHTML = monProjChips();
   const feed = document.getElementById('mon-feed');
   if(feed) feed.innerHTML = monFeedHtml();
   const badge = document.getElementById('mon-badge');
@@ -1691,10 +1875,10 @@ function monRender(force){
 }
 function monFilter(btn){
   const f = btn && btn.dataset ? String(btn.dataset.f || 'all') : 'all';
-  MON_FILTER = ['all', 'nb', 'pc', 'ag'].indexOf(f) >= 0 ? f : 'all';
+  MON_FILTER = ['all', 'nb', 'pc', 'pk', 'ag'].indexOf(f) >= 0 ? f : 'all';
   try {
     if(document.querySelectorAll){
-      Array.prototype.forEach.call(document.querySelectorAll('.mon-f'), b => {
+      Array.prototype.forEach.call(document.querySelectorAll('#mon-filters .mon-f'), b => {
         if(b.classList) b.classList[b.dataset && b.dataset.f === MON_FILTER ? 'add' : 'remove']('on');
       });
     }
@@ -1706,6 +1890,7 @@ async function monRefresh(force){
   const jobs = [refreshQueueStatus(true)];
   if(serverConfigured()) jobs.push(loadOrders());
   if(ghCanFetch()) jobs.push(ghRefresh(!!force));
+  jobs.push(agentLoad(true));
   try { await Promise.all(jobs); } catch(e) {}
   monRender(true);
   sync(ghCanFetch() ? '관제를 새로 읽었어요 ✓' : '오더·노트북 상태만 새로 읽었어요 (GitHub 은 https 화면에서)', 3500);
@@ -2318,8 +2503,10 @@ fillOrderWs();
 ordEngineLoad();
 ordRecentLoad(); ordRecentRender(); ordTyped();
 GH_DATA = ghCached();                                    // 이 기기에 남은 GitHub 기록(5분 캐시)
+AGENT_DATA = agentCached();                              // 피클이 남긴 마지막 상태
 monRender();
 if(ghCanFetch()) ghRefresh(false).then(() => monRender()).catch(() => {});
+agentLoad(false).then(() => monRender()).catch(() => {});
 refreshQueueStatus();                                     // 캐시가 5분 안이면 서버를 부르지 않아요
 if(serverConfigured()){ bootData(); }
 else {

@@ -710,5 +710,84 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   ok(html.indexOf('id="mon-card"') < html.indexOf('id="order-card"') && html.indexOf('id="mon-card"') > 0, '모니터링이 오더함보다 위');
 }
 
+console.log('U) 🤖 피클 상태·프로젝트 묶음 — 3주체 현황과 프로젝트 필터');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const S12 = mk();
+  const nowMs = Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, status, x) => {
+    const r = [id, created, 'phone', 'git_pull', 'gaegyebu', '{}', status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  S12.props.QUEUE_SHEET_ID = 'SHEETidAgentProj0001';
+  S12.addSheet('SHEETidAgentProj0001', {'Command_Queue': [HEAD.slice(0)].concat([
+    row('Q-a1', at(nowMs - 5 * 60000), 'RUNNING', {type: 'claude_prompt', workspace: 'content-hub',
+      claimed_at: at(nowMs - 4 * 60000), claimed_by: 'notebook', payload: JSON.stringify({prompt: '카피 다듬기', mode: 'ask'})}),
+    row('Q-a2', at(nowMs - 8 * 60000), 'PENDING', {type: 'claude_prompt', workspace: 'smartstore-hub',
+      payload: JSON.stringify({prompt: '상세페이지 점검', mode: 'ask'})}),
+    row('Q-a3', at(nowMs - 20 * 60000), 'DONE', {type: 'toss_sync', finished_at: at(nowMs - 19 * 60000), duration_ms: 9000, result: '완료'}),
+    row('Q-a4', at(nowMs - 30 * 60000), 'WAITING_APPROVAL', {type: 'claude_prompt', workspace: 'insurance-manager',
+      payload: JSON.stringify({prompt: '표 정리', mode: 'edit'}), risk_level: 'HIGH', approval_expires_at: at(nowMs + 5 * 60000)})
+  ])});
+  const D12 = makeDevice(S12);
+  D12.config();
+  await D12.run('refreshQueueStatus(true)');
+  await D12.run('loadOrders()');
+
+  // ① 프로젝트 묶음 — 작업 위치·토스·GitHub 저장소가 같은 이름으로
+  ok(D12.run('ordProject({type:"claude_prompt",workspace:"content-hub"})') === 'content', '콘텐츠 허브 오더 → 콘텐츠허브');
+  ok(D12.run('ordProject({type:"claude_prompt",workspace:"smartstore-hub"})') === 'smartstore', '스마트스토어 오더 → 묘한살림');
+  ok(D12.run('ordProject({type:"toss_sync",workspace:""})') === 'gaegyebu', '토스 동기화 → 가계부');
+  ok(D12.run('ordProject({type:"claude_prompt",workspace:""})') === 'life', '위치가 없으면 생활·행정');
+  const ps = D12.get('projStats()');
+  ok(ps.content.run === 1 && ps.smartstore.pend === 1 && ps.gaegyebu.done === 1 && ps.insurance.wait === 1, '프로젝트별 진행·예정·승인·오늘 끝남을 센다', ps);
+  D12.run('monRender(true)');
+  const chips = D12.el('mon-proj').innerHTML;
+  ['묘한살림', '콘텐츠허브', '가계부', '보험관리툴', '포털·연동', '생활·행정'].forEach(n => ok(chips.indexOf(n) >= 0, `프로젝트 칩: ${n}`));
+  ok(/data-p="content"/.test(chips) && /진행 1/.test(chips), '칩에 프로젝트별 진행 건수가 붙는다');
+
+  // ② 프로젝트를 고르면 그 프로젝트 이력만
+  ok(D12.run('monEvents().filter(e => e.proj === "content").length') >= 1, '이벤트마다 프로젝트가 붙는다');
+  D12.run('monProjFilter({dataset:{p:"content"}})');
+  ok(D12.run('MON_PROJ') === 'content', '프로젝트 필터가 걸린다');
+  const f12 = D12.el('mon-feed').innerHTML;
+  ok(/콘텐츠 허브/.test(f12) && !/가계부/.test(f12), '고른 프로젝트 이력만 남는다');
+  D12.run('monProjFilter({dataset:{p:"all"}})');
+  ok(D12.run('MON_PROJ') === 'all', '전체로 되돌린다');
+
+  // ③ 🤖 피클 카드 — 진행 중 / 대기 / 정체 / 기록 없음
+  ok(/📋 생활·행정|피클/.test(D12.run('monDevPickle()')), '피클 카드가 있다');
+  D12.run('AGENT_DATA = {updated_at: "' + at(nowMs) + '", agent: {state: "working", task: "포털 관제 개선", project: "portal", started_at: "' + at(nowMs - 20 * 60000) + '", id: "t1"}, tasks: []}');
+  const pkRun = D12.run('monDevPickle()');
+  ok(/작업 중/.test(pkRun) && /포털 관제 개선/.test(pkRun) && /data-since="\d{13}"/.test(pkRun), '피클이 하는 일과 경과 시간이 보인다');
+  D12.run('AGENT_DATA = {updated_at: "' + at(nowMs - 45 * 60000) + '", agent: {state: "working", task: "오래 걸리는 일", project: "portal", started_at: "' + at(nowMs - 90 * 60000) + '"}, tasks: []}');
+  ok(/응답 없음/.test(D12.run('monDevPickle()')) && /30분/.test(D12.run('monDevPickle()')), '30분 넘게 소식이 없으면 멈춘 것 같다고 알린다');
+  D12.run('AGENT_DATA = {updated_at: "' + at(nowMs) + '", agent: {state: "idle"}, tasks: [' +
+    '{id:"t1", project: "portal", title: "포털 관제 개선", state: "done", started_at: "' + at(nowMs - 60 * 60000) + '", ended_at: "' + at(nowMs - 5 * 60000) + '", result: "배포 완료"}]}');
+  ok(/쉴 준비/.test(D12.run('monDevPickle()')) && /배포 완료/.test(D12.run('monDevPickle()')), '쉬는 중이면 마지막으로 끝낸 일을 보여준다');
+
+  // ④ 피클 이력이 통합 이력에 합쳐지고, 갈래 필터가 된다
+  const pe = D12.get('agentEvents()');
+  ok(pe.length === 1 && pe[0].who === 'pk' && pe[0].proj === 'portal', '피클 작업이 이벤트로 바뀐다');
+  D12.run('monRender(true)');
+  ok(/🤖 피클/.test(D12.el('mon-feed').innerHTML) && /포털 관제 개선/.test(D12.el('mon-feed').innerHTML), '통합 이력에 피클이 함께 보인다');
+  D12.run('monFilter({dataset:{f:"pk"}})');
+  ok(D12.run('MON_FILTER') === 'pk' && /🤖 피클/.test(D12.el('mon-feed').innerHTML) && !/💻 회사 PC/.test(D12.el('mon-feed').innerHTML), '🤖 피클 갈래만 고를 수 있다');
+  D12.run('monFilter({dataset:{f:"all"}})');
+
+  // ⑤ 피클 기록이 없으면 솔직하게, 테스트 환경에서는 파일을 부르지 않는다
+  D12.run('AGENT_DATA = null; MON_FILTER = "all"');
+  ok(/기록 없음/.test(D12.run('monDevPickle()')), '기록이 없으면 없다고 보여준다');
+  ok(D12.run('agentCanFetch()') === false, '테스트 환경(https 아님)에서는 status/agent.json 을 부르지 않는다');
+  ok(D12.calls.every(c => c.opts.method === 'POST' && JSON.parse(c.opts.body).action), '피클 상태도 POST 한 갈래로만 요청한다');
+  D12.run('AGENT_DATA = {updated_at: "' + at(nowMs) + '", agent: null, tasks: [{id:"x", project:"content", title: "<img src=x onerror=alert(1)>", state: "done", ended_at: "' + at(nowMs) + '"}]}');
+  ok(JSON.stringify(D12.get('monFeedHtml()')).indexOf('<img') < 0, '피클이 남긴 글도 그대로 그리지 않는다');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
