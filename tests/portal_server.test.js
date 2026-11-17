@@ -132,6 +132,19 @@ console.log('8) 관제 상태등 (queue_status) — 읽기 전용');
   S.props.HEARTBEAT_FILE_ID = hbf.id;
   q = post({action:'queue_status', key:K2});
   ok(q.config.heartbeat===true && q.heartbeat.source==='drive' && q.heartbeat.state==='ok', '하트비트 파일(2분 전) → 초록');
+  // 2026-11-17: 노트북이 "지금 무엇을 돌리는지"도 하트비트로 같이 보여줍니다(없으면 그 칸만 빠짐)
+  hbf.content = JSON.stringify({updated_at:iso(1), state:'running', processed: 12, polls: 340, version:'1.2.0',
+    started_at:'2026-10-12T20:00:00+09:00', current:'Q-20261013-120000-abcd', current_type:'claude_prompt'});
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.current==='Q-20261013-120000-abcd' && q.heartbeat.current_type==='claude_prompt', '하트비트의 현재 작업을 그대로 넘긴다');
+  ok(q.heartbeat.processed===12 && q.heartbeat.polls===340 && q.heartbeat.daemon==='running' && q.heartbeat.version==='1.2.0', '처리 건수·데몬 상태·버전도 같이');
+  ok(q.heartbeat.state==='ok' && q.heartbeat.min===1, '지금 작업이 있어도 신호등은 그대로');
+  hbf.content = JSON.stringify({updated_at:iso(1), current:{id:'Q-obj'}, processed:'많음'});
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.current==='Q-obj' && q.heartbeat.processed===0, '예전 형식(객체·이상한 값)도 예외 없이 처리');
+  hbf.content = JSON.stringify({updated_at:iso(30)});
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.current==='' && q.heartbeat.state==='warn', '하트비트에 현재 작업 칸이 없으면 빈 칸(경고 없음, 신호등만 노랑)');
   hbf.content = JSON.stringify({updated_at:iso(30)});
   ok(post({action:'queue_status', key:K2}).heartbeat.state==='warn', '30분 전(1시간 안쪽) → 노랑');
   hbf.content = JSON.stringify({updated_at:iso(200)});
@@ -337,6 +350,16 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   S.props.QUEUE_SHEET_ID = 'SHEETidMissing0001';
   ok(post({action: 'queue_list', key: K3}).code === 'unreachable', '시트를 못 열면 unreachable 안내');
   S.props.QUEUE_SHEET_ID = SHEET;
+
+  // ⑬-2 포털 관제 — 누가·언제 집어 갔는지(claimed_at·claimed_by)도 목록에 준다
+  setQ([qrow('Q-20261116-173532-gde8', '2026-11-16T17:35:32+09:00', 'RUNNING',
+    {type: 'claude_prompt', workspace: 'content-hub', claimed_at: '2026-11-16T17:36:02+09:00', claimed_by: 'notebook',
+      payload: JSON.stringify({prompt: '점검', mode: 'ask'})})]);
+  S.props.QUEUE_SHEET_ID = SHEET;
+  const runQ = post({action: 'queue_list', key: K3});
+  ok(runQ.items[0].claimed_at === '2026-11-16T17:36:02+09:00' && runQ.items[0].claimed_by === 'notebook',
+    '실행 중 오더의 시작 시각·집어간 곳을 준다(포털이 경과 시간·정체를 판단)', runQ.items[0]);
+  ok(runQ.running === 1 && runQ.pending === 0, '목록 요약에 RUNNING 건수도 같이');
 
   // ⑭ 응답 전체에 시트 ID·비밀 키가 없다
   const all = JSON.stringify([post({action: 'queue_list', key: K3}),

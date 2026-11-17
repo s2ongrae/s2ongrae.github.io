@@ -273,6 +273,60 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ord-chars.over{color:var(--red);font-weight:700}
 .ord-pause{display:none;font-size:10.5px;color:var(--hint);margin-bottom:6px}
 
+/* ── 🖥️ 작업 관제 (2026-11-17) — 노트북 · 회사 PC · 오더 큐를 관제 화면처럼 ── */
+.mon-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
+.mon-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.mon-dev{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:11px 12px;min-width:0;transition:background .2s,border-color .2s}
+.mon-dev.run{background:var(--purple-l);border-color:#DDD6FE}
+.mon-dev.ok{background:var(--green-l);border-color:#BBF7D0}
+.mon-dev.wait{background:var(--gold-l);border-color:#FDE68A}
+.mon-dev.bad{background:var(--red-l);border-color:#FECACA}
+.mon-top{display:flex;align-items:center;gap:6px;min-width:0}
+.mon-name{font-size:11.5px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mon-dot{width:8px;height:8px;border-radius:50%;background:var(--hint);flex-shrink:0}
+.mon-dot.run{background:var(--purple);animation:monPulse 1.6s ease-in-out infinite}
+.mon-dot.ok{background:var(--green)}
+.mon-dot.wait{background:var(--gold)}
+.mon-dot.bad{background:var(--red);animation:monPulse 1.6s ease-in-out infinite}
+.mon-state{margin-left:auto;font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.mon-dev.run .mon-state{color:#5B21B6}.mon-dev.ok .mon-state{color:#047857}
+.mon-dev.wait .mon-state{color:#92400E}.mon-dev.bad .mon-state{color:#991B1B}
+.mon-main{font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:6px;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mon-main b{color:var(--text);font-weight:700}
+.mon-sub{font-size:10px;color:var(--hint);line-height:1.5;margin-top:4px;overflow-wrap:anywhere}
+.mon-bar{height:4px;border-radius:999px;background:#E2E8F0;overflow:hidden;margin-top:7px}
+.mon-bar i{display:block;height:100%;width:38%;border-radius:999px;background:var(--purple);animation:monSlide 1.5s ease-in-out infinite}
+@keyframes monSlide{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
+@keyframes monPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.mon-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 6px}
+.mon-filters-h{font-size:10.5px;font-weight:700;color:var(--muted);margin-right:2px}
+.mon-f{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 11px;font-size:10.5px;
+  color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
+.mon-f:hover{border-color:var(--blue);color:var(--blue-d)}
+.mon-f.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);font-weight:700}
+.mon-feed{display:flex;flex-direction:column;max-height:360px;overflow-y:auto;min-width:0}
+.mon-ev{display:flex;gap:8px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid var(--bg)}
+.mon-ev:last-child{border-bottom:none}
+.mon-t{flex:0 0 46px;font-size:10px;color:var(--hint);font-variant-numeric:tabular-nums;padding-top:1px}
+.mon-w{flex:0 0 auto;font-size:10px;font-weight:700;white-space:nowrap;padding-top:1px}
+.mon-w.nb{color:#5B21B6}.mon-w.pc{color:var(--blue-d)}.mon-w.ag{color:#047857}.mon-w.q{color:#92400E}
+.mon-tx{flex:1;min-width:0;font-size:11.5px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
+.mon-tx b{color:var(--text)}
+.mon-tx em{font-style:normal;color:var(--hint)}
+.mon-note{font-size:10.5px;color:var(--hint);line-height:1.55;margin-top:8px}
+/* 오더 생애주기 — 뭘 할 거다(예정) → 하는 중 → 끝냈다 */
+.ord-steps{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-top:6px}
+.ord-stp{font-size:9.5px;border:1px solid var(--border);border-radius:999px;padding:1px 7px;background:#fff;color:var(--hint);white-space:nowrap}
+.ord-stp.done{color:#047857;border-color:#BBF7D0}
+.ord-stp.now{color:#5B21B6;border-color:#C7D2FE;background:#EEF2FF;font-weight:700}
+.ord-stp.bad{color:#991B1B;border-color:#FECACA;background:var(--red-l);font-weight:700}
+.ord-stp-sep{font-size:9px;color:var(--hint)}
+.ord-elapsed{font-variant-numeric:tabular-nums}
+.ord-stale{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;
+  background:var(--gold-l);color:#92400E;border:1px solid #FDE68A}
+.ord-stale.bad{background:var(--red-l);color:#991B1B;border-color:#FECACA}
+
 /* ── 모달 ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:200;
   align-items:center;justify-content:center;padding:20px}
@@ -322,6 +376,9 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .ord-quick .ord-btn{flex:1 1 0;min-width:0;text-align:center}
   .ord-list{max-height:none}
   .ord-refresh{width:34px;height:34px}
+  /* 관제: 폰은 기기 카드를 한 줄에 하나씩, 이력은 스크롤 없이 */
+  .mon-grid{grid-template-columns:minmax(0,1fr)}
+  .mon-feed{max-height:none}
   /* 상태등은 폰에서 한 줄로 (넘치면 옆으로 밀어서) — 헤더가 화면을 먹지 않게 */
   .statusbar{margin-top:7px;padding-top:7px;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .statusbar::-webkit-scrollbar{display:none}
@@ -329,7 +386,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 @media(max-width:349px){.brand{display:none}}
 @media(max-width:600px){.page{padding:14px 12px calc(40px + env(safe-area-inset-bottom))}
   .task-grid{grid-template-columns:minmax(0,1fr)}
-  .tasks-section,.cal-card,.memo-panel,.order-card{padding:16px}
+  .tasks-section,.cal-card,.memo-panel,.order-card,.mon-card{padding:16px}
   .task-cb{width:20px;height:20px}
   .del-btn{font-size:17px;padding:5px 6px}
   .cal-nav,.cal-today{padding:8px 14px;min-height:36px}
@@ -413,7 +470,28 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
     </div>
   </div>
 
-  <!-- ③ 🤖 노트북 오더함 (오더 접수 · 승인/거절 · 결과 타임라인) -->
+  <!-- ③ 🖥️ 작업 관제 — 집 노트북 · 회사 PC · 오더 큐를 한눈에 (모니터링 화면) -->
+  <div class="mon-card" id="mon-card">
+    <div class="section-head">
+      <div class="section-title">🖥️ 작업 관제 <span class="badge badge-blue" id="mon-badge"></span></div>
+      <div class="ord-head-right">
+        <span class="ord-hint" id="mon-note"></span>
+        <button class="ord-refresh" onclick="monRefresh(true)" title="노트북·회사 PC·오더 상태를 지금 다시 확인" aria-label="관제 새로고침">⟳</button>
+      </div>
+    </div>
+    <div class="mon-grid" id="mon-cards"></div>
+    <div class="mon-filters" id="mon-filters">
+      <span class="mon-filters-h">🕒 통합 이력</span>
+      <button class="mon-f on" data-f="all" onclick="monFilter(this)">전체</button>
+      <button class="mon-f" data-f="nb" onclick="monFilter(this)">🏠 노트북</button>
+      <button class="mon-f" data-f="pc" onclick="monFilter(this)">💻 회사 PC</button>
+      <button class="mon-f" data-f="ag" onclick="monFilter(this)">⚡ 에이전트</button>
+    </div>
+    <div class="mon-feed" id="mon-feed"><div class="ord-empty">오더를 한 번 불러오면 노트북·회사 PC 가 한 일이 여기 시간순으로 쌓여요</div></div>
+    <div class="mon-note" id="mon-foot"></div>
+  </div>
+
+  <!-- ④ 🤖 노트북 오더함 (오더 접수 · 승인/거절 · 결과 타임라인) -->
   <div class="order-card" id="order-card">
     <div class="section-head">
       <div class="section-title">🤖 노트북 오더함 <span class="badge badge-blue" id="ord-count"></span></div>
@@ -711,6 +789,7 @@ function qstatLights(st){
   return L;
 }
 function renderQueueStatus(st){
+  QSTAT_DATA = st || null;
   const bar = document.getElementById('statusbar');
   if(!bar) return;
   const on = !!(st && st.ok && st.connected !== false);
@@ -719,6 +798,7 @@ function renderQueueStatus(st){
     `<button class="stat ${esc(b.cls)}" title="${esc(b.title)}" onclick="refreshQueueStatus(true)">` +
     `<span class="dot"></span><span class="k">${esc(b.label)}</span><span class="v">${esc(b.val)}</span></button>`
   ).join('') + `<span class="stat-note">${esc(stamp)}</span>`;
+  monRender();
 }
 async function refreshQueueStatus(force){
   if(QSTAT_BUSY) return null;
@@ -902,7 +982,10 @@ function ordLeftText(ms){
 function ordCdNodes(){
   try { return (document.querySelectorAll ? document.querySelectorAll('.ord-cd') : []); } catch(e) { return []; }
 }
-/** 1초마다 승인 카운트다운 글자만 바꿔요 — 목록 전체를 다시 그리지 않아요. */
+function ordElapsedNodes(){
+  try { return (document.querySelectorAll ? document.querySelectorAll('.ord-elapsed') : []); } catch(e) { return []; }
+}
+/** 1초마다 승인 카운트다운·경과 시간 글자만 바꿔요 — 목록 전체를 다시 그리지 않아요. */
 function ordTick(){
   ORD_CD_TIMER = null;
   const nodes = ordCdNodes();
@@ -916,6 +999,13 @@ function ordTick(){
     n.textContent = '⏳ ' + ordLeftText(ms);
     n.className = 'ord-cd' + (ms <= 0 ? ' over' : (ms < 180000 ? ' soon' : ''));
   }
+  const runs = ordElapsedNodes();
+  for(let i = 0; i < runs.length; i++){
+    const el = runs[i];
+    const since = Number(el.dataset && el.dataset.since);
+    if(!isFinite(since) || !since) continue;
+    el.textContent = monDur(Date.now() - since);
+  }
   if(over && Date.now() - (ordTick.at || 0) > 30000){      // 만료 직후 한 번만 서버와 맞춤(변이 원인)
     ordTick.at = Date.now();
     loadOrders({silent: true});
@@ -924,7 +1014,7 @@ function ordTick(){
 }
 function ordTickStart(){
   const nodes = ordCdNodes();
-  if(!nodes.length || ordHidden()){
+  if((!nodes.length && !ordElapsedNodes().length) || ordHidden()){
     if(ORD_CD_TIMER){ clearTimeout(ORD_CD_TIMER); ORD_CD_TIMER = null; }
     return;
   }
@@ -989,6 +1079,7 @@ function renderOrderHead(){
     cnt.textContent = parts.length ? parts.join(' · ') : (ORD_ITEMS.length ? '최근 ' + ORD_ITEMS.length + '건' : '');
   }
   if(stt) stt.textContent = ORD_AT ? ('최근 확인 ' + clockText(ORD_AT) + (ordActive() ? ' · 자동 갱신 중' : '')) : '';
+  monRender();
 }
 /** 도움말 예시를 눌렀을 때 — 입력칸을 채우기만 하고 보내지는 않아요(사용자가 확인하고 보냄). */
 function ordExample(btn){
@@ -1050,6 +1141,7 @@ function renderOrderNotice(msg){
   if(box) box.innerHTML = `<div class="ord-note">${esc(msg)}</div>`;
   const cnt = document.getElementById('ord-count'); if(cnt) cnt.textContent = '';
   const stt = document.getElementById('ord-state'); if(stt) stt.textContent = '';
+  monRender();
 }
 function renderOrders(){
   const box = document.getElementById('ord-list');
@@ -1066,9 +1158,14 @@ function renderOrders(){
     const left = ordDeadline(it);
     const cd = left ? `<div class="ord-sub"><span class="ord-cd" data-until="${left}">⏳ ${esc(ordExpire(it.expires_in_ms))}</span></div>` : '';
     if(it.status === 'WAITING_APPROVAL' && !left) sub.push(ordExpire(it.expires_in_ms));
-    else if(it.status === 'PENDING') sub.push('노트북 확인을 기다려요');
-    else if(it.status === 'RUNNING') sub.push('노트북이 실행 중');
-    else if(numOf(it.duration_ms) !== null) sub.push(Math.max(0, Math.round(numOf(it.duration_ms) / 1000)) + '초 걸림');
+    else if(it.status === 'PENDING') sub.push('노트북이 다음 확인 때 실행해요');
+    else if(numOf(it.duration_ms) !== null) sub.push(monDur(numOf(it.duration_ms)) + ' 걸림' + (it.finished_at ? ' · ' + ordWhen(it.finished_at) + ' 끝' : ''));
+    if(it.claimed_by) sub.push('실행 ' + String(it.claimed_by));
+    // 실행 중은 경과 시간을 1초마다 세어요 (진짜 돌고 있는지 눈으로 보이게)
+    const el = it.status === 'RUNNING'
+      ? `<div class="ord-sub">⏱ <span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ordElapsedMs(it) || 0))}</span>째 실행 중` +
+        (it.claimed_at ? ' · 시작 ' + esc(ordWhen(it.claimed_at)) : ' · 접수 ' + esc(ordWhen(it.created_at))) + '</div>'
+      : '';
     const again = (it.type === 'git_pull' || it.type === 'toss_sync') &&
       (it.status === 'FAILED' || it.status === 'TIMEOUT_REVIEW' || it.status === 'EXPIRED');
     const acts = it.status === 'WAITING_APPROVAL'
@@ -1086,7 +1183,10 @@ function renderOrders(){
         </div>
         <div class="ord-text${body.err ? ' err' : ''}">${esc(body.t)}</div>
         <div class="ord-sub">${esc(sub.join(' · '))}</div>
+        ${ordStaleBadge(it)}
         ${cd}
+        ${el}
+        ${ordSteps(it)}
         ${acts}
       </div>
     </div>`;
@@ -1098,6 +1198,8 @@ function applyOrderList(d){
   ORD_ITEMS = Array.isArray(d.items) ? d.items : [];
   ORD_AT = d.at || '';
   ORD_FETCH_AT = Date.now();
+  ORD_SUM = {pending: numOf(d.pending), running: numOf(d.running), waiting: numOf(d.waiting),
+    timeout: numOf(d.timeout), done: numOf(d.done), failed: numOf(d.failed)};
   if(Array.isArray(d.workspaces) && d.workspaces.length) ORD_WSS = d.workspaces.slice(0, 20);
   fillOrderWs();
   const sig = ordSig(ORD_ITEMS);
@@ -1193,6 +1295,7 @@ function ordOnShow(){
   if(ordActive()) loadOrders({silent: true});
   const c = qstatCached();
   if(serverConfigured() && !qstatFresh(c)) refreshQueueStatus();   // 5분 캐시가 지났을 때만 (호출 아껴요)
+  if(ghCanFetch()) ghRefresh(false).then(() => monRender()).catch(() => {});   // 캐시가 5분 지났을 때만 실제 호출
 }
 if(typeof document !== 'undefined' && document.addEventListener){
   document.addEventListener('visibilitychange', () => { if(!ordHidden()) ordOnShow(); });
@@ -1201,6 +1304,385 @@ function ordKey(e){
   if(!e || e.key !== 'Enter' || e.shiftKey) return;
   if(e.preventDefault) e.preventDefault();
   sendOrder();
+}
+
+// ══════════════════════════════════════════
+// 🖥️ 작업 관제 — 집 노트북 · 회사 PC · 오더 큐
+//  · 노트북 : queue_status 의 heartbeat + Command_Queue 의 RUNNING 오더 (실시간 신호)
+//  · 회사 PC: 데몬이 없어 GitHub 공개 저장소의 커밋·CI 만 신호예요. 브라우저가 직접 읽어요(로그인 없음 → 공개 4곳만)
+//  · 오더 큐 : queue_list 가 주는 건수(PENDING · RUNNING · 승인 대기 · TIMEOUT_REVIEW)와 누적 완료
+//  · '정체 의심' = RUNNING 인데 20분(워커 CQ.STALE_MS)을 넘긴 오더, 1시간을 넘기면 '멈춘 것 같아요'
+//    노트북이 꺼지거나 데몬이 죽으면 시트의 RUNNING 은 그대로 남아요(포털이 지울 수 없어요).
+// ══════════════════════════════════════════
+const MON_STALE_WARN = 20 * 60000;      // 워커가 이 시간이면 회수해야 해요(hub-agent CQ.STALE_MS)
+const MON_STALE_BAD = 60 * 60000;       // 1시간을 넘기면 '멈춘 것 같아요'
+const MON_HB_DEAD_MIN = 10;             // 하트비트가 10분 넘게 끊기면 '응답 없음'
+const MON_FEED_MAX = 24;
+const GH_OWNER = 's2ongrae';
+const GH_REPOS = [
+  {id: 'gaegyebu', name: '가계부'},
+  {id: 'content-hub', name: '콘텐츠 허브'},
+  {id: 'insurance-manager', name: '보험관리툴'},
+  {id: 's2ongrae.github.io', name: '포털'}
+];
+const GH_KEY = 'portal_gh_cache';
+const GH_TTL = 5 * 60000;               // 커밋은 5분
+const GH_RUN_TTL = 15 * 60000;          // CI 는 15분 — 로그인 없이 시간당 60회라 아껴요
+let GH_DATA = null, GH_BUSY = false, MON_FILTER = 'all', MON_SIG = '', QSTAT_DATA = null, ORD_SUM = null;
+
+function monDur(ms){
+  const n = numOf(ms);
+  if(n === null) return '';
+  const s = Math.max(0, Math.round(n / 1000));
+  if(s < 60) return s + '초';
+  const m = Math.floor(s / 60);
+  if(m < 60) return m + '분' + (s % 60 ? ' ' + (s % 60) + '초' : '');
+  const h = Math.floor(m / 60);
+  return h + '시간' + (m % 60 ? ' ' + (m % 60) + '분' : '');
+}
+function monStamp(ms){
+  const t = numOf(ms);
+  if(t === null) return '';
+  return ordWhen(new Date(t).toISOString());
+}
+function monToday(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+/** 오더가 노트북에 잡힌 시각(claimed_at) — 없으면 접수 시각 */
+function ordStartMs(it){
+  const t = Date.parse(String((it && (it.claimed_at || it.created_at)) || ''));
+  return isFinite(t) ? t : 0;
+}
+function ordEndMs(it){
+  const t = Date.parse(String((it && it.finished_at) || ''));
+  return isFinite(t) ? t : 0;
+}
+/** 걸린 시간 — 끝난 오더는 finished_at, 실행 중이면 지금까지 */
+function ordElapsedMs(it){
+  if(!it) return null;
+  const s = ordStartMs(it);
+  if(!s) return null;
+  const ended = ordEndMs(it);
+  if(ended) return Math.max(0, ended - s);
+  const done = it.status === 'DONE' || it.status === 'FAILED' || it.status === 'REJECTED' ||
+    it.status === 'EXPIRED' || it.status === 'TIMEOUT_REVIEW';
+  if(done) return null;
+  return Math.max(0, Date.now() - s);
+}
+/** RUNNING 인데 너무 오래 걸리는 오더 → 정체 의심(20분) / 멈춘 것 같음(1시간) */
+function ordStale(it){
+  if(!it || it.status !== 'RUNNING') return null;
+  const ms = ordElapsedMs(it);
+  if(ms === null) return null;
+  if(ms >= MON_STALE_BAD) return {lv: 'bad', t: '멈춘 것 같아요', why: '1시간 넘게 실행 중인 채로 남아 있어요 — 노트북 전원·hub-agent 서비스·로그를 확인하세요'};
+  if(ms >= MON_STALE_WARN) return {lv: 'warn', t: '정체 의심', why: '20분이 넘었어요 — 노트북이 회수했어야 하는데 아직 실행 중으로 남아 있어요'};
+  return null;
+}
+/** 오더 생애주기 — ① 접수 → ② 실행(또는 승인) → ③ 결과 */
+function ordStep(label, cls, title){
+  return `<span class="ord-stp${cls ? ' ' + cls : ''}"${title ? ` title="${esc(title)}"` : ''}>${esc(label)}</span>`;
+}
+function ordSteps(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  const t1 = it && it.created_at ? '접수 ' + ordWhen(it.created_at) : '접수';
+  const t2 = it && it.claimed_at ? '시작 ' + ordWhen(it.claimed_at) : '';
+  const t3 = it && it.finished_at ? '끝 ' + ordWhen(it.finished_at) : '';
+  let s2 = ordStep('② 실행', ''), s3 = ordStep('③ 결과', '');
+  if(st === 'PENDING') s2 = ordStep('② 실행 차례', 'now', '노트북이 다음 확인 때 집어 갑니다');
+  else if(st === 'RUNNING') s2 = ordStep('② 실행 중', 'now', t2);
+  else if(st === 'WAITING_APPROVAL') s2 = ordStep('② 승인 대기', 'now', '승인해야 실행돼요');
+  else if(st === 'DONE') { s2 = ordStep('② 실행', 'done', t2); s3 = ordStep('③ 끝냄', 'done', t3); }
+  else if(st === 'FAILED' || st === 'TIMEOUT_REVIEW') { s2 = ordStep('② 실행', 'done', t2); s3 = ordStep('③ 실패', 'bad', t3); }
+  else if(st === 'REJECTED') { s2 = ordStep('② 실행 안 함', 'bad', '승인 거절'); s3 = ordStep('③ 결과', ''); }
+  else if(st === 'EXPIRED') { s2 = ordStep('② 실행 안 함', 'bad', '승인 시간이 지남'); s3 = ordStep('③ 결과', ''); }
+  return `<div class="ord-steps">${ordStep('① 접수', 'done', t1)}<span class="ord-stp-sep">›</span>${s2}<span class="ord-stp-sep">›</span>${s3}</div>`;
+}
+function ordStaleBadge(it){
+  const s = ordStale(it);
+  if(!s) return '';
+  return `<div class="ord-stale${s.lv === 'bad' ? ' bad' : ''}" title="${esc(s.why)}">⚠ ${esc(monDur(ordElapsedMs(it)))}째 ${esc(s.t)} — 노트북 로그 확인</div>`;
+}
+
+/* ── GitHub(공개 저장소) — 커밋·CI 를 브라우저에서 직접 읽어요 ── */
+/** https 페이지에서만 — http 페이지·파일로 열면 브라우저가 섞인 요청을 막아요 */
+function ghCanFetch(){
+  try { return typeof fetch === 'function' && typeof location !== 'undefined' && !!location && location.protocol === 'https:'; }
+  catch(e) { return false; }
+}
+function ghCached(){
+  if(GH_DATA) return GH_DATA;
+  try {
+    const c = JSON.parse(localStorage.getItem(GH_KEY) || 'null');
+    if(c && c.repos) return c;
+  } catch(e) {}
+  return null;
+}
+function ghSave(d){ GH_DATA = d; try { localStorage.setItem(GH_KEY, JSON.stringify(d)); } catch(e) {} }
+function ghCommit(c){
+  const cm = (c && c.commit) || {}, a = cm.author || {};
+  return {sha: String((c && c.sha) || '').slice(0, 7), msg: String(cm.message || '').split('\n')[0].slice(0, 140), at: String(a.date || '')};
+}
+function ghErrText(e){
+  const s = e && e.status;
+  if(s === 403 || s === 429) return 'GitHub 호출 한도가 찼어요 (시간당 60회 · 잠시 뒤 다시)';
+  return 'GitHub 기록을 못 읽었어요' + (s ? ' (HTTP ' + s + ')' : '');
+}
+async function ghGet(path){
+  const r = await fetch('https://api.github.com' + path, {headers: {Accept: 'application/vnd.github+json'}});
+  if(!r || !r.ok){
+    const e = new Error('gh ' + (r && r.status));
+    e.status = r && r.status;
+    throw e;
+  }
+  return r.json();
+}
+/** 커밋 5분 · CI 15분 캐시. force 면 둘 다 새로 읽어요. */
+async function ghRefresh(force){
+  if(GH_BUSY || !ghCanFetch()) return null;
+  const c = ghCached(), now = Date.now();
+  const cAt = c && isFinite(Date.parse(c.at)) ? Date.parse(c.at) : 0;
+  const rAt = c && isFinite(Date.parse(c.runs_at)) ? Date.parse(c.runs_at) : 0;
+  const needC = !!force || !c || (now - cAt) > GH_TTL;
+  const needR = !!force || !c || (now - rAt) > GH_RUN_TTL;
+  if(!needC && !needR){ GH_DATA = c; return c; }
+  GH_BUSY = true;
+  const out = {at: (c && c.at) || '', runs_at: (c && c.runs_at) || '', repos: Object.assign({}, (c && c.repos) || {}), limited: false};
+  try{
+    await Promise.all(GH_REPOS.map(async repo => {
+      const slot = out.repos[repo.id] || (out.repos[repo.id] = {});
+      if(needC){
+        try{
+          const list = await ghGet('/repos/' + GH_OWNER + '/' + repo.id + '/commits?per_page=6');
+          slot.commits = (Array.isArray(list) ? list : []).map(ghCommit);
+          slot.c_err = '';
+        } catch(e){ slot.c_err = ghErrText(e); if(e && (e.status === 403 || e.status === 429)) out.limited = true; }
+      }
+      if(needR){
+        try{
+          const d = await ghGet('/repos/' + GH_OWNER + '/' + repo.id + '/actions/runs?per_page=1');
+          const r0 = d && Array.isArray(d.workflow_runs) ? d.workflow_runs[0] : null;
+          slot.run = r0 ? {name: String(r0.name || ''), status: String(r0.status || ''),
+            conclusion: String(r0.conclusion || ''), at: String(r0.updated_at || r0.created_at || ''),
+            branch: String(r0.head_branch || '')} : null;
+          slot.r_err = '';
+        } catch(e){ slot.r_err = ghErrText(e); if(e && (e.status === 403 || e.status === 429)) out.limited = true; }
+      }
+    }));
+    if(needC) out.at = new Date().toISOString();
+    if(needR) out.runs_at = new Date().toISOString();
+  } finally { GH_BUSY = false; }
+  ghSave(out);
+  return out;
+}
+function ghSlot(id){ return (GH_DATA && GH_DATA.repos && GH_DATA.repos[id]) || {}; }
+/** 공개 저장소 전체에서 가장 최근 커밋 하나 */
+function ghLatest(){
+  let best = null;
+  GH_REPOS.forEach(R => {
+    ((ghSlot(R.id).commits) || []).forEach(c => {
+      const t = Date.parse(String(c.at || ''));
+      if(!isFinite(t)) return;
+      if(!best || t > best.t) best = {t: t, repo: R, c: c};
+    });
+  });
+  return best;
+}
+/** agent/* 브랜치를 머지한 커밋 = 노트북·에이전트가 올린 것 */
+function ghAgentCommit(c){ return /^Merge pull request #\d+ from [\w.-]+\/agent\//i.test(String((c && c.msg) || '')); }
+function ghCiText(id){
+  const r = ghSlot(id).run;
+  if(!r) return '';
+  const st = String(r.status || ''), cc = String(r.conclusion || '');
+  if(st && st !== 'completed') return '⏳ CI 진행 중';
+  if(cc === 'success') return '✅ CI 통과';
+  if(cc === 'failure') return '❌ CI 실패';
+  if(cc === 'cancelled') return '⏹ CI 취소';
+  return '';
+}
+
+/* ── 기기 카드 3개 ── */
+function monCard(o){
+  return `<div class="mon-dev ${o.cls || ''}">
+    <div class="mon-top"><span class="mon-dot ${o.cls || ''}"></span><span class="mon-name">${esc(o.name)}</span><span class="mon-state">${esc(o.state)}</span></div>
+    <div class="mon-main">${o.main || ''}</div>
+    ${o.bar ? '<div class="mon-bar"><i></i></div>' : ''}
+    ${o.sub ? `<div class="mon-sub">${o.sub}</div>` : ''}
+    ${o.extra || ''}
+  </div>`;
+}
+function monDevNotebook(){
+  const runs = ORD_ITEMS.filter(i => i.status === 'RUNNING');
+  const pend = ORD_ITEMS.filter(i => i.status === 'PENDING');
+  const hb = QSTAT_DATA && QSTAT_DATA.heartbeat ? QSTAT_DATA.heartbeat : null;
+  const hbMin = hb ? numOf(hb.min) : null;
+  const hbDead = hbMin !== null && hbMin >= MON_HB_DEAD_MIN;
+  const hbLine = hbMin === null ? '' : ` · 마지막 응답 ${esc(agoText(hbMin) || '방금')}`;
+  if(runs.length){
+    const it = runs[0], stale = ordStale(it), ms = ordElapsedMs(it) || 0;
+    const cls = stale ? stale.lv : 'run';
+    const main = `<b>${esc(ordTypeName(it.type))}</b> · ${esc(ordWsName(it.workspace) || '공통')}` +
+      (it.summary ? ` — ${esc(ordShort(it.summary, 70))}` : '');
+    const sub = `⏱ <span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ms))}</span>째 실행 중 · 접수 ${esc(ordWhen(it.created_at))}` +
+      (runs.length > 1 ? ` · 실행 중 ${runs.length}건` : '') +
+      (pend.length ? ` · 다음 차례 ${pend.length}건` : '') + hbLine;
+    return monCard({name: '🏠 집 노트북', cls: cls, state: stale ? stale.t : '작업 중', main: main, sub: sub,
+      bar: !stale, extra: stale ? `<div class="ord-stale${stale.lv === 'bad' ? ' bad' : ''}">⚠ ${esc(stale.why)}</div>` : ''});
+  }
+  // 서버가 하트비트의 '지금 작업'을 같이 넘겨주면(Code.gs 재배포 후) 오더 목록에 없어도 보여줘요
+  const cur = hb && hb.current ? String(hb.current) : '';
+  if(cur){
+    return monCard({name: '🏠 집 노트북', cls: 'run', state: '작업 중',
+      main: `<b>${esc(ordTypeName(hb.current_type) || '오더')}</b> · ${esc(cur)}`,
+      sub: '하트비트가 실행 중이라고 알려줘요' + (hbMin === null ? '' : ' · 마지막 응답 ' + esc(agoText(hbMin) || '방금')),
+      bar: true});
+  }
+  if(hbDead){
+    return monCard({name: '🏠 집 노트북', cls: 'bad', state: '응답 없음',
+      main: '노트북이 응답하지 않아요',
+      sub: `마지막 응답 ${esc(agoText(hbMin))}` + (pend.length ? ` · 대기 ${pend.length}건이 밀려 있어요` : '') + ' · 전원·인터넷·hub-agent 확인'});
+  }
+  if(hbMin !== null){
+    return monCard({name: '🏠 집 노트북', cls: 'ok', state: '대기 중',
+      main: '오더를 기다리는 중이에요',
+      sub: `마지막 응답 ${esc(agoText(hbMin) || '방금')}${hb.source === 'sheet' ? ' (시트 활동 기준)' : ''}` + (pend.length ? ` · 대기 ${pend.length}건` : '')});
+  }
+  return monCard({name: '🏠 집 노트북', cls: 'wait', state: '상태 모름',
+    main: '노트북 상태를 아직 못 읽었어요',
+    sub: serverConfigured() ? '큐 시트 설정(QUEUE_SHEET_ID)·하트비트 파일을 확인하세요' : '⚙️ 서버 설정을 하면 노트북 상태가 보여요'});
+}
+function monDevPc(){
+  const best = ghLatest();
+  if(!best){
+    const semi = GH_DATA && GH_DATA.limited;
+    return monCard({name: '💻 회사 PC', cls: 'wait', state: '신호 없음',
+      main: semi ? 'GitHub 호출 한도가 찼어요' : (GH_DATA ? '최근 푸시 기록이 없어요' : 'GitHub 기록을 아직 못 읽었어요'),
+      sub: semi ? '잠시 뒤 ⟳ 로 다시 확인 (시간당 60회)' : (GH_DATA ? '최근 커밋이 없는 상태 — ⟳ 로 다시 확인' : '⟳ 을 누르면 공개 저장소 4곳을 읽어요')});
+  }
+  const min = Math.max(0, Math.round((Date.now() - best.t) / 60000));
+  const cls = min <= 10 ? 'run' : (min <= 60 ? 'ok' : 'wait');
+  const state = min <= 10 ? '방금 작업' : (min <= 60 ? '최근 작업' : '조용함');
+  const ci = ghCiText(best.repo.id);
+  return monCard({name: '💻 회사 PC', cls: cls, state: state,
+    main: `<b>${esc(best.repo.name)}</b> · ${esc(ordShort(best.c.msg, 80) || '(메시지 없음)')}`,
+    sub: `${esc(agoText(min) || '방금')} 푸시 · ${esc(String(best.c.sha || ''))}${ci ? ' · ' + esc(ci) : ''}` +
+      '<br>PC에는 도는 프로그램이 없어 GitHub 푸시가 유일한 신호예요'});
+}
+function monDevQueue(){
+  const s = ORD_SUM || {};
+  const p = numOf(s.pending) || 0, r = numOf(s.running) || 0, w = numOf(s.waiting) || 0, t = numOf(s.timeout) || 0;
+  const done = numOf(s.done) || 0, failed = numOf(s.failed) || 0;
+  const today = monToday();
+  const doneToday = ORD_ITEMS.filter(i => i.status === 'DONE' && String(i.finished_at || '').slice(0, 10) === today).length;
+  const last = ORD_ITEMS.filter(i => i.status === 'DONE' && ordEndMs(i)).sort((a, b) => ordEndMs(b) - ordEndMs(a))[0];
+  let cls = 'ok', state = '한가함';
+  if(w){ cls = 'wait'; state = '승인 ' + w; }
+  else if(p || r){ cls = r && !p ? 'run' : 'wait'; state = r ? '실행 ' + r : '대기 ' + p; }
+  const main = `대기 <b>${p}</b> · 실행 <b>${r}</b> · 승인 <b>${w}</b>` + (t ? ` · 확인 필요 <b>${t}</b>` : '');
+  const sub = (ORD_SUM ? `누적 완료 ${done} · 실패 ${failed}` : '목록을 읽으면 건수가 보여요') +
+    (doneToday ? ` · 오늘 끝냄 ${doneToday}건` : '') +
+    (last ? ` · 마지막 완료 ${esc(ordWhen(last.finished_at))}` : '');
+  const extra = `<div class="mon-note" style="margin-top:5px">${ORD_POLL.timer ? '🔄 자동 확인 중 (20초)' : (ORD_POLL.paused ? '⏸ 자동 확인 멈춤 — ⟳' : '자동 확인 대기')}</div>`;
+  return monCard({name: '📋 오더 큐 · 자동화', cls: cls, state: state, main: main, sub: sub, bar: r > 0, extra: extra});
+}
+
+/* ── 통합 이력 (노트북 오더 + 회사 PC 커밋) ── */
+function monEvents(){
+  const evs = [];
+  ORD_ITEMS.forEach(it => {
+    if(!it || !it.id) return;
+    const st = String(it.status || '').toUpperCase();
+    const ended = st === 'DONE' || st === 'FAILED' || st === 'REJECTED' || st === 'EXPIRED' || st === 'TIMEOUT_REVIEW';
+    const at = (ended ? (ordEndMs(it) || ordStartMs(it)) : ordStartMs(it));
+    if(!at) return;
+    const lab = (ORD_STATUS[st] || {t: st || '오더'}).t;
+    const body = (st === 'DONE' ? (it.result || it.summary) : (it.error || it.summary)) || '';
+    evs.push({at: at, who: 'nb', whoTxt: '🏠 노트북', ic: ordIcon(it.type),
+      tx: `<b>${esc(ordTypeName(it.type))}</b> · ${esc(lab)}` +
+        (it.workspace ? ' · ' + esc(ordWsName(it.workspace)) : '') +
+        (body ? ` <em>${esc(ordShort(body, 70))}</em>` : '')});
+  });
+  GH_REPOS.forEach(R => {
+    ((ghSlot(R.id).commits) || []).forEach(c => {
+      const t = Date.parse(String(c.at || ''));
+      if(!isFinite(t)) return;
+      const ag = ghAgentCommit(c);
+      evs.push({at: t, who: ag ? 'ag' : 'pc', whoTxt: ag ? '⚡ 에이전트' : '💻 회사 PC', ic: '📤',
+        tx: `<b>${esc(R.name)}</b> · ${esc(ordShort(c.msg, 90) || '(메시지 없음)')} <em>${esc(String(c.sha || ''))}</em>`});
+    });
+  });
+  evs.sort((a, b) => b.at - a.at);
+  return evs;
+}
+function monFeedHtml(){
+  const evs = monEvents().filter(e => MON_FILTER === 'all' || e.who === MON_FILTER);
+  if(!evs.length) return `<div class="ord-empty">${MON_FILTER === 'all' ? '아직 보여줄 이력이 없어요' : '이 갈래에는 아직 이력이 없어요'}</div>`;
+  return evs.slice(0, MON_FEED_MAX).map(e =>
+    `<div class="mon-ev"><span class="mon-t">${esc(monStamp(e.at))}</span>` +
+    `<span class="mon-w ${e.who}">${esc(e.whoTxt)}</span>` +
+    `<span class="mon-tx">${e.ic} ${e.tx}</span></div>`).join('');
+}
+function monFootText(){
+  const bits = ['🏠 노트북 = 오더함 시트(Command_Queue) + 하트비트',
+    '💻 회사 PC = GitHub 공개 저장소 커밋(데몬 없음 — 실시간 신호 아님)',
+    '⚡ 에이전트 = agent/* 브랜치를 머지한 커밋'];
+  const add = [];
+  if(GH_DATA && GH_DATA.limited) add.push('GitHub 호출 한도가 찼어요 — 저장된 기록으로 보여줘요');
+  if(!ghCanFetch()) add.push('https 로 연 화면에서만 GitHub 기록을 읽어요');
+  if(GH_DATA && GH_DATA.at) add.push('GitHub 확인 ' + clockText(GH_DATA.at));
+  return bits.concat(add).join(' · ');
+}
+function monBadgeText(){
+  const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
+  const run = ORD_ITEMS.filter(i => i.status === 'RUNNING');
+  const stale = run.filter(i => ordStale(i)).length;
+  const parts = [];
+  if(stale) parts.push('정체 ' + stale);
+  if(run.length) parts.push('작업 중 ' + run.length);
+  if(w) parts.push('승인 ' + w);
+  return parts.join(' · ') || (ORD_AT ? '확인 ' + clockText(ORD_AT) : '');
+}
+/** 관제 화면 다시 그리기 — 값이 그대로면 건드리지 않아요(깜빡임 방지) */
+function monRender(force){
+  const cards = document.getElementById('mon-cards');
+  if(!cards) return;
+  const sig = ordSig(ORD_ITEMS) + '\u0003' + (ORD_AT || '') + '\u0003' + (ORD_SUM ? JSON.stringify(ORD_SUM) : '') +
+    '\u0003' + (GH_DATA ? (GH_DATA.at || '') + '|' + (GH_DATA.runs_at || '') + '|' + (GH_DATA.limited ? 1 : 0) : '') +
+    '\u0003' + (QSTAT_DATA ? (QSTAT_DATA.at || '') + JSON.stringify(QSTAT_DATA.heartbeat || {}) + (QSTAT_DATA.at ? '' : '') : '') +
+    '\u0003' + MON_FILTER + '\u0003' + (ORD_POLL.timer ? 1 : 0) + (ORD_POLL.paused ? 1 : 0);
+  if(!force && sig === MON_SIG) return;
+  MON_SIG = sig;
+  cards.innerHTML = [monDevNotebook(), monDevPc(), monDevQueue()].join('');
+  const feed = document.getElementById('mon-feed');
+  if(feed) feed.innerHTML = monFeedHtml();
+  const badge = document.getElementById('mon-badge');
+  if(badge) badge.textContent = monBadgeText();
+  const note = document.getElementById('mon-note');
+  if(note) note.textContent = ORD_AT ? '최근 확인 ' + clockText(ORD_AT) + (ordActive() ? ' · 자동 갱신' : '') : '';
+  const foot = document.getElementById('mon-foot');
+  if(foot) foot.textContent = monFootText();
+  ordTickStart();
+}
+function monFilter(btn){
+  const f = btn && btn.dataset ? String(btn.dataset.f || 'all') : 'all';
+  MON_FILTER = ['all', 'nb', 'pc', 'ag'].indexOf(f) >= 0 ? f : 'all';
+  try {
+    if(document.querySelectorAll){
+      Array.prototype.forEach.call(document.querySelectorAll('.mon-f'), b => {
+        if(b.classList) b.classList[b.dataset && b.dataset.f === MON_FILTER ? 'add' : 'remove']('on');
+      });
+    }
+  } catch(e) {}
+  monRender(true);
+}
+/** 관제 ⟳ — 오더·상태등·GitHub 를 한 번에 새로 읽어요(캐시 무시) */
+async function monRefresh(force){
+  const jobs = [refreshQueueStatus(true)];
+  if(serverConfigured()) jobs.push(loadOrders());
+  if(ghCanFetch()) jobs.push(ghRefresh(!!force));
+  try { await Promise.all(jobs); } catch(e) {}
+  monRender(true);
+  sync(ghCanFetch() ? '관제를 새로 읽었어요 ✓' : '오더·노트북 상태만 새로 읽었어요 (GitHub 은 https 화면에서)', 3500);
 }
 
 // ══════════════════════════════════════════
@@ -1809,6 +2291,9 @@ applyStoreLink();
 fillOrderWs();
 ordEngineLoad();
 ordRecentLoad(); ordRecentRender(); ordTyped();
+GH_DATA = ghCached();                                    // 이 기기에 남은 GitHub 기록(5분 캐시)
+monRender();
+if(ghCanFetch()) ghRefresh(false).then(() => monRender()).catch(() => {});
 refreshQueueStatus();                                     // 캐시가 5분 안이면 서버를 부르지 않아요
 if(serverConfigured()){ bootData(); }
 else {

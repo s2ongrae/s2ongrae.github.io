@@ -484,7 +484,20 @@ function heartbeatStatus_(fileId) {
   let d;
   try { d = JSON.parse(f.getBlob().getDataAsString()); }
   catch (_) { return { state: 'unknown', source: 'drive', error: '하트비트 파일을 읽을 수 없어요' }; }
-  return heartAge_((d && (d.updated_at || d.last_poll_at)) || '', 'drive');
+  const res = heartAge_((d && (d.updated_at || d.last_poll_at)) || '', 'drive');
+  // 노트북 데몬이 "지금 무엇을 돌리는지"를 하트비트에 실어 보냅니다(SSH 없이도 보이게).
+  // 값이 없거나 예전 형식이면 그 칸만 비워요(상태·신호등은 그대로).
+  try {
+    const cur = d && d.current;
+    res.current = clip(typeof cur === 'string' ? cur : (cur && cur.id) || '', 40);
+    res.current_type = clip(d && d.current_type, 20);
+    res.daemon = clip(d && d.state, 16);
+    res.processed = qqInt_(d && d.processed, 0, 1000000, 0);
+    res.polls = qqInt_(d && d.polls, 0, 100000000, 0);
+    res.started_at = clip(d && d.started_at, 40);
+    res.version = clip(d && d.version, 20);
+  } catch (_) { /* 넘겨주는 칸이 없어도 신호등은 살립니다 */ }
+  return res;
 }
 
 /** 가계부 폴더의 토스 스냅샷 파일에서 마지막 동기화 날짜를 읽는다 (없으면 unknown) */
@@ -731,6 +744,9 @@ function qqItem_(r) {
     status: st,
     risk_level: clip(r.risk_level, 10).toUpperCase() || 'LOW',
     created_at: clip(r.created_at, 40),
+    // 누가·언제 집어 갔는지 — 포털이 '실행 중 경과 시간'을 접수 시각이 아니라 실제 시작 시각으로 셉니다.
+    claimed_at: clip(r.claimed_at, 40),
+    claimed_by: clip(r.claimed_by, 20),
     finished_at: clip(r.finished_at, 40),
     duration_ms: r.duration_ms === '' || r.duration_ms == null ? null : Number(r.duration_ms),
     exit_code: r.exit_code === '' || r.exit_code == null ? null : Number(r.exit_code),

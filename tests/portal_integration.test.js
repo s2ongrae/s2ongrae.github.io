@@ -593,5 +593,112 @@ console.log('S) 오더함 — 자동 확인·승인 카운트다운·다시 실�
   ok(D9.calls.length >= nShow, '탭 복귀는 필요한 만큼만 요청한다');
 }
 
+console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·GitHub 이력');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const S11 = mk();
+  const nowMs = Date.now();                 // 포털은 진짜 시계로 경과 시간을 재요(서버 시트는 가짜 시계)
+  const srvNow = S11.run('Date.now()');     // 하트비트 파일은 서버 시계 기준으로 써야 나이가 맞아요
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, status, x) => {
+    const r = [id, created, 'phone', 'git_pull', 'gaegyebu', '{}', status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  S11.props.QUEUE_SHEET_ID = 'SHEETidMonitor00001';
+  S11.addSheet('SHEETidMonitor00001', {'Command_Queue': [HEAD.slice(0)].concat([
+    // 어제 17:35 부터 RUNNING 으로 멈춰 있는 오더(실측 상황) + 밀린 PENDING 2건
+    row('Q-20261116-173532-gde8', at(nowMs - 16 * 3600000), 'RUNNING',
+      {type: 'claude_prompt', workspace: 'content-hub', claimed_at: at(nowMs - 16 * 3600000 - 60000), claimed_by: 'notebook',
+        payload: JSON.stringify({prompt: '콘텐츠 허브 점검', mode: 'ask'})}),
+    row('Q-1002', at(nowMs - 10 * 60000), 'PENDING', {type: 'toss_sync'}),
+    row('Q-1003', at(nowMs - 9 * 60000), 'PENDING', {type: 'git_pull'}),
+    row('Q-1004', at(nowMs - 3 * 60000), 'DONE', {type: 'git_pull', finished_at: at(nowMs - 2 * 60000),
+      claimed_at: at(nowMs - 3 * 60000), claimed_by: 'notebook', duration_ms: 4000, result: '이미 최신'}),
+    row('Q-1005', at(nowMs - 25 * 60000), 'FAILED', {type: 'toss_sync', finished_at: at(nowMs - 24 * 60000),
+      duration_ms: 1200, error: '한도 소진'}),
+    row('Q-1006', at(nowMs - 6 * 60000), 'WAITING_APPROVAL', {type: 'claude_prompt', workspace: 'gaegyebu',
+      payload: JSON.stringify({prompt: '제목 고쳐줘', mode: 'edit'}), risk_level: 'HIGH',
+      approval_expires_at: at(nowMs + 9 * 60000)})
+  ])});
+  const hbf = S11.ROOT.createFile('heartbeat.json', JSON.stringify({updated_at: at(srvNow - 40 * 60000), state: 'running', processed: 7, polls: 21, current: 'Q-20261116-173532-gde8', current_type: 'claude_prompt', version: '1.2.0'}));
+  S11.props.HEARTBEAT_FILE_ID = hbf.id;
+  const D11 = makeDevice(S11);
+  ok(/id="mon-cards"/.test(html) && /id="mon-feed"/.test(html), '포털에 작업 관제(기기 카드·통합 이력) 자리가 있다');
+  ok(/data-f="nb"/.test(html) && /data-f="pc"/.test(html) && /data-f="ag"/.test(html), '통합 이력에 노트북·회사 PC·에이전트 갈래 버튼');
+  ok(/\.mon-grid\{grid-template-columns:minmax\(0,1fr\)\}/.test(html), '폰에서는 기기 카드를 한 줄에 하나씩');
+  D11.config();
+  await D11.run('refreshQueueStatus(true)');
+  await D11.run('loadOrders()');
+  const cards11 = () => D11.el('mon-cards').innerHTML;
+  const feed11 = () => D11.el('mon-feed').innerHTML;
+
+  // ① 정체 의심 — RUNNING 16시간 + 하트비트 40분 전
+  const run11 = D11.get('ORD_ITEMS').filter(i => i.status === 'RUNNING')[0];
+  ok(!!run11 && run11.claimed_at && run11.claimed_by === 'notebook', '서버가 집어간 시각·집어간 곳(claimed_at·claimed_by)을 준다');
+  ok(D11.run('ordStale({status:"RUNNING",claimed_at:"' + at(nowMs - 16 * 3600000) + '"}).lv') === 'bad', '16시간 RUNNING 은 멈춘 것 같음(bad)');
+  ok(D11.run('ordStale({status:"RUNNING",claimed_at:"' + at(nowMs - 25 * 60000) + '"}).lv') === 'warn', '25분 RUNNING 은 정체 의심(warn)');
+  ok(D11.run('ordStale({status:"RUNNING",claimed_at:"' + at(nowMs - 5 * 60000) + '"})') === null, '5분짜리 실행은 정상(경고 없음)');
+  ok(D11.run('ordStale({status:"DONE",claimed_at:"' + at(nowMs - 16 * 3600000) + '"})') === null, '끝난 오더는 정체가 아니다');
+  ok(/멈춘 것 같아요/.test(cards11()) && /mon-dev bad/.test(cards11()), '노트북 카드가 빨간색으로 멈춘 것 같다고 알린다');
+  ok(/ord-stale bad/.test(D11.el('ord-list').innerHTML), '오더 카드에도 정체 경고 배지');
+  ok(D11.el('mon-badge').textContent.indexOf('정체') >= 0, '관제 배지에 정체 건수');
+  ok(/mon-bar/.test(cards11()), '실행 중 표시(진행 막대)가 있다');
+
+  // ② 생애주기 — 예정 → 실행 중 → 끝냈다
+  const box11 = () => D11.el('ord-list').innerHTML;
+  ok(D11.run('ordSteps({status:"PENDING",created_at:"' + at(nowMs) + '"}).indexOf("② 실행 차례")') >= 0, '예정 오더는 ② 실행 차례');
+  ok(D11.run('ordSteps({status:"PENDING"}).indexOf("ord-stp now")') >= 0, '예정은 지금 단계로 표시');
+  ok(D11.run('ordSteps({status:"RUNNING"}).indexOf("② 실행 중")') >= 0, '실행 중은 ② 실행 중');
+  const doneSteps = D11.run('ordSteps({status:"DONE",created_at:"' + at(nowMs) + '",finished_at:"' + at(nowMs + 4000) + '"})');
+  ok(/③ 끝냄/.test(doneSteps) && (doneSteps.match(/ord-stp done/g) || []).length === 3, '끝난 오더는 ①②③ 모두 완료 표시');
+  ok(/③ 실패/.test(D11.run('ordSteps({status:"FAILED"})')), '실패는 ③ 실패로 표시');
+  ok(/② 실행 안 함/.test(D11.run('ordSteps({status:"EXPIRED"})')), '만료·거절은 실행 안 함으로 표시');
+  ok(/ord-steps/.test(box11()), '오더 카드마다 생애주기 줄이 보인다');
+  ok(/data-since="\d{13}"/.test(box11()) && /ord-elapsed/.test(box11()), '실행 중 오더에 경과 시간(1초마다 세는 자리)이 붙는다');
+  ok(D11.run('monDur(65000)') === '1분 5초' && D11.run('monDur(16*3600000)') === '16시간', '경과 시간을 읽기 쉽게');
+  ok(D11.run('ordElapsedMs({status:"DONE",claimed_at:"' + at(nowMs - 3400) + '",finished_at:"' + at(nowMs) + '"})') === 3400, '끝난 오더는 걸린 시간 = 끝 - 시작');
+
+  // ③ 회사 PC — GitHub 기록이 있을 때 / 없을 때 / 한도
+  ok(D11.run('ghCanFetch()') === false, '테스트 환경(https 아님)에서는 GitHub 을 부르지 않는다');
+  ok(D11.calls.every(c => c.opts.method === 'POST' && JSON.parse(c.opts.body).action), 'GitHub 조회 때문에 다른 요청이 섞이지 않는다(POST 만)');
+  ok(/GitHub 기록을 아직 못 읽었어요/.test(cards11()), 'GitHub 기록이 없으면 솔직하게 안내');
+  D11.run('GH_DATA = {at: new Date().toISOString(), runs_at: new Date().toISOString(), repos: {' +
+    '"content-hub": {commits: [{sha: "abc1234", msg: "feat(ui): v3.3 — 카드 밀도", at: ' + JSON.stringify(at(nowMs - 3 * 60000)) + '}],' +
+    '  run: {name: "deploy", status: "completed", conclusion: "success", branch: "main"}},' +
+    '"gaegyebu": {commits: [{sha: "def5678", msg: "Merge pull request #1 from s2ongrae/agent/ui", at: ' + JSON.stringify(at(nowMs - 5 * 3600000)) + '}]}' +
+    '}}; monRender(true)');
+  ok(/방금 작업/.test(cards11()) && /content-hub|콘텐츠 허브/.test(cards11()), '가장 최근 푸시가 3분 전이면 방금 작업');
+  ok(/✅ CI 통과/.test(cards11()), '마지막 CI 결과를 함께 보여준다');
+  ok(/GitHub 푸시가 유일한 신호/.test(cards11()), 'PC 는 실시간 신호가 아니라는 것을 밝힌다');
+  ok(D11.run('ghAgentCommit({msg:"Merge pull request #3 from s2ongrae/agent/ui-visibility-v3"})') === true, 'agent/* 머지 커밋은 에이전트 작업으로 본다');
+  ok(D11.run('ghAgentCommit({msg:"fix: 카테고리 자동완성"})') === false, '보통 커밋은 PC·직접 작업으로 본다');
+
+  // ④ 통합 이력 — 노트북 오더 + 회사 PC 커밋을 시간순으로
+  const evs11 = D11.get('monEvents()');
+  ok(evs11.length >= 7, '오더와 커밋이 한 목록에 모인다');
+  ok(evs11.every((e, i) => i === 0 || evs11[i - 1].at >= e.at), '최신이 위(시간 내림차순)');
+  ok(evs11.some(e => e.who === 'nb') && evs11.some(e => e.who === 'pc') && evs11.some(e => e.who === 'ag'), '노트북·회사 PC·에이전트 세 갈래가 다 보인다');
+  ok(/🏠 노트북/.test(feed11()) && /💻 회사 PC/.test(feed11()), '이력에 출처가 붙는다');
+  D11.run('monFilter({dataset:{f:"pc"}})');
+  ok(D11.run('MON_FILTER') === 'pc' && /💻 회사 PC/.test(feed11()) && !/🏠 노트북/.test(feed11()), '갈래를 고르면 그 출처만 남는다');
+  D11.run('monFilter({dataset:{f:"all"}})');
+  ok(D11.run('MON_FILTER') === 'all', '전체로 되돌린다');
+  const xss11 = JSON.stringify(D11.get('monFeedHtml()'));
+  ok(xss11.indexOf('<img') < 0, '이력 글은 그대로 그리지 않는다');
+
+  // ⑤ 값이 그대로면 다시 그리지 않고, ⟳ 면 새로 그린다
+  D11.el('mon-cards').innerHTML = '<i>그대로</i>';
+  D11.run('monRender()');
+  ok(D11.el('mon-cards').innerHTML === '<i>그대로</i>', '같은 값이면 관제 화면을 다시 그리지 않는다(깜빡임 방지)');
+  D11.run('monRender(true)');
+  ok(D11.el('mon-cards').innerHTML !== '<i>그대로</i>', '강제로 그리면 새로 그린다');
+  ok(/mon-card/.test(html) && /🖥️ 작업 관제/.test(html), '관제 카드가 포털 맨 위 오더함 앞에 있다');
+  ok(html.indexOf('id="mon-card"') < html.indexOf('id="order-card"') && html.indexOf('id="mon-card"') > 0, '모니터링이 오더함보다 위');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
