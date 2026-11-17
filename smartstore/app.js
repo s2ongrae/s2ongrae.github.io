@@ -291,6 +291,7 @@ function renderList() {
           <div><span>반품 편도</span><span>${won(s.returnFee)}</span></div>
           <div><span>옵션</span><span>${s.options && s.options.total ? `${s.options.sellable}/${s.options.total}${s.options.soldLabels.length ? ` · 품절 ${esc(s.options.soldLabels.join(', '))}` : ''}` : '단일 구성'}</span></div>
           ${(s.registeredOptions || []).length ? `<div><span>등록 옵션</span><span>${esc(s.registeredOptions.join(', '))}</span></div>` : ''}
+          <div><span>판매가</span><span>${won(s.salePrice)}${s.salePriceCheckedAt ? ` <span style="color:var(--ink-3)">(${new Date(s.salePriceCheckedAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} 스토어 확인)</span>` : ''}</span></div>
           <div><span>도매의신 확인</span><span>${s.fetchedAt ? new Date(s.fetchedAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}</span></div>
           <div><span>상품번호</span><span>${esc(s.productNo || '-')} · ${esc(s.code || '')}</span></div>
         </div>
