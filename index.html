@@ -312,7 +312,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .mon-ev:last-child{border-bottom:none}
 .mon-t{flex:0 0 46px;font-size:10px;color:var(--hint);font-variant-numeric:tabular-nums;padding-top:1px}
 .mon-w{flex:0 0 auto;font-size:10px;font-weight:700;white-space:nowrap;padding-top:1px}
-.mon-w.nb{color:#5B21B6}.mon-w.pc{color:var(--blue-d)}.mon-w.ag{color:#047857}.mon-w.q{color:#92400E}.mon-w.pk{color:#B45309}
+.mon-w.nb{color:#5B21B6}.mon-w.pc{color:var(--blue-d)}.mon-w.ag{color:#047857}.mon-w.q{color:#92400E}.mon-w.pk{color:#B45309}.mon-w.hub{color:#5B21B6}.mon-w.nd{color:#0E7490}.mon-w.web{color:#0369A1}.mon-w.etc{color:var(--muted)}
 .mon-tx{flex:1;min-width:0;font-size:11.5px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
 .mon-tx b{color:var(--text)}
 .mon-tx em{font-style:normal;color:var(--hint)}
@@ -378,8 +378,11 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .ord-quick .ord-btn{flex:1 1 0;min-width:0;text-align:center}
   .ord-list{max-height:none}
   .ord-refresh{width:34px;height:34px}
-  /* 관제: 폰은 기기 카드를 한 줄에 하나씩, 이력은 스크롤 없이 */
-  .mon-grid{grid-template-columns:minmax(0,1fr)}
+  /* 관제: 폰은 기기 카드를 2x2 로, 이력은 스크롤 없이 */
+  .mon-grid{grid-template-columns:1fr 1fr}
+  .mon-dev{padding:9px 10px}
+  .mon-main{-webkit-line-clamp:2}
+  .mon-sub{display:none}
   .mon-feed{max-height:none}
   #mon-note{display:none}          /* 확인 시각은 카드 안에 있어요 — 제목이 두 줄로 깨지지 않게 */
   .mon-card .section-title{white-space:nowrap}
@@ -1500,17 +1503,6 @@ async function ghRefresh(force){
 }
 function ghSlot(id){ return (GH_DATA && GH_DATA.repos && GH_DATA.repos[id]) || {}; }
 /** 공개 저장소 전체에서 가장 최근 커밋 하나 */
-function ghLatest(){
-  let best = null;
-  GH_REPOS.forEach(R => {
-    ((ghSlot(R.id).commits) || []).forEach(c => {
-      const t = Date.parse(String(c.at || ''));
-      if(!isFinite(t)) return;
-      if(!best || t > best.t) best = {t: t, repo: R, c: c};
-    });
-  });
-  return best;
-}
 /** agent/* 브랜치를 머지한 커밋 = 노트북·에이전트가 올린 것 */
 function ghAgentCommit(c){ return /^Merge pull request #\d+ from [\w.-]+\/agent\//i.test(String((c && c.msg) || '')); }
 function ghCiText(id){
@@ -1567,6 +1559,7 @@ async function agentLoad(force){
     const pick = agentNewer(fromServer && fromServer.connected ? fromServer : null, fromFile);
     if(pick){
       const merged = Object.assign({}, pick);
+      if(fromServer && fromServer.direct && !merged.direct) merged.direct = fromServer.direct;
       if(!merged.updated_at) merged.updated_at = (fromFile && fromFile.updated_at) || (fromServer && fromServer.updated_at) || '';
       merged.fetched_at = new Date().toISOString();
       merged.source = (pick === fromServer) ? 'drive' : 'repo';
@@ -1647,6 +1640,29 @@ function monProjFilter(btn){
 }
 
 /* ── 기기 카드 3개 ── */
+function monDevDirect(){
+  const d = AGENT_DATA && AGENT_DATA.direct ? AGENT_DATA.direct : null;
+  if(!d){
+    return monCard({name: '⌨️ 노트북·직접', cls: 'wait', state: '기록 없음',
+      main: 'free로 작업하면 여기 나와요', sub: '노트북에서 free 를 켜면 상태를 보내요'});
+  }
+  const st = String(d.state || '').toLowerCase();
+  const up = Date.parse(String(d.updated_at || ''));
+  const ageMin = isFinite(up) ? Math.max(0, Math.round((Date.now() - up) / 60000)) : null;
+  const stale = st === 'working' && ageMin !== null && ageMin >= 25;
+  if(st === 'working'){
+    const since = Date.parse(String(d.started_at || ''));
+    return monCard({name: '⌨️ 노트북·직접', cls: stale ? 'bad' : 'run', state: stale ? '미확인' : '작업 중',
+      main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '작업 중')}`,
+      sub: (isFinite(since) ? '⏱ <span class="ord-elapsed" data-since="' + since + '">' + esc(monDur(Date.now() - since)) + '</span>째' : '') +
+        (ageMin === null ? '' : ' · 마지막 신호 ' + esc(agoText(ageMin) || '방금')),
+      bar: !stale,
+      extra: stale ? '<div class="ord-stale bad">⚠ 25분 넘게 신호가 없어요</div>' : ''});
+  }
+  return monCard({name: '⌨️ 노트북·직접', cls: '', state: '쉬는 중',
+    main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '마지막 작업')}`,
+    sub: ageMin === null ? '' : '마지막 신호 ' + esc(agoText(ageMin) || '방금') + ' · 다음 작업은 free 로'});
+}
 function monDevPickle(){
   const d = AGENT_DATA;
   const cur = d && d.agent ? d.agent : null;
@@ -1690,7 +1706,7 @@ function monCard(o){
     ${o.extra || ''}
   </div>`;
 }
-function monDevNotebook(){
+function monDevNotebookBody(){
   const runs = ORD_ITEMS.filter(i => i.status === 'RUNNING');
   const pend = ORD_ITEMS.filter(i => i.status === 'PENDING');
   const hb = QSTAT_DATA && QSTAT_DATA.heartbeat ? QSTAT_DATA.heartbeat : null;
@@ -1751,47 +1767,39 @@ function monDevNotebook(){
   return monCard({name: '🏠 집 노트북', cls: 'wait', state: !QSTAT_DATA && serverConfigured() ? '확인 중' : '상태 모름',
     main: '노트북 신호가 아직 없어요', sub: sub});
 }
+/** 🏠 집 노트북 카드 — 어느 상태든 끝에 오더 요약과 오더함 이동 링크를 붙인다 */
+function monDevNotebook(){
+  const html = monDevNotebookBody();
+  const note = '<div class="mon-note" style="margin-top:4px"><a href="#order-card" style="color:inherit;text-decoration:none">'
+    + esc(ordSumText()) + ' →</a></div>';
+  return html.replace(/<\/div>$/, note + '</div>');
+}
 function monDevPc(){
-  const best = ghLatest();
-  if(!best){
-    const semi = GH_DATA && GH_DATA.limited;
-    return monCard({name: '💻 회사 PC', cls: 'wait', state: '신호 없음',
-      main: semi ? 'GitHub 호출 한도가 찼어요' : (GH_DATA ? '최근 푸시 기록이 없어요' : 'GitHub 기록을 아직 못 읽었어요'),
-      sub: semi ? '잠시 뒤 ⟳ 로 다시 확인 (시간당 60회)' : (GH_DATA ? '최근 커밋이 없는 상태 — ⟳ 로 다시 확인' : '⟳ 을 누르면 공개 저장소 4곳을 읽어요')});
+  const L=[];
+  GH_REPOS.forEach(R=>{((ghSlot(R.id).commits)||[]).forEach(c=>{const t=Date.parse(String(c.at||''));if(isFinite(t)&&ghWho(c)==='pc')L.push({t:t,R:R,c:c});});});
+  L.sort((a,b)=>b.t-a.t);
+  const b=L[0];
+  if(!b){
+    const s=GH_DATA&&GH_DATA.limited;
+    return monCard({name:'💻 회사 PC',cls:'wait',state:'표식 없음',
+      main:s?'GitHub 호출 한도가 찼어요':'회사 PC 표식 커밋이 아직 없어요',
+      sub:s?'잠시 뒤 ⟳ 로 다시 확인':(GH_DATA?'한 번만 설정: git config --global user.email "s2ongrae+work@gmail.com"':'GitHub 기록을 아직 못 읽었어요')});
   }
-  const min = Math.max(0, Math.round((Date.now() - best.t) / 60000));
-  const cls = min <= 10 ? 'run' : (min <= 60 ? 'ok' : 'wait');
-  const state = min <= 10 ? '방금 작업' : (min <= 60 ? '최근 작업' : '조용함');
-  const ci = ghCiText(best.repo.id);
-  return monCard({name: '💻 회사 PC', cls: cls, state: state,
-    main: `<b>${esc(best.repo.name)}</b> · ${esc(ordShort(best.c.msg, 80) || '(메시지 없음)')}`,
-    sub: `${esc(agoText(min) || '방금')} 푸시 · ${esc(String(best.c.sha || ''))}${ci ? ' · ' + esc(ci) : ''}`,
-    extra: '<div class="mon-note" style="margin-top:4px">PC엔 도는 프로그램이 없어 GitHub 푸시가 유일한 신호예요</div>'});
+  const m=Math.max(0,Math.round((Date.now()-b.t)/60000)),ci=ghCiText(b.R.id);
+  return monCard({name:'💻 회사 PC',cls:m<=10?'run':(m<=60?'ok':'wait'),state:m<=10?'방금 작업':(m<=60?'최근 작업':'조용함'),
+    main:`<b>${esc(b.R.name)}</b> · ${esc(ordShort(b.c.msg,80)||'(메시지 없음)')}`,
+    sub:`${esc(agoText(m)||'방금')} 푸시 · ${esc(String(b.c.sha||''))}`+(ci?' · '+esc(ci):''),
+    extra:'<div class="mon-note" style="margin-top:4px">PC엔 도는 프로그램이 없어 GitHub 푸시가 유일한 신호예요</div>'});}
+function ordSumText(){
+  const p = ORD_ITEMS.filter(x => x.status === 'PENDING').length;
+  const r = ORD_ITEMS.filter(x => x.status === 'RUNNING').length;
+  const w = ORD_ITEMS.filter(x => x.status === 'WAITING_APPROVAL').length;
+  const d = ORD_ITEMS.filter(x => x.status === 'DONE' && String(x.finished_at || '').slice(0, 10) === monToday()).length;
+  return '대기 ' + p + ' · 승인 ' + w + ' · 실행 ' + r + ' · 오늘 완료 ' + d;
 }
-function monDevQueue(){
-  const s = ORD_SUM || {};
-  if(!ORD_SUM && serverConfigured()){
-    return monCard({name: '📋 오더 큐 · 자동화', cls: 'wait', state: '확인 중',
-      main: '오더함 목록을 읽는 중이에요', sub: '조금 있으면 대기·실행·승인 건수가 여기 나와요'});
-  }
-  const p = numOf(s.pending) || 0, r = numOf(s.running) || 0, w = numOf(s.waiting) || 0, t = numOf(s.timeout) || 0;
-  const done = numOf(s.done) || 0, failed = numOf(s.failed) || 0;
-  const today = monToday();
-  const doneToday = ORD_ITEMS.filter(i => i.status === 'DONE' && String(i.finished_at || '').slice(0, 10) === today).length;
-  const last = ORD_ITEMS.filter(i => i.status === 'DONE' && ordEndMs(i)).sort((a, b) => ordEndMs(b) - ordEndMs(a))[0];
-  let cls = 'ok', state = '한가함';
-  if(w){ cls = 'wait'; state = '승인 ' + w; }
-  else if(p || r){ cls = r && !p ? 'run' : 'wait'; state = r ? '실행 ' + r : '대기 ' + p; }
-  const main = `대기 <b>${p}</b> · 실행 <b>${r}</b> · 승인 <b>${w}</b>` + (t ? ` · 확인 필요 <b>${t}</b>` : '');
-  const sub = (ORD_SUM ? `누적 완료 ${done} · 실패 ${failed}` : '목록을 읽으면 건수가 보여요') +
-    (doneToday ? ` · 오늘 끝냄 ${doneToday}건` : '') +
-    (last ? ` · 마지막 완료 ${esc(ordWhen(last.finished_at))}` : '');
-  const extra = `<div class="mon-note" style="margin-top:5px">${ORD_POLL.timer ? '🔄 자동 확인 중 (20초)' : (ORD_POLL.paused ? '⏸ 자동 확인 멈춤 — ⟳' : (ordActive() ? '🔄 자동 확인 준비 중' : '자동 확인 꺼짐 (남은 오더 없음)'))}</div>`;
-  return monCard({name: '📋 오더 큐 · 자동화', cls: cls, state: state, main: main, sub: sub, bar: r > 0, extra: extra});
-}
-
-function ghWho(c){const m=String((c&&c.msg)||''),e=String((c&&c.email)||'').toLowerCase();if(/^Merge pull request #\d+ from [\w.-]+\/agent\//i.test(m))return 'hub';if(e.indexOf('+pickle@')>=0)return 'pk';if(e.indexOf('+work@')>=0||e.indexOf('@redwit.io')>=0)return 'pc';if(e.indexOf('+notebook@')>=0)return 'nd';if(e.indexOf('users.noreply.github.com')>=0)return 'web';return 'etc';}
+function ghWho(c){const e=String((c&&c.email)||'').toLowerCase();if(ghAgentCommit(c))return 'hub';if(e.indexOf('+pickle@')>=0)return 'pk';if(e.indexOf('+work@')>=0||e.indexOf('@redwit.io')>=0)return 'pc';if(e.indexOf('+notebook@')>=0)return 'nd';if(e.indexOf('users.noreply.github.com')>=0)return 'web';return 'etc';}
 const GH_WHO_TXT={hub:'🏠 노트북·허브',pk:'🤖 피클',pc:'💻 회사 PC',nd:'⌨️ 노트북·직접',web:'🌐 웹',etc:'❓ 공용'};
+
 /* ── 통합 이력 (노트북 오더 + 회사 PC 커밋) ── */
 function monEvents(){
   const evs = [];
@@ -1803,7 +1811,7 @@ function monEvents(){
     if(!at) return;
     const lab = (ORD_STATUS[st] || {t: st || '오더'}).t;
     const body = (st === 'DONE' ? (it.result || it.summary) : (it.error || it.summary)) || '';
-    evs.push({at: at, who: 'nb', whoTxt: '🏠 노트북', proj: ordProject(it), ic: ordIcon(it.type),
+    evs.push({at: at, who: 'hub', whoTxt: '🏠 노트북·허브', proj: ordProject(it), ic: ordIcon(it.type),
       tx: `<b>${esc(ordTypeName(it.type))}</b> · ${esc(lab)}` +
         (it.workspace ? ' · ' + esc(ordWsName(it.workspace)) : '') +
         (body ? ` <em>${esc(ordShort(body, 70))}</em>` : '')});
@@ -1812,8 +1820,8 @@ function monEvents(){
     ((ghSlot(R.id).commits) || []).forEach(c => {
       const t = Date.parse(String(c.at || ''));
       if(!isFinite(t)) return;
-      const ag = ghAgentCommit(c);
-      evs.push({at: t, who: ag ? 'ag' : 'pc', whoTxt: ag ? '⚡ 에이전트' : '💻 회사 PC', proj: PROJ_OF_REPO[R.id] || 'life', ic: '📤',
+      const w = ghWho(c);
+      evs.push({at: t, who: w, whoTxt: GH_WHO_TXT[w] || '❓ 공용', proj: PROJ_OF_REPO[R.id] || 'life', ic: '📤',
         tx: `<b>${esc(R.name)}</b> · ${esc(ordShort(c.msg, 90) || '(메시지 없음)')} <em>${esc(String(c.sha || ''))}</em>`});
     });
   });
@@ -1865,7 +1873,7 @@ function monRender(force){
     '\u0003' + MON_FILTER + '\u0003' + MON_PROJ + '\u0003' + (ORD_POLL.timer ? 1 : 0) + (ORD_POLL.paused ? 1 : 0);
   if(!force && sig === MON_SIG) return;
   MON_SIG = sig;
-  cards.innerHTML = [monDevPickle(), monDevNotebook(), monDevPc(), monDevQueue()].join('');
+  cards.innerHTML = [monDevDirect(), monDevNotebook(), monDevPc(), monDevPickle()].join('');
   const proj = document.getElementById('mon-proj');
   if(proj) proj.innerHTML = monProjChips();
   const feed = document.getElementById('mon-feed');

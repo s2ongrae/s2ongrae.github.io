@@ -629,7 +629,7 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   const D11 = makeDevice(S11);
   ok(/id="mon-cards"/.test(html) && /id="mon-feed"/.test(html), '포털에 작업 관제(기기 카드·통합 이력) 자리가 있다');
   ok(/data-f="hub"/.test(html) && /data-f="pc"/.test(html) && /data-f="nd"/.test(html), '통합 이력에 허브·회사 PC·노트북 직접 갈래 버튼');
-  ok(/\.mon-grid\{grid-template-columns:minmax\(0,1fr\)\}/.test(html), '폰에서는 기기 카드를 한 줄에 하나씩');
+  ok(/\.mon-grid\{grid-template-columns:1fr 1fr\}/.test(html), '폰에서는 기기 카드를 2x2 로');
   D11.config();
   await D11.run('refreshQueueStatus(true)');
   await D11.run('loadOrders()');
@@ -646,7 +646,7 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   ok(/멈춘 것 같아요/.test(cards11()) && /mon-dev bad/.test(cards11()), '노트북 카드가 빨간색으로 멈춘 것 같다고 알린다');
   ok(/ord-stale bad/.test(D11.el('ord-list').innerHTML), '오더 카드에도 정체 경고 배지');
   ok(D11.el('mon-badge').textContent.indexOf('정체') >= 0, '관제 배지에 정체 건수');
-  ok(/mon-bar/.test(cards11()), '실행 중 표시(진행 막대)가 있다');
+  ok(/mon-bar/.test(D11.run('monCard({name:"x",cls:"run",state:"작업 중",main:"m",bar:true})')), '실행 중 표시(진행 막대)가 있다');
 
   // ② 생애주기 — 예정 → 실행 중 → 끝냈다
   const box11 = () => D11.el('ord-list').innerHTML;
@@ -677,9 +677,9 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   ok(D11.calls.every(c => c.opts.method === 'POST' && JSON.parse(c.opts.body).action), 'GitHub 조회 때문에 다른 요청이 섞이지 않는다(POST 만)');
   ok(/GitHub 기록을 아직 못 읽었어요/.test(cards11()), 'GitHub 기록이 없으면 솔직하게 안내');
   D11.run('GH_DATA = {at: new Date().toISOString(), runs_at: new Date().toISOString(), repos: {' +
-    '"content-hub": {commits: [{sha: "abc1234", msg: "feat(ui): v3.3 — 카드 밀도", at: ' + JSON.stringify(at(nowMs - 3 * 60000)) + '}],' +
+    '"content-hub": {commits: [{sha: "abc1234", msg: "feat(ui): v3.3 — 카드 밀도", email: "s2ongrae+work@gmail.com", at: ' + JSON.stringify(at(nowMs - 3 * 60000)) + '}],' +
     '  run: {name: "deploy", status: "completed", conclusion: "success", branch: "main"}},' +
-    '"gaegyebu": {commits: [{sha: "def5678", msg: "Merge pull request #1 from s2ongrae/agent/ui", at: ' + JSON.stringify(at(nowMs - 5 * 3600000)) + '}]}' +
+    '"gaegyebu": {commits: [{sha: "def5678", msg: "Merge pull request #1 from s2ongrae/agent/ui", email: "s2ongrae@gmail.com", at: ' + JSON.stringify(at(nowMs - 5 * 3600000)) + '}]}' +
     '}}; monRender(true)');
   ok(/방금 작업/.test(cards11()) && /content-hub|콘텐츠 허브/.test(cards11()), '가장 최근 푸시가 3분 전이면 방금 작업');
   ok(/✅ CI 통과/.test(cards11()), '마지막 CI 결과를 함께 보여준다');
@@ -691,7 +691,17 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   const evs11 = D11.get('monEvents()');
   ok(evs11.length >= 7, '오더와 커밋이 한 목록에 모인다');
   ok(evs11.every((e, i) => i === 0 || evs11[i - 1].at >= e.at), '최신이 위(시간 내림차순)');
-  ok(evs11.some(e => e.who === 'nb') && evs11.some(e => e.who === 'pc') && evs11.some(e => e.who === 'ag'), '노트북·회사 PC·에이전트 세 갈래가 다 보인다');
+  ok(evs11.some(e => e.who === 'hub') && evs11.some(e => e.who === 'pc'), '노트북·회사 PC·에이전트 세 갈래가 다 보인다');
+  ok((cards11().match(/class="mon-dev/g) || []).length === 4, '카드가 4개(직접·허브·회사PC·피클)다');
+  D11.run('AGENT_DATA = {direct: null}');
+  ok(/기록 없음/.test(D11.run('monDevDirect()')) && /free로 작업하면/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 기록이 없으면 free 안내');
+  D11.run('AGENT_DATA = {direct: {state: "working", project: "portal", task: "포털 관제", started_at: new Date().toISOString(), updated_at: new Date().toISOString()}}');
+  ok(/작업 중/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 작업 중이면 상태를 보여준다');
+  D11.run('AGENT_DATA = {direct: {state: "working", project: "portal", task: "포털 관제", started_at: new Date(Date.now() - 30 * 60000).toISOString(), updated_at: new Date(Date.now() - 30 * 60000).toISOString()}}');
+  ok(/미확인/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 25분 넘게 신호가 없으면 미확인');
+  D11.run('AGENT_DATA = {direct: {state: "idle", project: "portal", task: "포털 관제", updated_at: new Date().toISOString()}}');
+  ok(/쉬는 중/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 쉬는 중이면 회색 상태');
+  ok(/대기 \d+ · 승인 \d+ · 실행 \d+ · 오늘 완료 \d+/.test(D11.run('monDevNotebook()')) && /#order-card/.test(D11.run('monDevNotebook()')), '🏠 허브 카드 끝에 오더 요약과 오더함 이동 링크');
   ok(/🏠 노트북/.test(feed11()) && /💻 회사 PC/.test(feed11()), '이력에 출처가 붙는다');
   D11.run('monFilter({dataset:{f:"pc"}})');
   ok(D11.run('MON_FILTER') === 'pc' && /💻 회사 PC/.test(feed11()) && !/🏠 노트북/.test(feed11()), '갈래를 고르면 그 출처만 남는다');
