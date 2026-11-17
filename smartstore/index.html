@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7f3ec">
+<meta name="robots" content="noindex, nofollow">
+<title>묘한살림 운영 대시보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f7f3ec; --card:#fffdf9; --ink:#211d19; --ink-2:#5d554b; --ink-3:#8d8579;
+  --line:#e7dfd2; --line-2:#f0e9dd;
+  --accent:#6f4f31; --accent-soft:#f0e5d6;
+  --good:#2f7a4f; --good-soft:#e5f2e9;
+  --warn:#a9701c; --warn-soft:#fbf0dc;
+  --crit:#b2372f; --crit-soft:#fbe6e3;
+  --shadow:0 1px 2px rgba(43,32,20,.05), 0 6px 18px rgba(43,32,20,.05);
+  --r:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  background:var(--paper); color:var(--ink); font-size:15px; line-height:1.45;
+  -webkit-text-size-adjust:100%;
+  padding-bottom:calc(72px + env(safe-area-inset-bottom));
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:var(--accent);text-decoration:none}
+input,select{font:inherit;color:inherit}
+.wrap{max-width:600px;margin:0 auto;padding:0 14px}
+
+/* ── 헤더 ─────────────────────────────── */
+.hdr{position:sticky;top:0;z-index:20;background:rgba(247,243,236,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line-2)}
+.hdr-in{max-width:600px;margin:0 auto;padding:10px 14px 8px}
+.hdr-top{display:flex;align-items:center;gap:10px}
+.logo{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px}
+.brand{display:flex;align-items:baseline;gap:7px;min-width:0}
+.brand b{font-size:16px;letter-spacing:-.3px}
+.brand span{font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.hdr-actions{margin-left:auto;display:flex;gap:4px}
+.icon-btn{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:15px;border:1px solid transparent}
+.icon-btn:active{background:var(--line-2)}
+.icon-btn[aria-pressed="true"]{background:var(--accent-soft);border-color:#e3d3bd}
+.fresh{display:flex;align-items:center;gap:7px;margin-top:7px;font-size:12px;color:var(--ink-2)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:0 0 7px}
+.fresh.warn{color:var(--warn)} .fresh.warn .dot{background:var(--warn)}
+.fresh.crit{color:var(--crit)} .fresh.crit .dot{background:var(--crit)}
+.fresh .sp{margin-left:auto;color:var(--ink-3);text-decoration:underline;text-underline-offset:2px}
+
+/* ── 공통 카드 ─────────────────────────── */
+section[data-tab]{padding-top:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+.card-t{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.card-t h2{font-size:13.5px;font-weight:700;margin:0;letter-spacing:-.2px}
+.card-t .hint{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-weight:500}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 8px;text-align:center;box-shadow:var(--shadow)}
+.kpi i{display:block;font-size:10.5px;font-style:normal;color:var(--ink-3);letter-spacing:-.2px}
+.kpi b{display:block;font-size:17px;letter-spacing:-.6px;margin-top:2px}
+.kpi b small{font-size:10.5px;font-weight:600;color:var(--ink-3);margin-left:1px}
+.kpi.warn b{color:var(--warn)} .kpi.crit b{color:var(--crit)} .kpi.good b{color:var(--good)}
+
+/* ── 45건 게이지 ─────────────────────── */
+.gauge-top{display:flex;align-items:flex-end;gap:8px;margin-bottom:8px}
+.gauge-top .now{font-size:26px;font-weight:800;letter-spacing:-1px;line-height:1}
+.gauge-top .cap{font-size:12px;color:var(--ink-3);font-weight:600;padding-bottom:3px}
+.gauge-top .stage{margin-left:auto;font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:999px;background:var(--good-soft);color:var(--good)}
+.gauge-top .stage.warn{background:var(--warn-soft);color:var(--warn)}
+.gauge-top .stage.crit{background:var(--crit-soft);color:var(--crit)}
+.bar{position:relative;height:12px;border-radius:999px;background:var(--line-2);overflow:hidden}
+.bar>i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--good);transition:width .35s ease}
+.bar.warn>i{background:var(--warn)} .bar.crit>i{background:var(--crit)}
+.ticks{position:relative;height:16px;margin-top:2px;font-size:9.5px;color:var(--ink-3)}
+.ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.ticks span::before{content:"";position:absolute;left:50%;top:-4px;width:1px;height:4px;background:var(--line)}
+.gauge-act{margin-top:8px;font-size:12px;color:var(--ink-2);background:var(--line-2);border-radius:10px;padding:8px 10px}
+.gauge-act b{color:var(--ink)}
+.gauge-edit{display:flex;align-items:center;gap:8px;margin-top:10px}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.stepper button{width:38px;height:36px;font-size:17px;font-weight:600;color:var(--ink-2)}
+.stepper button:active{background:var(--line-2)}
+.stepper input{width:46px;height:36px;border:0;text-align:center;font-weight:700;background:transparent}
+.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.saved{margin-left:auto;font-size:11px;color:var(--ink-3)}
+
+/* ── SKU 목록 ────────────────────────── */
+.list-tools{display:flex;align-items:center;gap:8px;margin:2px 2px 8px}
+.list-tools select{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:6px 8px;font-size:12px}
+.list-tools .cnt{margin-left:auto;font-size:11.5px;color:var(--ink-3)}
+.sku{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:12px 13px;margin-bottom:9px}
+.sku-head{display:flex;align-items:flex-start;gap:8px}
+.sku-head .nm{font-weight:700;font-size:14.5px;letter-spacing:-.3px;min-width:0}
+.sku-head .pill{margin-left:auto;flex:0 0 auto;font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}
+.pill.mute{background:var(--line-2);color:var(--ink-2)}
+.nums{display:grid;grid-template-columns:1.1fr 1.1fr 1fr;gap:6px;margin:9px 0 0}
+.nums div{min-width:0}
+.nums label{display:block;font-size:10.5px;color:var(--ink-3);letter-spacing:-.2px}
+.nums b{display:block;font-size:14.5px;letter-spacing:-.5px;margin-top:1px;font-variant-numeric:tabular-nums}
+.nums b em{font-style:normal;font-size:10.5px;color:var(--ink-3);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.chip{font-size:11px;font-weight:600;padding:3px 7px;border-radius:7px;background:var(--line-2);color:var(--ink-2)}
+.chip.on{background:var(--good-soft);color:var(--good)}
+.chip.off{background:var(--crit-soft);color:var(--crit)}
+.chip.todo{background:var(--warn-soft);color:var(--warn)}
+.links{margin-left:auto;display:flex;gap:10px;font-size:11.5px;font-weight:600}
+.sku details{margin-top:9px;border-top:1px dashed var(--line);padding-top:8px}
+.sku summary{font-size:11.5px;color:var(--ink-3);cursor:pointer;list-style:none;font-weight:600}
+.sku summary::-webkit-details-marker{display:none}
+.sku summary::after{content:" ▾"}
+.sku details[open] summary::after{content:" ▴"}
+.dtl{margin-top:8px;font-size:12px;color:var(--ink-2);display:grid;gap:4px}
+.dtl div{display:flex;gap:8px}
+.dtl div span:first-child{color:var(--ink-3);flex:0 0 92px}
+.stale .nums b,.stale .sku-head .nm{opacity:.45}
+.stale-badge{font-size:10.5px;font-weight:700;color:var(--crit);background:var(--crit-soft);padding:2px 6px;border-radius:6px;margin-left:4px}
+
+/* ── RUNBOOK ─────────────────────────── */
+.step{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:9px;overflow:hidden}
+.step-top{display:flex;align-items:center;gap:10px;padding:12px 13px;width:100%;text-align:left}
+.step-no{width:24px;height:24px;flex:0 0 24px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:12px;font-weight:800}
+.step.done .step-no{background:var(--good);color:#fff}
+.step-t{font-weight:700;font-size:13.5px;letter-spacing:-.2px}
+.step.min{font-size:11px;color:var(--ink-3);margin-left:auto;flex:0 0 auto}
+.step-body{padding:0 13px 12px;font-size:12.5px;color:var(--ink-2)}
+.step-body p{margin:0 0 7px}
+.step-body .chk{display:flex;gap:7px;background:var(--warn-soft);border-radius:9px;padding:8px 9px;color:#7c5110;font-size:12px;margin-bottom:8px}
+.copy{width:100%;text-align:left;border:1px dashed var(--line);border-radius:10px;padding:8px 9px;font-size:12px;color:var(--ink-2);background:#fcfaf6;position:relative}
+.copy::after{content:"복사";position:absolute;right:8px;top:6px;font-size:10px;color:var(--accent);font-weight:700}
+.copy:active{background:var(--accent-soft)}
+.rb-prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-2);margin:0 2px 9px}
+.rb-prog .reset{margin-left:auto;color:var(--ink-3);text-decoration:underline;text-underline-offset:2px;font-size:11.5px}
+.sub-t{font-size:12.5px;font-weight:700;margin:16px 2px 8px;color:var(--ink)}
+.so{padding:10px 12px;font-size:12.5px;color:var(--ink-2)}
+.so b{color:var(--ink)}
+.so ol{margin:6px 0 0;padding-left:18px}
+.so li{margin-bottom:4px}
+
+/* ── 계산기 ──────────────────────────── */
+.field{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-2)}
+.field:last-of-type{border-bottom:0}
+.field label{font-size:12.5px;color:var(--ink-2);flex:1}
+.field input,.field select{width:118px;text-align:right;border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:13.5px;font-weight:600;background:#fdfbf7;font-variant-numeric:tabular-nums}
+.field input:focus,.field select:focus{outline:2px solid var(--accent-soft);border-color:#d9c6ab}
+.calc-out{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.calc-out .box{background:var(--line-2);border-radius:12px;padding:10px 11px}
+.calc-out .box i{display:block;font-style:normal;font-size:10.5px;color:var(--ink-3)}
+.calc-out .box b{display:block;font-size:19px;letter-spacing:-.7px;margin-top:2px;font-variant-numeric:tabular-nums}
+.verdict{margin-top:10px;font-size:12.5px;padding:9px 11px;border-radius:11px;background:var(--good-soft);color:#1f5c3b}
+.verdict.warn{background:var(--warn-soft);color:#7c5110}
+.verdict.crit{background:var(--crit-soft);color:#8a2620}
+.note{font-size:11.5px;color:var(--ink-3);margin-top:8px}
+
+/* ── 마감 ────────────────────────────── */
+.close-form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.close-form .f{display:flex;flex-direction:column;gap:4px}
+.close-form label{font-size:11px;color:var(--ink-3)}
+.close-form input{border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:14px;font-weight:600;background:#fdfbf7;width:100%}
+.btn{display:block;width:100%;border-radius:11px;padding:11px;font-weight:700;font-size:13.5px;text-align:center}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.ghost{background:var(--line-2);color:var(--ink-2)}
+.btn:active{filter:brightness(.96)}
+.sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.sum-grid .box{background:var(--line-2);border-radius:11px;padding:9px}
+.sum-grid .box i{display:block;font-style:normal;font-size:10px;color:var(--ink-3)}
+.sum-grid .box b{display:block;font-size:15px;letter-spacing:-.5px;margin-top:1px;font-variant-numeric:tabular-nums}
+.entries{margin-top:12px;font-size:12px}
+.entries .row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-2)}
+.entries .row:last-child{border-bottom:0}
+.entries .row .d{color:var(--ink-3);flex:0 0 62px}
+.entries .row .n{flex:1;font-variant-numeric:tabular-nums}
+.entries .row .x{color:var(--ink-3);font-size:15px;padding:0 4px}
+
+/* ── 잠금 화면 ───────────────────────── */
+.lock{position:fixed;inset:0;z-index:50;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:24px}
+.lock-in{width:100%;max-width:340px;text-align:center}
+.lock .mark{width:52px;height:52px;border-radius:16px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:24px;margin:0 auto 16px}
+.lock h1{font-size:19px;margin:0 0 4px;letter-spacing:-.5px}
+.lock p{font-size:12.5px;color:var(--ink-3);margin:0 0 20px;line-height:1.55}
+.lock input{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px;font-size:15px;text-align:center;letter-spacing:1px;background:var(--card)}
+.lock .row{display:flex;align-items:center;gap:7px;justify-content:center;margin:12px 0 14px;font-size:12px;color:var(--ink-2)}
+.lock .err{color:var(--crit);font-size:12px;min-height:17px;margin-top:10px}
+.lock .small{font-size:11px;color:var(--ink-3);margin-top:18px;line-height:1.6}
+
+/* ── 시트(도움말) ─────────────────────── */
+.sheet{position:fixed;inset:0;z-index:40;background:rgba(33,29,25,.42);display:flex;align-items:flex-end}
+.sheet-in{background:var(--card);width:100%;max-width:600px;margin:0 auto;border-radius:20px 20px 0 0;padding:18px 18px calc(20px + env(safe-area-inset-bottom));max-height:82vh;overflow:auto}
+.sheet-in h3{margin:0 0 10px;font-size:15px}
+.sheet-in p{font-size:12.5px;color:var(--ink-2);margin:0 0 9px}
+.sheet-in code{background:var(--line-2);border-radius:5px;padding:1px 5px;font-size:11.5px}
+.sheet-in .close{width:100%;margin-top:8px}
+
+/* ── 탭바 ────────────────────────────── */
+.tabbar{position:fixed;bottom:0;left:0;right:0;z-index:30;background:rgba(255,253,249,.96);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabbar-in{max-width:600px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tabbar button{padding:9px 0 8px;font-size:10.5px;color:var(--ink-3);font-weight:600;display:grid;gap:2px;justify-items:center}
+.tabbar button i{font-size:17px;font-style:normal;line-height:1}
+.tabbar button[aria-selected="true"]{color:var(--accent)}
+.tabbar button[aria-selected="true"] i{transform:translateY(-1px)}
+[hidden]{display:none!important}
+.toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2521;color:#fff;font-size:12px;padding:9px 14px;border-radius:999px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- 잠금 화면 -->
+<div id="lockScreen" class="lock" hidden>
+  <div class="lock-in">
+    <div class="mark">묘</div>
+    <h1>묘한살림 운영 대시보드</h1>
+    <p>공급가·마진 데이터는 암호화되어 있습니다.<br>암호를 넣으면 이 기기에서 열립니다.</p>
+    <form id="lockForm" autocomplete="off">
+      <input id="pass" type="password" inputmode="text" autocomplete="current-password" placeholder="암호" aria-label="암호">
+      <div class="row"><input id="remember" type="checkbox" checked> <label for="remember">이 기기에 기억하기</label></div>
+      <button class="btn primary" type="submit" id="unlockBtn">열기</button>
+      <div class="err" id="lockErr" role="alert"></div>
+    </form>
+    <div class="small">잊어버렸다면 데이터를 다시 만들면 됩니다.<br>피클에게 “묘한살림 대시보드 데이터 갱신”이라고 하면 새 암호로 재생성됩니다.</div>
+  </div>
+</div>
+
+<!-- 본문 -->
+<header class="hdr" id="hdr" hidden>
+  <div class="hdr-in">
+    <div class="hdr-top">
+      <div class="logo">묘</div>
+      <div class="brand"><b>묘한살림</b><span>운영 대시보드</span></div>
+      <div class="hdr-actions">
+        <button class="icon-btn" id="maskBtn" aria-pressed="true" title="공급가·마진 숨기기/보기" aria-label="공급가 마진 숨기기 토글">👁</button>
+        <button class="icon-btn" id="lockBtn" title="잠그기" aria-label="잠그기">🔒</button>
+      </div>
+    </div>
+    <div class="fresh" id="freshBar"><span class="dot"></span><span id="freshText">데이터 확인 중…</span><button class="sp" id="refreshInfo">갱신 안내</button></div>
+  </div>
+</header>
+
+<main class="wrap" id="main" hidden>
+
+  <!-- 대시보드 -->
+  <section data-tab="dash">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="card">
+      <div class="card-t"><h2>개인판매자 45건 상한</h2><span class="hint">구매확정 50건 기준</span></div>
+      <div class="gauge-top">
+        <span class="now" id="gNow">0</span><span class="cap">/ 45건 결제완료</span>
+        <span class="stage" id="gStage">정상</span>
+      </div>
+      <div class="bar" id="gBar"><i style="width:0%"></i></div>
+      <div class="ticks">
+        <span style="left:77.8%">35 유입중단</span>
+        <span style="left:93.3%">42 락</span>
+      </div>
+      <div class="gauge-act" id="gAct">결제완료 건수를 넣으면 다음에 할 일을 알려 줍니다.</div>
+      <div class="gauge-edit">
+        <div class="stepper">
+          <button type="button" id="gMinus" aria-label="1건 빼기">−</button>
+          <input id="gInput" type="number" min="0" max="99" inputmode="numeric" value="0" aria-label="결제완료 누적 건수">
+          <button type="button" id="gPlus" aria-label="1건 더하기">+</button>
+        </div>
+        <span class="saved" id="gSaved"></span>
+      </div>
+    </div>
+
+    <div class="list-tools">
+      <select id="sortSel" aria-label="정렬">
+        <option value="risk">마진 낮은 순</option>
+        <option value="name">이름 순</option>
+        <option value="price">판매가 높은 순</option>
+      </select>
+      <span class="cnt" id="listCnt"></span>
+    </div>
+    <div id="skuList"></div>
+    <p class="note" style="text-align:center;margin:14px 0 4px">
+      코드가 바꾸는 것은 없습니다 · 품절·가격은 알림만<br>
+      <span id="builtAt"></span>
+    </p>
+  </section>
+
+  <!-- 첫 주문 RUNBOOK -->
+  <section data-tab="order" hidden>
+    <div class="rb-prog"><span id="rbProg">0 / 5 완료</span><button class="reset" id="rbReset">다시 시작</button></div>
+    <div id="runbook"></div>
+
+    <div class="sub-t">반품 1건이 왔을 때</div>
+    <div class="card so">
+      <b>① 유형 판정</b> — 단순변심 / 불량·파손 / 배송 중 파손 / 냄새·구김 주장.<br>
+      <b>② 회수 여부</b> — 회수 후 재판매 가치가 <b>3,500원</b>을 넘으면 회수, 아니면 미회수.<br>
+      <b>③ 비용</b> — 단순변심은 구매자 왕복 부담, 분쟁은 <b>2,000~3,000원 부분환불</b>로 종결.<br>
+      <b>④ 기록</b> — 주문번호 / 유형 / 회수 / 처리 / 손실액.<br>
+      <b>⑤ 재입고</b> — 24시간 통풍 → OPP백 교체 → 정상 재고 편입.
+      <p class="note">상품별 왕복 반품비는 아래 계산기에서 확인하세요(도매의신 편도 기준).</p>
+    </div>
+
+    <div class="sub-t">톡톡 기본 응대</div>
+    <div class="card" style="padding:12px">
+      <button class="copy" data-copy="안녕하세요, 묘한살림입니다 :) 1인 운영이라 평일 문의는 밤 9시에 일괄 답변드리고, 출고는 토요일 오전에 일괄 발송됩니다. 조금만 기다려 주시면 순서대로 꼼꼼히 챙겨 드릴게요!">1인 운영 안내 (문의 지연 양해)</button>
+      <div style="height:8px"></div>
+      <button class="copy" data-copy="고객님, 주문하신 상품이 오늘 출고되었습니다! 택배사 사정에 따라 보통 1~2영업일 안에 받아보실 수 있어요. 감사합니다 :)">출고 안내</button>
+      <div style="height:8px"></div>
+      <button class="copy" data-copy="단순변심 반품은 왕복 배송비가 발생합니다. 상품 파손·오배송이라면 박스와 상품 사진을 톡톡으로 보내주세요. 확인 후 바로 처리해 드리겠습니다.">반품·교환 안내</button>
+    </div>
+  </section>
+
+  <!-- 계산기 -->
+  <section data-tab="calc" hidden>
+    <div class="card">
+      <div class="card-t"><h2>마진·손익분기 계산기</h2><span class="hint">수수료 4.95% · 반품충당 4%</span></div>
+      <div class="field"><label for="cPick">상품</label>
+        <select id="cPick" style="width:170px"></select></div>
+      <div class="field"><label for="cSale">판매가</label><input id="cSale" type="number" inputmode="numeric"></div>
+      <div class="field"><label for="cSupply">공급가</label><input id="cSupply" type="number" inputmode="numeric"></div>
+      <div class="field"><label for="cShip">배송비(우리 부담)</label><input id="cShip" type="number" inputmode="numeric"></div>
+      <div class="field"><label for="cReturn">반품 편도</label><input id="cReturn" type="number" inputmode="numeric"></div>
+      <div class="field"><label for="cFee">수수료율(%)</label><input id="cFee" type="number" step="0.01" inputmode="decimal"></div>
+      <div class="field"><label for="cReserve">반품충당(%)</label><input id="cReserve" type="number" step="0.1" inputmode="decimal"></div>
+      <div class="calc-out">
+        <div class="box"><i>한 건 팔면 남는 돈</i><b id="oProfit" class="secretv">-</b></div>
+        <div class="box"><i>마진율</i><b id="oMargin">-</b></div>
+        <div class="box"><i>15% 남기는 최소 판매가</i><b id="oBreakeven" class="secretv">-</b></div>
+        <div class="box"><i>반품 1건 손실</i><b id="oReturn" class="secretv">-</b></div>
+      </div>
+      <div class="verdict" id="oVerdict">값을 넣으면 판정이 나옵니다.</div>
+      <p class="note">왕복 반품비는 편도×2입니다. 순익은 수수료와 반품충당을 이미 뺀 금액이라, 반품 한 건이 나면 그만큼 현금이 그대로 나갑니다.</p>
+    </div>
+  </section>
+
+  <!-- 일일 마감 -->
+  <section data-tab="close" hidden>
+    <div class="card">
+      <div class="card-t"><h2>오늘 마감</h2><span class="hint" id="closeHint">건수와 매출만 넣으면 끝</span></div>
+      <div class="close-form">
+        <div class="f"><label for="dDate">날짜</label><input id="dDate" type="date"></div>
+        <div class="f"><label for="dOrders">결제 건수</label><input id="dOrders" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="f"><label for="dSales">매출(원)</label><input id="dSales" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="f"><label for="dReturns">반품 건수</label><input id="dReturns" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div style="height:10px"></div>
+      <button class="btn primary" id="dSave">저장</button>
+      <div class="sum-grid">
+        <div class="box"><i>이번 달 건수</i><b id="mOrders">0</b></div>
+        <div class="box"><i>이번 달 매출</i><b id="mSales">0</b></div>
+        <div class="box"><i>객단가</i><b id="mAov">-</b></div>
+      </div>
+      <div class="sum-grid">
+        <div class="box"><i>수수료 추정 4.95%</i><b id="mFee" class="secretv">-</b></div>
+        <div class="box"><i>순익 추정</i><b id="mProfit" class="secretv">-</b></div>
+        <div class="box"><i>세금 적립 30~35%</i><b id="mTax" class="secretv">-</b></div>
+      </div>
+      <p class="note">순익 추정은 이번 달 매출 × 평균 마진(대시보드 값)입니다. 정확한 정산은 판매자센터 정산 내역과 도매의신 결제 내역으로 맞춥니다. 세금 적립은 순익의 30~35%를 사업장부에 따로 쌓는 규칙입니다.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-t"><h2>기록</h2><span class="hint" id="entryCnt"></span></div>
+      <div class="entries" id="entries"></div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabbar" id="tabbar" hidden>
+  <div class="tabbar-in">
+    <button data-go="dash" aria-selected="true"><i>📊</i>대시보드</button>
+    <button data-go="order" aria-selected="false"><i>📦</i>주문</button>
+    <button data-go="calc" aria-selected="false"><i>🧮</i>계산기</button>
+    <button data-go="close" aria-selected="false"><i>🧾</i>마감</button>
+  </div>
+</nav>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-in" id="sheetIn"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
