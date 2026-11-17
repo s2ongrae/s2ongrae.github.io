@@ -661,6 +661,16 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   ok(/data-since="\d{13}"/.test(box11()) && /ord-elapsed/.test(box11()), '실행 중 오더에 경과 시간(1초마다 세는 자리)이 붙는다');
   ok(D11.run('monDur(65000)') === '1분 5초' && D11.run('monDur(16*3600000)') === '16시간', '경과 시간을 읽기 쉽게');
   ok(D11.run('ordElapsedMs({status:"DONE",claimed_at:"' + at(nowMs - 3400) + '",finished_at:"' + at(nowMs) + '"})') === 3400, '끝난 오더는 걸린 시간 = 끝 - 시작');
+  // 승인 대기·대기만 있을 때 노트북 카드가 "할 일이 예약돼 있다"고 알리는지 (하트비트가 살아 있는 경우)
+  D11.run('QSTAT_DATA = {heartbeat:{state:"ok", min:1, source:"drive"}}');
+  D11.run('ORD_ITEMS = [{status:"WAITING_APPROVAL",id:"x"}]');
+  ok(/승인 대기/.test(D11.run('monDevNotebook()')) && /\[✅ 승인\]/.test(D11.run('monDevNotebook()')), '승인 대기만 있으면 승인하면 실행된다고 알린다');
+  D11.run('ORD_ITEMS = [{status:"PENDING",id:"y"}]');
+  ok(/다음 차례를 기다리는 오더/.test(D11.run('monDevNotebook()')), '대기만 있으면 다음 차례를 알린다');
+  D11.run('QSTAT_DATA = {heartbeat:{state:"warn", min:40, source:"drive"}}');
+  ok(/응답 없음/.test(D11.run('monDevNotebook()')), '하트비트가 끊겼으면 승인·대기보다 "응답 없음"을 먼저 알린다');
+  await D11.run('refreshQueueStatus(true)');
+  await D11.run('loadOrders()');
 
   // ③ 회사 PC — GitHub 기록이 있을 때 / 없을 때 / 한도
   ok(D11.run('ghCanFetch()') === false, '테스트 환경(https 아님)에서는 GitHub 을 부르지 않는다');

@@ -1063,6 +1063,7 @@ function ordPollSchedule(){
     await loadOrders({silent: true});
     ordPollSchedule();
   }, ORD_POLL_MS);
+  monRender();
 }
 function ordSig(items){
   return (items || []).map(i => [i.id, i.status, i.result, i.error, i.duration_ms].join('\u0001')).join('\u0002');
@@ -1529,6 +1530,19 @@ function monDevNotebook(){
     return monCard({name: '🏠 집 노트북', cls: cls, state: stale ? stale.t : '작업 중', main: main, sub: sub,
       bar: !stale, extra: stale ? `<div class="ord-stale${stale.lv === 'bad' ? ' bad' : ''}">⚠ ${esc(stale.why)}</div>` : ''});
   }
+  // 하트비트가 끊겼으면 그게 가장 중요해요(대기·승인 안내보다 먼저)
+  if(hbDead){
+    return monCard({name: '🏠 집 노트북', cls: 'bad', state: '응답 없음',
+      main: '노트북이 응답하지 않아요',
+      sub: `마지막 응답 ${esc(agoText(hbMin))}` + (pend.length ? ` · 대기 ${pend.length}건이 밀려 있어요` : '') + ' · 전원·인터넷·hub-agent 확인'});
+  }
+  // 승인을 기다리는 오더가 있으면 '할 일'이 예약돼 있는 상태예요
+  const waiting = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL');
+  if(waiting.length){
+    return monCard({name: '🏠 집 노트북', cls: 'wait', state: '승인 대기',
+      main: `승인을 기다리는 오더 <b>${waiting.length}</b>건`,
+      sub: '아래 오더함에서 [✅ 승인]을 누르면 실행돼요' + (pend.length ? ` · 대기 ${pend.length}건` : '') + hbLine});
+  }
   // 서버가 하트비트의 '지금 작업'을 같이 넘겨주면(Code.gs 재배포 후) 오더 목록에 없어도 보여줘요
   const cur = hb && hb.current ? String(hb.current) : '';
   if(cur){
@@ -1537,15 +1551,15 @@ function monDevNotebook(){
       sub: '하트비트가 실행 중이라고 알려줘요' + (hbMin === null ? '' : ' · 마지막 응답 ' + esc(agoText(hbMin) || '방금')),
       bar: true});
   }
-  if(hbDead){
-    return monCard({name: '🏠 집 노트북', cls: 'bad', state: '응답 없음',
-      main: '노트북이 응답하지 않아요',
-      sub: `마지막 응답 ${esc(agoText(hbMin))}` + (pend.length ? ` · 대기 ${pend.length}건이 밀려 있어요` : '') + ' · 전원·인터넷·hub-agent 확인'});
-  }
   if(hbMin !== null){
-    return monCard({name: '🏠 집 노트북', cls: 'ok', state: '대기 중',
-      main: '오더를 기다리는 중이에요',
-      sub: `마지막 응답 ${esc(agoText(hbMin) || '방금')}${hb.source === 'sheet' ? ' (시트 활동 기준)' : ''}` + (pend.length ? ` · 대기 ${pend.length}건` : '')});
+    return monCard({name: '🏠 집 노트북', cls: pend.length ? 'run' : 'ok', state: pend.length ? '오더 받음' : '대기 중',
+      main: pend.length ? `다음 차례를 기다리는 오더 <b>${pend.length}</b>건` : '오더를 기다리는 중이에요',
+      sub: `마지막 응답 ${esc(agoText(hbMin) || '방금')}${hb.source === 'sheet' ? ' (시트 활동 기준)' : ''}` + (pend.length ? ' · 노트북이 다음 확인 때 실행해요' : '')});
+  }
+  if(pend.length){
+    return monCard({name: '🏠 집 노트북', cls: 'run', state: '오더 받음',
+      main: `다음 차례를 기다리는 오더 <b>${pend.length}</b>건`,
+      sub: '노트북이 다음 확인 때 집어가요 (60초마다 확인)'});
   }
   return monCard({name: '🏠 집 노트북', cls: 'wait', state: '상태 모름',
     main: '노트북 상태를 아직 못 읽었어요',
@@ -1565,8 +1579,8 @@ function monDevPc(){
   const ci = ghCiText(best.repo.id);
   return monCard({name: '💻 회사 PC', cls: cls, state: state,
     main: `<b>${esc(best.repo.name)}</b> · ${esc(ordShort(best.c.msg, 80) || '(메시지 없음)')}`,
-    sub: `${esc(agoText(min) || '방금')} 푸시 · ${esc(String(best.c.sha || ''))}${ci ? ' · ' + esc(ci) : ''}` +
-      '<br>PC에는 도는 프로그램이 없어 GitHub 푸시가 유일한 신호예요'});
+    sub: `${esc(agoText(min) || '방금')} 푸시 · ${esc(String(best.c.sha || ''))}${ci ? ' · ' + esc(ci) : ''}`,
+    extra: '<div class="mon-note" style="margin-top:4px">PC엔 도는 프로그램이 없어 GitHub 푸시가 유일한 신호예요</div>'});
 }
 function monDevQueue(){
   const s = ORD_SUM || {};
@@ -1582,7 +1596,7 @@ function monDevQueue(){
   const sub = (ORD_SUM ? `누적 완료 ${done} · 실패 ${failed}` : '목록을 읽으면 건수가 보여요') +
     (doneToday ? ` · 오늘 끝냄 ${doneToday}건` : '') +
     (last ? ` · 마지막 완료 ${esc(ordWhen(last.finished_at))}` : '');
-  const extra = `<div class="mon-note" style="margin-top:5px">${ORD_POLL.timer ? '🔄 자동 확인 중 (20초)' : (ORD_POLL.paused ? '⏸ 자동 확인 멈춤 — ⟳' : '자동 확인 대기')}</div>`;
+  const extra = `<div class="mon-note" style="margin-top:5px">${ORD_POLL.timer ? '🔄 자동 확인 중 (20초)' : (ORD_POLL.paused ? '⏸ 자동 확인 멈춤 — ⟳' : (ordActive() ? '🔄 자동 확인 준비 중' : '자동 확인 꺼짐 (남은 오더 없음)'))}</div>`;
   return monCard({name: '📋 오더 큐 · 자동화', cls: cls, state: state, main: main, sub: sub, bar: r > 0, extra: extra});
 }
 
