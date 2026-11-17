@@ -6,7 +6,7 @@
 
 @media (min-width: 960px) {
   .wrap, .hdr-in, .tabbar-in { max-width: 1280px; padding-left: 24px; padding-right: 24px; }
-  body { padding-bottom: 24px; }
+  body { padding-bottom: 84px; }
   section[data-tab] { padding-top: 16px; }
   .kpi b { font-size: 20px; }
 
@@ -76,4 +76,6 @@
   .perf-row { grid-template-columns: repeat(3, 1fr); }
   .pv b { font-size: 19px; }
   .mgn { font-size: 18px; }
+  .perf-act { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .perf-act .btn { padding: 10px 6px; }
 }
