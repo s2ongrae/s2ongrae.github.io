@@ -442,7 +442,7 @@ function queueSheetStatus_(sheetId) {
   const iStatus = at('status'), iCreated = at('created_at'), iClaimed = at('claimed_at'), iFinished = at('finished_at');
   if (iStatus < 0) return { summary: { state: 'unknown', error: 'status 칸을 찾지 못했어요' }, lastActivityAt: '' };
 
-  let pending = 0, waiting = 0, timeout = 0, oldest = 0, last = 0;
+  let pending = 0, waiting = 0, timeout = 0, review = 0, oldest = 0, last = 0;
   const start = Math.max(1, values.length - QS_MAX_ROWS);
   for (let r = start; r < values.length; r++) {
     const row = values[r];
@@ -455,6 +455,7 @@ function queueSheetStatus_(sheetId) {
       if (created && (!oldest || created < oldest)) oldest = created;
     } else if (st === 'WAITING_APPROVAL') waiting++;
     else if (st === 'TIMEOUT_REVIEW') timeout++;
+    else if (st === 'REVIEW_NEEDED') review++;
     last = Math.max(last,
       created,
       iClaimed >= 0 ? qsCellMs_(row[iClaimed]) : 0,
@@ -467,7 +468,7 @@ function queueSheetStatus_(sheetId) {
   else if (oldestMin !== null && oldestMin >= QS_PENDING_LATE_MIN) state = 'bad';
   else if (pending >= 2 || waiting >= 1) state = 'warn';
   return {
-    summary: { state: state, pending: pending, waiting: waiting, timeout: timeout, oldest_min: oldestMin },
+    summary: { state: state, pending: pending, waiting: waiting, timeout: timeout, review: review, oldest_min: oldestMin },
     lastActivityAt: last ? new Date(last).toISOString() : ''
   };
 }
@@ -615,7 +616,9 @@ const QQ_AUDIT_TAB = 'Audit_Log';
 const QQ_COLS = [
   'id', 'created_at', 'source', 'type', 'workspace', 'payload', 'status', 'attempts',
   'claimed_at', 'claimed_by', 'finished_at', 'duration_ms', 'exit_code', 'result', 'error', 'detail',
-  'risk_level', 'approval_expires_at', 'approval_by', 'approval_at', 'approval_note', 'approval_hash'
+  'risk_level', 'approval_expires_at', 'approval_by', 'approval_at', 'approval_note', 'approval_hash',
+  // 2026-11-18 사후 자동 게이트 — 앞 22칸은 그대로 두고 뒤에만 붙인다(구버전과 섞여도 밀리지 않게)
+  'branch', 'block_reason', 'diff_summary', 'changed_files'
 ];
 const QQ_AUDIT_COLS = [
   'at', 'command_id', 'type', 'workspace', 'risk_level', 'decision', 'by', 'channel', 'note', 'payload_hash', 'source'
@@ -643,7 +646,9 @@ const QQ_DEDUPE_MS = 5 * 60000;                    // 같은 비멱등 오더 �
 const QQ_APPROVAL_TTL_MS = 15 * 60000;             // 승인 대기 15분 (워커와 같은 값)
 const QQ_MAX_PAYLOAD = 4000;                       // CommandQueue 와 같은 payload 상한(자)
 const QQ_MAX_PROMPT = 2000;                        // 오더 글 길이 상한
-const QQ_FINAL = { DONE: true, FAILED: true, REJECTED: true, EXPIRED: true };
+const QQ_FINAL = { DONE: true, FAILED: true, REJECTED: true, EXPIRED: true, REVIEW_NEEDED: true };
+// 사후 게이트가 main 반영을 보류하고 auto-review 브랜치에 보존한 상태(사람이 병합)
+const QQ_REVIEW = 'REVIEW_NEEDED';
 
 // ── 자동 승인(위임) — 2026-11-18 ───────────────────────────────
 // 사용자가 채팅에서 이미 시킨 "일반 코드 작업"은 승인 버튼 없이 바로 PENDING 으로 내려 실행한다.
@@ -867,6 +872,10 @@ function qqItem_(r) {
     result: qqMask_(r.result, 200),
     error: qqMask_(r.error, 200),
     approval_by: clip(r.approval_by, 20),
+    branch: clip(r.branch, 120),
+    block_reason: qqMask_(r.block_reason, 400),
+    diff_summary: clip(r.diff_summary, 200),
+    changed_files: qqMask_(r.changed_files, 400),
     approval_at: clip(r.approval_at, 40),
     auto_approved: String(r.approval_by == null ? '' : r.approval_by).trim().toLowerCase() === 'auto',
     approval_expires_at: clip(r.approval_expires_at, 40),
@@ -975,13 +984,14 @@ function queueList(body) {
   const ctx = qqOpen_();
   const limit = qqInt_(body && body.limit, 1, QQ_LIST_MAX, QQ_LIST_DEFAULT);
   const rows = qqRows_(ctx, QQ_SCAN_ROWS);
-  const c = { pending: 0, waiting: 0, running: 0, timeout: 0, done: 0, failed: 0 };
+  const c = { pending: 0, waiting: 0, running: 0, timeout: 0, review: 0, done: 0, failed: 0 };
   for (let i = 0; i < rows.length; i++) {
     const st = String(rows[i].status == null ? '' : rows[i].status).trim().toUpperCase();
     if (st === 'PENDING') c.pending++;
     else if (st === 'WAITING_APPROVAL') c.waiting++;
     else if (st === 'RUNNING') c.running++;
     else if (st === 'TIMEOUT_REVIEW') c.timeout++;
+    else if (st === 'REVIEW_NEEDED') c.review++;
     else if (st === 'DONE') c.done++;
     else if (st === 'FAILED') c.failed++;
   }
@@ -990,7 +1000,7 @@ function queueList(body) {
   return {
     ok: true, at: qqNow_(), items: items, count: items.length,
     pending: c.pending, waiting: c.waiting, running: c.running, timeout: c.timeout,
-    done: c.done, failed: c.failed,
+    review: c.review, done: c.done, failed: c.failed,
     workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES), engines: QQ_ENGINES.slice(),
     approval_ttl_min: Math.round(QQ_APPROVAL_TTL_MS / 60000)
   };

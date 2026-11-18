@@ -378,6 +378,40 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
     '실행 중 오더의 시작 시각·집어간 곳을 준다(포털이 경과 시간·정체를 판단)', runQ.items[0]);
   ok(runQ.running === 1 && runQ.pending === 0, '목록 요약에 RUNNING 건수도 같이');
 
+  // ⑭ 사후 게이트(2026-11-18) — REVIEW_NEEDED 는 검토 필요로 내려오고 브랜치·사유·변경 요약이 함께 온다
+  {
+    const HEAD26 = HEAD.concat(['branch', 'block_reason', 'diff_summary', 'changed_files']);
+    const SHEET26 = 'SHEETidGate26Cols01';
+    const gateVals = {
+      id: 'Q-20261118-120000-gate', created_at: '2026-11-18T12:00:00+09:00', source: 'pickle',
+      type: 'claude_prompt', workspace: 'content-hub', payload: JSON.stringify({ prompt: '고쳐줘', mode: 'edit' }),
+      status: 'REVIEW_NEEDED', attempts: 0, claimed_at: '2026-11-18T12:00:01+09:00', claimed_by: 'notebook',
+      finished_at: '2026-11-18T12:03:00+09:00', duration_ms: 180000, exit_code: 0, result: '게이트 보류',
+      risk_level: 'LOW', approval_by: 'auto', approval_at: '2026-11-18T12:00:00+09:00',
+      approval_note: '위임된 일반 코드 작업', approval_hash: 'abcdef',
+      branch: 'auto-review/Q-20261118-120000-gate', block_reason: '게이트 보류 — 민감 경로를 건드렸습니다(.env)',
+      diff_summary: '3개 파일 +20/-4', changed_files: 'a.js, b.js, c.js'
+    };
+    const gateRow = HEAD26.map(n => (gateVals[n] === undefined ? '' : gateVals[n]));
+    S.addSheet(SHEET26, {'Command_Queue': [HEAD26.slice(), gateRow]});
+    S.props.QUEUE_SHEET_ID = SHEET26;
+    const gq = post({ action: 'queue_list', key: K3 });
+    const gi = gq.items[0];
+    ok(gi && gi.status === 'REVIEW_NEEDED' && gi.needs_decision === false, '검토 필요 상태로 내려오고 승인 버튼은 필요 없다', gi);
+    ok(gi.branch === 'auto-review/Q-20261118-120000-gate' && /민감 경로/.test(gi.block_reason) && gi.diff_summary === '3개 파일 +20/-4',
+      '브랜치·차단 사유·변경 요약을 함께 준다(포털이 compare 링크를 만든다)', gi);
+    ok(gi.changed_files === 'a.js, b.js, c.js', '바뀐 파일 목록도 준다');
+    ok(gq.review === 1, '목록 건수에 검토 필요가 잡힌다');
+    const gs = post({ action: 'queue_status', key: K3 });
+    ok(gs.ok === true && gs.queue && gs.queue.review === 1, '상태등(queue_status)에도 검토 필요 건수', gs.queue);
+    // 예전 22칸 시트에서는 새 칸이 없어도 빈 값으로 안전하게 내려온다(하위호환)
+    setQ([qrow('Q-20261118-121500-old', '2026-11-18T12:15:00+09:00', 'DONE')]);
+    S.props.QUEUE_SHEET_ID = SHEET;
+    const oldQ = post({ action: 'queue_list', key: K3 });
+    ok(oldQ.items[0].branch === '' && oldQ.items[0].block_reason === '' && oldQ.items[0].diff_summary === '',
+      '예전 시트(22칸)에서는 게이트 칸이 빈 값으로 내려와 화면이 깨지지 않는다', oldQ.items[0]);
+  }
+
   // ⑭ 응답 전체에 시트 ID·비밀 키가 없다
   const all = JSON.stringify([post({action: 'queue_list', key: K3}),
     post({action: 'queue_enqueue', key: K3, type: 'toss_sync', payload: {}})]);

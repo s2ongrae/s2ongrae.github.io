@@ -252,6 +252,13 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .c-auto{background:#DCFCE7;color:#166534}
 .c-run{background:#EDE9FE;color:#5B21B6}.c-done{background:#D1FAE5;color:#065F46}
 .c-fail{background:#FEE2E2;color:#991B1B}.c-off{background:#E2E8F0;color:#475569}
+.c-review{background:#FFEDD5;color:#9A3412}
+.ord-item.st-review{background:#FFF7ED;border-color:#FED7AA}
+.ord-gate{margin-top:6px;padding:8px 10px;background:#fff;border:1px solid #FED7AA;border-radius:8px;
+  font-size:11px;color:#7C2D12;line-height:1.6;overflow-wrap:anywhere}
+.ord-gate b{color:#9A3412}
+.ord-gate a{color:#1D4ED8;text-decoration:none;font-weight:700}
+.ord-gate a:hover{text-decoration:underline}
 .ord-note{font-size:12px;color:var(--muted);line-height:1.6;padding:14px;background:var(--bg);
   border:1px dashed var(--border2);border-radius:10px}
 .ord-empty{font-size:12px;color:var(--muted);text-align:center;padding:18px 0}
@@ -865,7 +872,8 @@ const ORD_STATUS = {
   FAILED:{t:'실패',c:'c-fail',s:'st-bad'},
   REJECTED:{t:'거절',c:'c-off',s:''},
   EXPIRED:{t:'만료',c:'c-off',s:''},
-  TIMEOUT_REVIEW:{t:'확인 필요',c:'c-fail',s:'st-bad'}
+  TIMEOUT_REVIEW:{t:'확인 필요',c:'c-fail',s:'st-bad'},
+  REVIEW_NEEDED:{t:'검토 필요',c:'c-review',s:'st-review'}
 };
 const ORD_WS_FALLBACK = ['gaegyebu','content-hub','insurance-manager','smartstore-hub'];
 // AI 엔진 — 값은 노트북(payload.engine)과 같아야 해요. auto 는 정품 Claude → 제미나이 agy → FreeLLMAPI 순.
@@ -1101,9 +1109,11 @@ function renderOrderHead(){
   const cnt = document.getElementById('ord-count'), stt = document.getElementById('ord-state');
   const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
   const p = ORD_ITEMS.filter(i => i.status === 'PENDING' || i.status === 'RUNNING').length;
+  const g = ORD_ITEMS.filter(i => i.status === 'REVIEW_NEEDED').length;
   if(cnt){
     const parts = [];
     if(w) parts.push('승인 ' + w);
+    if(g) parts.push('검토 ' + g);
     if(p) parts.push('대기 ' + p);
     cnt.textContent = parts.length ? parts.join(' · ') : (ORD_ITEMS.length ? '최근 ' + ORD_ITEMS.length + '건' : '');
   }
@@ -1162,6 +1172,7 @@ function ordBody(it){
   if(st === 'FAILED' || st === 'TIMEOUT_REVIEW') return {t: (it.error ? '⚠️ ' + it.error : '⚠️ 실패') + (sum ? '\n' + sum : ''), err: true};
   if(st === 'REJECTED') return {t: '🚫 ' + (it.error || '승인 거절'), err: true};
   if(st === 'EXPIRED') return {t: '⌛ ' + (it.error || '승인 시간이 지나 실행하지 않았어요'), err: false};
+  if(st === 'REVIEW_NEEDED') return {t: '🔎 ' + (it.block_reason || it.error || '게이트가 보류했어요 — 사람이 검토해야 해요'), err: false};
   return {t: sum, err: false};
 }
 function renderOrderNotice(msg){
@@ -1213,6 +1224,7 @@ function renderOrders(){
         </div>
         <div class="ord-text${body.err ? ' err' : ''}">${esc(body.t)}</div>
         <div class="ord-sub">${esc(sub.join(' · '))}</div>
+        ${ordGateBox(it)}
         ${ordStaleBadge(it)}
         ${cd}
         ${el}
@@ -1415,7 +1427,7 @@ function ordElapsedMs(it){
   const ended = ordEndMs(it);
   if(ended) return Math.max(0, ended - s);
   const done = it.status === 'DONE' || it.status === 'FAILED' || it.status === 'REJECTED' ||
-    it.status === 'EXPIRED' || it.status === 'TIMEOUT_REVIEW';
+    it.status === 'EXPIRED' || it.status === 'TIMEOUT_REVIEW' || it.status === 'REVIEW_NEEDED';
   if(done) return null;
   return Math.max(0, Date.now() - s);
 }
@@ -1443,9 +1455,38 @@ function ordSteps(it){
   else if(st === 'WAITING_APPROVAL') s2 = ordStep('② 승인 대기', 'now', '승인해야 실행돼요');
   else if(st === 'DONE') { s2 = ordStep('② 실행', 'done', t2); s3 = ordStep('③ 끝냄', 'done', t3); }
   else if(st === 'FAILED' || st === 'TIMEOUT_REVIEW') { s2 = ordStep('② 실행', 'done', t2); s3 = ordStep('③ 실패', 'bad', t3); }
+  else if(st === 'REVIEW_NEEDED') { s2 = ordStep('② 실행', 'done', t2); s3 = ordStep('③ 검토 필요', 'now', t3 || '게이트가 보류 — auto-review 브랜치'); }
   else if(st === 'REJECTED') { s2 = ordStep('② 실행 안 함', 'bad', '승인 거절'); s3 = ordStep('③ 결과', ''); }
   else if(st === 'EXPIRED') { s2 = ordStep('② 실행 안 함', 'bad', '승인 시간이 지남'); s3 = ordStep('③ 결과', ''); }
   return `<div class="ord-steps">${ordStep('① 접수', 'done', t1)}<span class="ord-stp-sep">›</span>${s2}<span class="ord-stp-sep">›</span>${s3}</div>`;
+}
+// 사후 게이트(2026-11-18) — REVIEW_NEEDED 면 차단 사유·브랜치·compare 링크를 카드에 보여준다.
+const ORD_REPO = {
+  'gaegyebu':'s2ongrae/gaegyebu', 'content-hub':'s2ongrae/content-hub',
+  'insurance-manager':'s2ongrae/insurance-manager', 'smartstore-hub':'s2ongrae/smartstore-hub',
+  's2ongrae.github.io':'s2ongrae/s2ongrae.github.io', 'hub-agent':'s2ongrae/hub-agent'
+};
+/** auto-review/<id> 브랜치의 GitHub compare 주소(모르는 저장소면 ''). */
+function ordCompareUrl(it){
+  const repo = ORD_REPO[String((it && it.workspace) || '')];
+  const br = String((it && it.branch) || '').trim();
+  if(!repo || !br || br.indexOf('auto-review/') !== 0) return '';
+  return 'https://github.com/' + repo + '/compare/main...' + br.split('/').map(encodeURIComponent).join('/');
+}
+/** 검토 필요 카드의 부가 정보(차단 사유·변경 요약·브랜치·비교 링크) */
+function ordGateBox(it){
+  if(String((it && it.status) || '') !== 'REVIEW_NEEDED') return '';
+  const url = ordCompareUrl(it);
+  const files = String((it && it.changed_files) || '').trim();
+  const parts = [];
+  if(it.diff_summary) parts.push('<b>' + esc(it.diff_summary) + '</b>');
+  if(files) parts.push(esc(files.length > 140 ? files.slice(0, 140) + '…' : files));
+  if(it.branch) parts.push('브랜치 <b>' + esc(it.branch) + '</b>');
+  const link = url
+    ? '<div><a href="' + esc(url) + '" target="_blank" rel="noopener">🔍 바뀐 내용 보기(compare)</a>' +
+      ' · main 에는 아직 안 올라갔어요 — 확인 뒤 사람이 병합</div>'
+    : (it.branch ? '<div>main 에는 아직 안 올라갔어요 — 확인 뒤 사람이 병합</div>' : '');
+  return '<div class="ord-gate">' + parts.join(' · ') + link + '</div>';
 }
 function ordStaleBadge(it){
   const s = ordStale(it);
