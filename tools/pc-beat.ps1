@@ -187,7 +187,7 @@ function Invoke-Setup {
 
 function Invoke-Hook {
   $root = ''
-  try { $root = (git rev-parse --show-toplevel 2>$null) } catch { $root = '' }
+  try { $root = ((git -c core.quotepath=false rev-parse --show-toplevel 2>$null) -replace '^"|"$', '') } catch { $root = '' }
   if (-not $root) { Write-Host ' 지금 폴더가 git 저장소가 아니에요.' -ForegroundColor Yellow; return }
   $hooks = Join-Path $root '.git/hooks'
   if (-not (Test-Path $hooks)) { New-Item -ItemType Directory -Path $hooks -Force | Out-Null }
@@ -230,7 +230,7 @@ switch ($Command.ToLower()) {
   'setup'   { Invoke-Setup }
   'start'   {
     $root = ''
-    try { $root = (git rev-parse --show-toplevel 2>$null) } catch { $root = '' }
+    try { $root = ((git -c core.quotepath=false rev-parse --show-toplevel 2>$null) -replace '^"|"$', '') } catch { $root = '' }
     $proj = $Arg2
     if (-not $proj) { $proj = Get-ProjectOf $root }
     $task = $Arg1
@@ -241,7 +241,7 @@ switch ($Command.ToLower()) {
   'off'     { Send-Beat -State 'idle' -Source 'manual' | Out-Null }
   'commit'  {
     $root = ''
-    try { $root = (git rev-parse --show-toplevel 2>$null) } catch { $root = '' }
+    try { $root = ((git -c core.quotepath=false rev-parse --show-toplevel 2>$null) -replace '^"|"$', '') } catch { $root = '' }
     $subject = ''
     try { $subject = (git log -1 --pretty=%s 2>$null) } catch { $subject = '' }
     if (-not $subject) { $subject = '커밋' }
