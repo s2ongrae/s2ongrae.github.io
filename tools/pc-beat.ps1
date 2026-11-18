@@ -119,7 +119,12 @@ function Send-Beat {
     $res = Invoke-RestMethod -Uri $cfg.url -Method Post -ContentType 'application/json; charset=utf-8' `
       -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 10 -UseBasicParsing
     if ($res -and $res.ok -eq $true) {
-      if (-not $Quiet) { Write-Host (' 보냈어요 · ' + $State + ' · ' + (Mask-Text $Task $TaskMax)) -ForegroundColor Green }
+      if (-not $Quiet) {
+        Write-Host (' 보냈어요 · ' + $State + ' · ' + (Mask-Text $Task $TaskMax)) -ForegroundColor Green
+        if ([string] $res.target -ne 'pc') {
+          Write-Host ' 서버가 아직 예전 배포예요 — Apps Script 를 재배포해야 회사 PC 카드로 떠요(지금 신호는 노트북·직접으로 들어갔어요).' -ForegroundColor Yellow
+        }
+      }
       return $true
     }
     if (-not $Quiet) { Write-Host (' 서버가 거절했어요: ' + [string] $res.error) -ForegroundColor Yellow }
