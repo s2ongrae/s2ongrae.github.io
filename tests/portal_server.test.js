@@ -115,7 +115,8 @@ console.log('8) 관제 상태등 (queue_status) — 읽기 전용');
   ok(q.queue.pending===1 && q.queue.waiting===1 && q.queue.timeout===0, 'PENDING·WAITING_APPROVAL 건수');
   ok(q.queue.state==='warn', '승인 대기 1건이면 노랑');
   ok(q.queue.oldest_min>=7 && q.queue.oldest_min<=9, '가장 오래된 PENDING 경과 시간');
-  ok(q.heartbeat.state==='ok' && q.heartbeat.source==='sheet' && q.heartbeat.min===2 && q.heartbeat.approx===true, '하트비트 파일이 없으면 시트 마지막 활동(2분 전)으로 대략 표시');
+  ok(q.heartbeat.state==='unknown' && q.heartbeat.source==='sheet' && q.heartbeat.min===2 && q.heartbeat.approx===true &&
+    q.heartbeat.reason==='no_heartbeat', '하트비트 파일이 없으면 살아 있는지 모른다고 답한다(시트 활동은 참고값만·초록 금지)');
 
   setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(8), 'PENDING'), row('c3', iso(12), 'PENDING')]);
   ok(post({action:'queue_status', key:K2}).queue.state==='warn', 'PENDING 2건이면 노랑');

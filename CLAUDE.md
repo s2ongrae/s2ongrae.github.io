@@ -52,7 +52,8 @@
 - **상태등 3개** = 노트북 응답 · 밀린 명령 · 토스 동기화. 서버 `queue_status` 한 번으로 읽고 **이 기기에 5분 캐시**(`portal_qstatus_cache`). 배지 클릭 = 강제 새로고침.
 - **빨간 에러를 보여 주지 않는 경우**: ① 서버 설정 전(`reason:'noconfig'`) ② 서버가 아직 `queue_status` 를 모르는 예전 배포(`reason:'unsupported'`) → 셋 다 `미연결 (세팅 대기)` + 무엇을 하면 되는지 title 로 안내. 실패도 5분 캐시에 담아 반복 호출을 막는다.
 - 임계값(Code.gs): 노트북 초록 5분 이내 / 노랑 1시간 이내 / 빨강 그 뒤. 밀린 명령은 TIMEOUT_REVIEW 1건 이상, PENDING 15분 초과 = 빨강, PENDING 2건 이상·승인 대기 1건 이상 = 노랑. 토스는 1일 이내 초록 / 3일까지 노랑 / 4일+ 빨강.
-- **시트 시각은 '노트북 생존'의 정확한 근거가 아니다** — 노트북 `heartbeat.json` 은 노트북 디스크에만 있어서, 드라이브에 올려 두고 `HEARTBEAT_FILE_ID` 를 넣기 전까지는 `Command_Queue` 의 마지막 활동 시각을 '대략'으로 쓴다(그래서 시트 기준엔 빨강을 주지 않는다).
+- **시트 시각은 '노트북 생존'의 근거가 아니다(2026-11-18 개정)**: 노트북 `heartbeat.json` 은 노트북 디스크에만 있어서, `HEARTBEAT_FILE_ID` 가 없으면 `queue_status` 는 `heartbeat:{state:'unknown', source:'sheet', approx:true, reason:'no_heartbeat', min, at}` 로 답한다. 화면은 노트북 배지를 **회색 '신호 없음'** 으로 두고 시트 활동을 '오더를 넣은 흔적'으로만 title·보조줄에 적는다. 피클이 오더를 넣기만 해도 초록이 되던 거짓 안심을 없앴다(실전점검 2026-11-18 P0).
+- **검토 필요(REVIEW_NEEDED) 카드**: 차단 사유·변경 요약·바뀐 파일·브랜치와 compare 링크에 더해 `[⧉ 병합 1줄 복사]` 버튼(`ordMergeCmd` → `git fetch && git merge origin/auto-review/<id>`)을 둔다. 브랜치 칸이 비면 오더 id 로 만들고, `main` 같은 다른 브랜치는 받지 않는다. 클립보드는 https 에서만 동작하므로 실패하면 임시 입력칸 선택 복사 → 안내 순서로 떨어진다.
 
 ## 🤖 노트북 오더함 (2026-11-15)
 

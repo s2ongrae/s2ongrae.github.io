@@ -259,6 +259,10 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ord-gate b{color:#9A3412}
 .ord-gate a{color:#1D4ED8;text-decoration:none;font-weight:700}
 .ord-gate a:hover{text-decoration:underline}
+.ord-mrg{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.ord-cmd{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;background:#FFF7ED;border:1px solid #FED7AA;
+  border-radius:6px;padding:4px 6px;color:#7C2D12;flex:1 1 100%;overflow-wrap:anywhere}
+.ord-mrg .ord-note{font-size:10.5px;padding:0;background:none;border:0;border-radius:0;color:#7C2D12;opacity:.75;flex:1 1 100%}
 .ord-note{font-size:12px;color:var(--muted);line-height:1.6;padding:14px;background:var(--bg);
   border:1px dashed var(--border2);border-radius:10px}
 .ord-empty{font-size:12px;color:var(--muted);text-align:center;padding:18px 0}
@@ -792,10 +796,16 @@ function qstatLights(st){
   const hb = st && st.heartbeat, qu = st && st.queue, ts = st && st.toss;
   const L = [];
 
-  // ① 노트북 응답
-  if(!hb || !hb.state || hb.state === 'unknown') L.push(off('노트북'));
+  // ① 노트북 응답 — 하트비트 파일(drive) 기준만 초록/노랑/빨강. 시트 활동은 '살아 있음'이 아니라 '알 수 없음'.
+  if(!hb || !hb.state || hb.state === 'unknown') {
+    if(hb && hb.source === 'sheet' && numOf(hb.min) !== null){
+      L.push({label: '노트북', cls: 'off', val: '신호 없음',
+        title: '노트북이 스스로 남기는 하트비트가 없어 살아 있는지 알 수 없어요 · 마지막 큐 활동 ' +
+          (agoText(hb.min) || '—') + '(대략, 오더를 넣은 흔적일 뿐)'});
+    } else L.push(off('노트북'));
+  }
   else {
-    const how = hb.source === 'sheet' ? '시트의 마지막 큐 활동 기준(대략)' : 'heartbeat 파일 기준';
+    const how = 'heartbeat 파일 기준';
     L.push({label: '노트북', cls: hb.state, val: agoText(hb.min) || '—',
       title: '마지막 응답 ' + (agoText(hb.min) || '알 수 없음') + ' · ' + how});
   }
@@ -1506,7 +1516,60 @@ function ordGateBox(it){
     ? '<div><a href="' + esc(url) + '" target="_blank" rel="noopener">🔍 바뀐 내용 보기(compare)</a>' +
       ' · main 에는 아직 안 올라갔어요 — 확인 뒤 사람이 병합</div>'
     : (it.branch ? '<div>main 에는 아직 안 올라갔어요 — 확인 뒤 사람이 병합</div>' : '');
-  return '<div class="ord-gate">' + parts.join(' · ') + link + '</div>';
+  return '<div class="ord-gate">' + parts.join(' · ') + link + ordMergeBlock(it) + '</div>';
+}
+/** 병합 1줄(복사 버튼) — 브랜치가 있으면 명령을, 없으면 정리 안내를 보여준다. */
+function ordMergeBlock(it){
+  const cmd = ordMergeCmd(it);
+  if(!cmd){
+    return '<div class="ord-mrg"><span class="ord-note">자동으로 보존된 브랜치가 없어요 — 결과·오류를 읽고 다시 오더해 주세요</span></div>';
+  }
+  const id = String((it && it.id) || '');
+  return '<div class="ord-mrg"><code class="ord-cmd">' + esc(cmd) + '</code>' +
+    '<button class="btn sm" id="ord-mrg-' + esc(id) + '" type="button" onclick="ordMergeCopy(\'' + esc(id) + '\')">⧉ 병합 1줄 복사</button>' +
+    '<span class="ord-note">집 노트북(hub-agent 폴더)에서 main 으로 받은 뒤 확인하고 git push</span></div>';
+}
+/** 검토할 브랜치를 합칠 1줄 — 집 노트북(hub-agent 폴더)에서 실행한다. */
+function ordMergeCmd(it){
+  const br = String((it && it.branch) || '').trim();
+  const id = String((it && it.id) || '').trim();
+  const name = /^auto-review\/[A-Za-z0-9._-]+$/.test(br) ? br
+    : (id ? 'auto-review/' + id.replace(/[^A-Za-z0-9._-]/g, '') : '');
+  return name ? 'git fetch && git merge origin/' + name : '';
+}
+/** 글자 복사 — https(클립보드) 우선, 안 되면 임시 입력칸 선택 복사. 실패하면 직접 고를 수 있게 보여준다. */
+function ordCopyText(text, btn){
+  const t = String(text || '');
+  if(!t) return false;
+  const done = () => { if(btn){ btn.textContent = '✓ 복사됨'; ordLater(()=>{ btn.textContent = '⧉ 병합 1줄 복사'; }, 1600); } };
+  try {
+    if(typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(done, () => ordCopyFallback(t, btn));
+      return true;
+    }
+  } catch(e) {}
+  return ordCopyFallback(t, btn);
+}
+function ordCopyFallback(text, btn){
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    const okc = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    if(okc){ if(btn){ btn.textContent = '✓ 복사됨'; } return true; }
+  } catch(e) {}
+  try { if(typeof prompt === 'function') prompt('아래 1줄을 복사해 집 노트북에서 실행하세요', text); } catch(e) {}
+  return false;
+}
+/** REVIEW_NEEDED 카드의 병합 1줄 복사 버튼 */
+function ordMergeCopy(id){
+  const it = ORD_ITEMS.filter(x => String(x && x.id) === String(id))[0];
+  const cmd = ordMergeCmd(it || { id: id });
+  const btn = document.getElementById('ord-mrg-' + id);
+  if(!cmd){ sync('합칠 브랜치 정보가 없어요 — 결과를 직접 확인해 주세요', 4000); return; }
+  ordCopyText(cmd, btn);
 }
 function ordStaleBadge(it){
   const s = ordStale(it);
@@ -1796,9 +1859,14 @@ function monDevNotebookBody(){
   const runs = ORD_ITEMS.filter(i => i.status === 'RUNNING');
   const pend = ORD_ITEMS.filter(i => i.status === 'PENDING');
   const hb = QSTAT_DATA && QSTAT_DATA.heartbeat ? QSTAT_DATA.heartbeat : null;
-  const hbMin = hb ? numOf(hb.min) : null;
+  // 하트비트 파일이 없으면 서버가 state:'unknown'(source:'sheet')으로 답해요 — 살아 있는지 모르는 상태라
+  // 초록 카드·'마지막 응답'으로 쓰지 않고, 시트 활동은 '오더를 넣은 흔적'으로만 보여준다(2026-11-18).
+  const hbKnown = !!hb && !!hb.state && hb.state !== 'unknown';
+  const hbMin = hbKnown ? numOf(hb.min) : null;
   const hbDead = hbMin !== null && hbMin >= MON_HB_DEAD_MIN;
   const hbLine = hbMin === null ? '' : ` · 마지막 응답 ${esc(agoText(hbMin) || '방금')}`;
+  const queueTrace = (hb && hb.source === 'sheet' && numOf(hb.min) !== null)
+    ? '마지막 큐 활동 ' + (agoText(hb.min) || '방금') + '(대략 — 오더를 넣은 흔적)' : '';
   if(runs.length){
     const it = runs[0], stale = ordStale(it), ms = ordElapsedMs(it) || 0;
     const cls = stale ? stale.lv : 'run';
@@ -1835,12 +1903,13 @@ function monDevNotebookBody(){
   if(hbMin !== null){
     return monCard({name: '🏠 집 노트북', cls: pend.length ? 'run' : 'ok', state: pend.length ? '오더 받음' : '대기 중',
       main: pend.length ? `다음 차례를 기다리는 오더 <b>${pend.length}</b>건` : '오더를 기다리는 중이에요',
-      sub: `마지막 응답 ${esc(agoText(hbMin) || '방금')}${hb.source === 'sheet' ? ' (시트 활동 기준)' : ''}` + (pend.length ? ' · 노트북이 다음 확인 때 실행해요' : '')});
+      sub: `마지막 응답 ${esc(agoText(hbMin) || '방금')}` + (pend.length ? ' · 노트북이 다음 확인 때 실행해요' : '')});
   }
   if(pend.length){
     return monCard({name: '🏠 집 노트북', cls: 'run', state: '오더 받음',
       main: `다음 차례를 기다리는 오더 <b>${pend.length}</b>건`,
-      sub: '노트북이 다음 확인 때 집어가요 (60초마다 확인)'});
+      sub: (hbKnown ? '노트북이 다음 확인 때 집어가요 (60초마다 확인)'
+        : '아직 노트북 신호는 못 받았어요' + (queueTrace ? ' · ' + esc(queueTrace) : '') + ' — 노트북이 켜져 있으면 집어갑니다')});
   }
   // 아직 아무 신호도 없을 때 — 무엇을 하면 보이는지 정확히 알려줘요(서버가 예전 배포인 경우가 많아요)
   const why = QSTAT_DATA && QSTAT_DATA.reason;
@@ -1849,7 +1918,8 @@ function monDevNotebookBody(){
     if(!QSTAT_DATA) sub = '노트북 상태를 읽는 중이에요 — ⟳ 로 다시 확인';
     else if(why === 'unsupported') sub = '서버가 아직 queue_status 를 모르는 배포예요 — Apps Script 를 재배포하면 켜져요';
     else if(why === 'noconfig') sub = '스크립트 속성 QUEUE_SHEET_ID 를 넣으면 노트북 상태가 보여요';
-    else sub = '하트비트 파일(HEARTBEAT_FILE_ID)을 올리면 노트북 생존까지 보여요';
+    else sub = '노트북이 스스로 남기는 하트비트가 없어 살아 있는지 알 수 없어요' +
+      (queueTrace ? ' · ' + queueTrace : '') + ' — 하트비트 파일(HEARTBEAT_FILE_ID)을 넣으면 켜져요';
   }
   return monCard({name: '🏠 집 노트북', cls: 'wait', state: !QSTAT_DATA && serverConfigured() ? '확인 중' : '상태 모름',
     main: '노트북 신호가 아직 없어요', sub: sub});

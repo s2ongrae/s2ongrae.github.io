@@ -351,8 +351,10 @@ function out(obj) {
 // ═══════════════════════════════════════════════════════════════
 // 관제 상태등 (읽기 전용) — 포털 상단의 배지 3개가 이걸 부른다
 //
-//   ① 노트북 응답   : HEARTBEAT_FILE_ID 가 있으면 그 파일의 updated_at,
-//                     없으면 Command_Queue 의 마지막 활동 시각(대략)
+//   ① 노트북 응답   : HEARTBEAT_FILE_ID 가 있으면 그 파일의 updated_at.
+//                     없으면 '알 수 없음(unknown)' — 시트 활동 시각은 '오더를 넣었다'는
+//                     흔적일 뿐 노트북이 살아 있다는 뜻이 아니라서 초록불로 쓰지 않는다
+//                     (2026-11-18 실전점검: 피클이 오더만 넣어도 '방금' 초록이 되던 거짓 안심 제거)
 //   ② 밀린 명령     : Command_Queue 의 PENDING · WAITING_APPROVAL · TIMEOUT_REVIEW 수
 //   ③ 토스 동기화   : 드라이브 가계부/가계부_주식스냅샷.json 의 최신 날짜
 //
@@ -407,8 +409,12 @@ function queueStatus() {
       Logger.log('queue_status: 하트비트 파일을 읽지 못했어요 — ' + String((err && err.message) || err));
       res.heartbeat = { state: 'unknown', error: '하트비트 파일을 읽지 못했어요' };
     }
-  } else if (lastQueueAt) {
-    res.heartbeat = heartAge_(lastQueueAt, 'sheet');   // 정확한 하트비트가 없을 때의 대략값
+  } else {
+    // 하트비트 파일이 없으면 노트북이 살아 있는지 '알 수 없다'고 정직하게 답한다.
+    // 시트 활동 시각은 참고값(min·at)으로만 실어 보내고 state 는 unknown 으로 둔다.
+    const h = lastQueueAt ? heartAge_(lastQueueAt, 'sheet') : null;
+    res.heartbeat = { state: 'unknown', source: 'sheet', approx: true, reason: 'no_heartbeat' };
+    if (h && isFinite(h.min)) { res.heartbeat.min = h.min; res.heartbeat.at = h.at; }
   }
 
   try {
@@ -476,7 +482,7 @@ function queueSheetStatus_(sheetId) {
   };
 }
 
-/** 마지막 응답 시각 → 신호등. source:'sheet' 은 '죽었나/쉬나'를 가릴 수 없어 빨강을 주지 않는다. */
+/** 마지막 응답 시각 → 신호등(드라이브 하트비트 파일 전용). 시트 시각은 위 queueStatus 가 unknown 으로 처리한다. */
 function heartAge_(iso, source) {
   const t = Date.parse(String(iso || ''));
   if (!isFinite(t)) return { state: 'unknown', source: source };

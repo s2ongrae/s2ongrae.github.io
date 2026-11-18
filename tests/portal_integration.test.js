@@ -211,8 +211,10 @@ console.log('Q) 상단 링크·상태등');
   const r4 = await D4.run('refreshQueueStatus(true)');
   bar = D4.el('statusbar').innerHTML;
   ok(r4 && r4.connected===true, '연결되면 connected');
-  ok((bar.match(/class="stat ok"/g)||[]).length===2 && (bar.match(/class="stat warn"/g)||[]).length===1, '배지 색: 노트북 초록 · 명령 노랑 · 토스 초록');
-  ok(bar.includes('2분 전'), '노트북: 2분 전');
+  ok((bar.match(/class="stat ok"/g)||[]).length===1 && (bar.match(/class="stat warn"/g)||[]).length===1 &&
+    (bar.match(/class="stat off"/g)||[]).length===1, '배지 색: 노트북 신호 없음 · 명령 노랑 · 토스 초록');
+  ok(bar.includes('신호 없음') && /알 수 없어요/.test(bar), '하트비트 파일이 없으면 노트북 초록 대신 신호 없음(거짓 초록 제거)');
+  ok(bar.includes('2분 전'), '노트북: 큐 활동 시각은 참고값으로만');
   ok(bar.includes('대기 1') && bar.includes('승인 1'), '밀린 명령: 대기·승인 건수');
   ok(bar.includes(TODAY.slice(5)), '토스 동기화 날짜');
   ok(/5분 캐시/.test(bar), '캐시로 읽었다는 표시');
@@ -229,6 +231,26 @@ console.log('Q) 상단 링크·상태등');
   D4.run(`renderQueueStatus({ok:true, connected:true, at:new Date().toISOString(), heartbeat:{state:'ok',min:1,source:'sheet'}, queue:{state:'ok',pending:0,waiting:0,timeout:0,oldest_min:null}, toss:{state:'warn',date:'<b>x</b>',days:2}})`);
   bar = D4.el('statusbar').innerHTML;
   ok(!/<b>x<\/b>/.test(bar) && bar.includes('&lt;b&gt;'), '상태 값도 이스케이프');
+
+  // ⑤-1 하트비트 파일이 없을 때 — 시트 활동으로 노트북을 '대기 중·마지막 응답'이라 말하지 않는다(2026-11-18)
+  D4.run(`renderQueueStatus({ok:true, connected:true, at:new Date().toISOString(), heartbeat:{state:'unknown',source:'sheet',approx:true,min:2,reason:'no_heartbeat'}, queue:{state:'ok',pending:1,waiting:0,timeout:0,oldest_min:2,review:0}, toss:{state:'ok',date:'2026-11-18',days:0}})`);
+  const nb4 = D4.run('monDevNotebookBody()');
+  ok(!/마지막 응답/.test(nb4) && !/대기 중/.test(nb4), '시트 활동만으로는 노트북이 대기 중·마지막 응답이라 말하지 않는다');
+  ok(/노트북 신호/.test(nb4) && /마지막 큐 활동/.test(nb4), '대신 신호가 없다는 것과 큐 활동(흔적)을 함께 보여준다');
+  D4.run('ORD_ITEMS = []');
+  const nb4b = D4.run('monDevNotebookBody()');
+  ok(/알 수 없어요/.test(nb4b) && /HEARTBEAT_FILE_ID/.test(nb4b), '대기가 없어도 생존을 모른다고 밝히고 켜는 법을 안내');
+
+  // ⑤-2 검토 필요 카드 — 병합 1줄을 원클릭 복사
+  const gate = D4.run(`ordGateBox({id:'Q-20261118-120000-gate', status:'REVIEW_NEEDED', workspace:'content-hub', branch:'auto-review/Q-20261118-120000-gate', block_reason:'게이트 보류 — 민감 경로', diff_summary:'3개 파일 +20/-4'})`);
+  ok(/id="ord-mrg-Q-20261118-120000-gate"/.test(gate) && /병합 1줄 복사/.test(gate), '검토 필요 카드에 병합 1줄 복사 버튼');
+  ok(/compare\/main\.\.\.auto-review\/Q-20261118-120000-gate/.test(gate), '바뀐 내용 보기 링크도 그대로');
+  ok(D4.run('ordMergeCmd({branch:"auto-review/Q-20261118-120000-gate"})') === 'git fetch && git merge origin/auto-review/Q-20261118-120000-gate', '복사되는 명령이 정확하다');
+  ok(D4.run('ordMergeCmd({id:"Q-20261118-120000-gate"})') === 'git fetch && git merge origin/auto-review/Q-20261118-120000-gate', '브랜치 칸이 비면 오더 id 로 만든다');
+  ok(D4.run('ordMergeCmd({id:"Q-x", branch:"main"})') === 'git fetch && git merge origin/auto-review/Q-x', 'main 같은 브랜치는 받지 않는다(주소 위조 방지)');
+  ok(/보존된 브랜치가 없어요/.test(D4.run('ordMergeBlock({status:"REVIEW_NEEDED"})')), '브랜치가 없으면 정리 안내로 대신한다');
+  ok(D4.run('ordCopyText("") === false'), '빈 글자는 복사하지 않는다');
+  ok(D4.run("(function(){ try{ ordMergeCopy('Q-20261118-120000-gate'); return 'ok'; }catch(e){ return 'err:'+e.message; } })()") === 'ok', '클립보드(VS 복사)가 없어도 오류 없이 안내로 끝난다');
 
   // ⑥ 스마트스토어 링크 (기본 비활성 · 주소를 넣으면 켜짐)
   ok(D4.el('store-link').href==='#', '기본은 주소 없음(#)');
