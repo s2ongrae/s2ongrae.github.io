@@ -134,6 +134,17 @@ function Send-Beat {
   return $false
 }
 
+function Find-GitRoot {
+  $dir = (Get-Location).Path
+  while ($dir) {
+    if (Test-Path -LiteralPath (Join-Path $dir ".git")) { return $dir }
+    $parent = Split-Path -Parent $dir
+    if (-not $parent -or $parent -eq $dir) { break }
+    $dir = $parent
+  }
+  return ""
+}
+
 # 지금 폴더의 git 저장소 이름 → 포털 프로젝트 id
 function Get-ProjectOf {
   param([string] $Root)
@@ -146,10 +157,7 @@ function Get-ProjectOf {
 function Invoke-Setup {
   Write-Host ' 포털 서버 주소와 키를 이 PC 에만 저장해요(레포·커밋에는 남기지 않아요).' -ForegroundColor Cyan
   $url = Read-Host ' 서버 주소 (Apps Script 웹 앱 URL)'
-  $sec = Read-Host ' 서버 키 (화면에 안 보여요)' -AsSecureString
-  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
-  try { $key = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr) }
-  finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+  $key = Read-Host ' 서버 키 (포털 비밀키)'
   if (-not $url -or -not $key) { Write-Host ' 주소·키가 비어 있어 저장하지 않았어요.' -ForegroundColor Yellow; return }
   $obj = @{ url = $url.Trim(); key = $key.Trim() }
   $json = $obj | ConvertTo-Json -Compress
@@ -187,10 +195,10 @@ function Invoke-Setup {
 
 function Invoke-Hook {
   $root = ''
-  try { $root = ((git -c core.quotepath=false rev-parse --show-toplevel 2>$null) -replace '^"|"$', '') } catch { $root = '' }
+  try { $root = (Find-GitRoot) } catch { $root = '' }
   if (-not $root) { Write-Host ' 지금 폴더가 git 저장소가 아니에요.' -ForegroundColor Yellow; return }
-  $hooks = Join-Path $root '.git/hooks'
-  if (-not (Test-Path $hooks)) { New-Item -ItemType Directory -Path $hooks -Force | Out-Null }
+  $hooks = Join-Path (Join-Path $root '.git') 'hooks'
+  if (-not (Test-Path -LiteralPath $hooks)) { New-Item -ItemType Directory -Path $hooks -Force | Out-Null }
   $hookPath = Join-Path $hooks 'post-commit'
   $target = Join-Path $env:LOCALAPPDATA 'pc-beat.ps1'
   $lines = @(
@@ -230,7 +238,7 @@ switch ($Command.ToLower()) {
   'setup'   { Invoke-Setup }
   'start'   {
     $root = ''
-    try { $root = ((git -c core.quotepath=false rev-parse --show-toplevel 2>$null) -replace '^"|"$', '') } catch { $root = '' }
+    try { $root = (Find-GitRoot) } catch { $root = '' }
     $proj = $Arg2
     if (-not $proj) { $proj = Get-ProjectOf $root }
     $task = $Arg1
@@ -241,7 +249,7 @@ switch ($Command.ToLower()) {
   'off'     { Send-Beat -State 'idle' -Source 'manual' | Out-Null }
   'commit'  {
     $root = ''
-    try { $root = ((git -c core.quotepath=false rev-parse --show-toplevel 2>$null) -replace '^"|"$', '') } catch { $root = '' }
+    try { $root = (Find-GitRoot) } catch { $root = '' }
     $subject = ''
     try { $subject = (git log -1 --pretty=%s 2>$null) } catch { $subject = '' }
     if (-not $subject) { $subject = '커밋' }
