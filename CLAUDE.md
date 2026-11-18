@@ -82,7 +82,8 @@
 - 오더함 **위**에 `「🖥️ 작업 관제」` 카드(`#mon-card`) 하나. 기기 카드 4개(`#mon-cards`) + 통합 이력(`#mon-feed`) + `⟳`(`monRefresh(true)`).
   - **🤖 피클** = `status/agent.json`(공개, 개인정보 없음) 또는 서버 `agent_status`(드라이브 비공개 파일). 진행 중이면 작업·프로젝트·경과(1초), 30분 넘게 갱신이 없으면 **응답 없음**, 쉬는 중이면 마지막으로 끝낸 일과 결과.
   - **🏠 집 노트북** = `queue_status` 의 `heartbeat` + `queue_list` 의 `RUNNING` 오더. 실행 중이면 종류·작업 위치·요약, `⏱ 경과`(1초마다), 접수 시각. 하트비트가 10분 넘게 끊기면 **응답 없음**.
-  - **💻 회사 PC** = 브라우저가 GitHub(`api.github.com`)을 직접 읽은 **공개 저장소 4곳**(가계부·콘텐츠 허브·보험관리툴·포털)의 커밋·CI. PC에는 도는 데몬이 없으므로 이게 유일한 신호 — 카드에 그렇게 밝힌다. 가장 최근 푸시가 10분 이내=방금 작업 / 1시간 이내=최근 작업 / 그 뒤=조용함.
+  - **💻 회사 PC** = 두 신호를 함께 본다. ① **PC 비트**(`agent_beat target=pc`, 드라이브 `포털_agent_pc.json`)가 있으면 그걸 먼저 — 비공개(Private) 저장소(`smartstore-hub`) 작업과 커밋 전 로컬 작업까지 보인다. 작업 중이면 프로젝트·작업명·경과(1초)·출처(`직접 표시`/`커밋 알림`), `stale_min`(직접 30분·커밋 120분)을 넘기면 **미확인**, idle 이면 마지막 작업. ② 비트가 없으면 지금처럼 브라우저가 GitHub(`api.github.com`)을 직접 읽은 **공개 저장소 4곳**(가계부·콘텐츠 허브·보험관리툴·포털)의 커밋·CI — 가장 최근 푸시가 10분 이내=방금 작업 / 1시간 이내=최근 작업 / 그 뒤=조용함.
+  - **회사 PC 1줄 리포터(`tools/pc-beat.ps1`)**: 공개 파일이라 **키·서버 주소를 넣지 않는다**. 키는 그 PC 의 `%USERPROFILE%\.portal-beat.json`(또는 `PC_BEAT_URL`·`PC_BEAT_KEY` 환경변수)에만. `setup`(주소·키를 마스킹 입력으로 받아 저장 + `$PROFILE` 에 `pcbeat` 함수 + 자기 자신을 `%LOCALAPPDATA%\pc-beat.ps1` 로 복사) · `start "작업명" [프로젝트]` · `done` · `hook`(그 레포 `.git/hooks/post-commit` — 커밋 제목으로 `source=commit`·`stale 120`) · `test` · `status`. 보내기 전에 전화·메일·주민번호·32자 hex 를 `***` 로 가리고(`<PCBEAT_MASK>` 구간을 테스트가 같은 정규식으로 검증), 커밋 훅은 셸 `&` 로 **비동기**라 커밋을 붙잡지 않는다. 보내기 실패는 조용히 넘어간다(작업을 막지 않음).
   - **📋 오더 큐 · 자동화** = `queue_list` 가 주는 건수(PENDING·RUNNING·승인 대기·TIMEOUT_REVIEW·누적 완료/실패) + 오늘 끝낸 건수 + 자동 확인 상태.
 - **정체 의심(`ordStale`)**: `RUNNING` 인데 `claimed_at`(없으면 `created_at`)부터 **20분**(워커 `CQ.STALE_MS`) 넘으면 노랑 `정체 의심`, **1시간** 넘으면 빨강 `멈춘 것 같아요`. 시트의 RUNNING 은 노트북이 죽어도 지워지지 않으므로(포털이 쓸 수 없음) 이 배지가 그 자리를 메운다. 오더 카드에도 `⚠ ⏱ …째 정체 의심` 배지.
 - **생애주기(`ordSteps`)**: 오더마다 `① 접수 › ② 실행(차례/실행 중/승인 대기) › ③ 결과(끝냄/실패/실행 안 함)` 알약 3개. `PENDING`=② 실행 차례, `RUNNING`=② 실행 중, `DONE`=①②③ done, `FAILED`/`TIMEOUT_REVIEW`=③ 실패, `REJECTED`/`EXPIRED`=② 실행 안 함.
@@ -97,7 +98,8 @@
 ## 서버 (Code.gs)
 
 - POST 전용, 모든 요청에 비밀 키. `doGet` 은 안내 문구만.
-- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태), `queue_list` / `queue_enqueue` / `queue_decide`(오더함).
+- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태 + `direct`·`pc` 비트 + `beat_targets`), `queue_list` / `queue_enqueue` / `queue_decide`(오더함), `agent_beat`(기기 상태 비트 — `target:'direct'|'pc'`, `stale_min` 5~240, `source`).
+- **`agent_beat`(2026-11-18)**: `target` 이 없으면 `direct` — 예전 `$PROFILE free` 함수와 그대로 호환된다. 파일은 `포털_agent_직접.json` / `포털_agent_pc.json` 두 장(같은 스키마·이력 8건·`qqMask_` 가림). `agent_status` 는 둘을 `direct`·`pc` 블록으로 내려주고 `beat_targets` 로 **이 배포가 pc 를 아는지** 알려준다(화면이 재배포 안내를 고를 때 씀).
 - **오더함은 `work/hub-agent/gas/CommandQueue.gs` 와 100% 호환**이어야 한다: 같은 22칸(`CQ_COLS`), 같은 상태값(`PENDING`·`WAITING_APPROVAL`·`RUNNING`·`DONE`·`FAILED`·`REJECTED`·`EXPIRED`·`TIMEOUT_REVIEW`), 같은 `Audit_Log` 11칸, 같은 payload 해시(canonical JSON 의 SHA-256 — 워커 `lib/approval.js` 와 같은 값). 바꿀 때는 양쪽을 같이 고친다.
 - 오더함 화이트리스트는 `git_pull`·`toss_sync`·`claude_prompt` 셋뿐(`QQ_TYPES`). `git_push`·`smartstore_api_relay` 는 포털에서 접수하지 않는다. 작업 위치는 `QUEUE_WORKSPACES`(선택, 없으면 `gaegyebu,content-hub,insurance-manager,smartstore-hub`).
 - `claude_prompt` 의 payload 는 `{prompt, mode}` 이고, 엔진을 골랐으면 `engine` 이 더 붙는다(`{prompt, mode, engine}`). **payload 해시는 engine 까지 묶는다** — 승인 뒤 엔진이 바뀌면 노트북이 거절한다.

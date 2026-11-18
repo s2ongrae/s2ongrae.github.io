@@ -692,7 +692,7 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
     '}}; monRender(true)');
   ok(/방금 작업/.test(cards11()) && /content-hub|콘텐츠 허브/.test(cards11()), '가장 최근 푸시가 3분 전이면 방금 작업');
   ok(/✅ CI 통과/.test(cards11()), '마지막 CI 결과를 함께 보여준다');
-  ok(/GitHub 푸시가 유일한 신호/.test(cards11()), 'PC 는 실시간 신호가 아니라는 것을 밝힌다');
+  ok(/GitHub 푸시가 유일한 신호/.test(cards11()) || /푸시만 보여요/.test(cards11()), 'PC 는 실시간 신호가 아니라는 것을 밝힌다');
   ok(D11.run('ghAgentCommit({msg:"Merge pull request #3 from s2ongrae/agent/ui-visibility-v3"})') === true, 'agent/* 머지 커밋은 에이전트 작업으로 본다');
   ok(D11.run('ghAgentCommit({msg:"fix: 카테고리 자동완성"})') === false, '보통 커밋은 PC·직접 작업으로 본다');
 
@@ -710,6 +710,29 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   ok(/미확인/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 25분 넘게 신호가 없으면 미확인');
   D11.run('AGENT_DATA = {direct: {state: "idle", project: "portal", task: "포털 관제", updated_at: new Date().toISOString()}}');
   ok(/쉬는 중/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 쉬는 중이면 회색 상태');
+
+  // ③-2 💻 회사 PC 비트(agent_beat target=pc) — 비공개 레포·커밋 전 작업까지
+  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "상품 상세페이지 수정", started_at: new Date().toISOString(), updated_at: new Date().toISOString(), source: "manual", stale_min: 30}}');
+  ok(/작업 중/.test(D11.run('monDevPc()')) && /상품 상세페이지 수정/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: PC 비트가 있으면 작업 중·작업명을 보여준다');
+  ok(/🛒|묘한살림/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: 프로젝트 이름으로 묶어 보여준다');
+  ok(/직접 표시/.test(D11.run('monDevPc()')) && /ord-elapsed/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: 출처와 경과 시간을 보여준다');
+  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "커밋", started_at: ' + JSON.stringify(at(nowMs - 90 * 60000)) + ', updated_at: ' + JSON.stringify(at(nowMs - 90 * 60000)) + ', source: "commit", stale_min: 120}}');
+  ok(/작업 중/.test(D11.run('monDevPc()')) && !/미확인/.test(D11.run('monDevPc()')), '💻 커밋 알림은 90분이 지나도 미확인이 아니다(커밋 간격)');
+  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "커밋", started_at: ' + JSON.stringify(at(nowMs - 130 * 60000)) + ', updated_at: ' + JSON.stringify(at(nowMs - 130 * 60000)) + ', source: "commit", stale_min: 120}}');
+  ok(/미확인/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: stale_min(120분)을 넘으면 미확인');
+  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "x", started_at: new Date().toISOString(), updated_at: new Date(Date.now() - 40 * 60000).toISOString(), stale_min: 30}}');
+  ok(/미확인/.test(D11.run('monDevPc()')), '💻 직접 표시는 30분이 지나면 미확인');
+  ok(/pcbeat done/.test(D11.run('monDevPc()')), '💻 미확인이면 무엇을 하면 되는지 알려준다');
+  D11.run('AGENT_DATA = {pc: {state: "idle", project: "smartstore", task: "상품 등록", updated_at: new Date().toISOString()}}');
+  ok(/쉬는 중/.test(D11.run('monDevPc()')) && /pcbeat start/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: 쉬는 중이면 마지막 작업과 다음 방법');
+  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "상품 등록", started_at: new Date().toISOString(), updated_at: new Date().toISOString()}}');
+  ok(D11.run('monEvents().filter(e => e.who === "pc").length') >= 1, '통합 이력에 회사 PC 비트가 들어간다');
+  D11.run('AGENT_DATA = {direct: {state: "working", project: "portal", task: "포털 관제", started_at: new Date().toISOString(), updated_at: new Date().toISOString()}}');
+  ok(D11.run('monEvents().filter(e => e.who === "nd").length') >= 1, '통합 이력에 노트북 직접 작업 비트도 들어간다');
+  D11.run('AGENT_DATA = {}; monRender(true)');
+  ok(D11.run('(function(){ const g = GH_DATA; GH_DATA = null; const h = monDevPc(); GH_DATA = g; return /회사 PC 신호가 아직 없어요/.test(h) && /GitHub 기록을 아직 못 읽었어요/.test(h); })()'), '💻 비트도 커밋도 없으면 솔직하게 안내');
+  ok(D11.run('(function(){ const a = AGENT_DATA; AGENT_DATA = {}; const t = pcBeatHowText(); AGENT_DATA = a; return t; })()').indexOf('재배포') >= 0, '서버가 예전 배포면 재배포하고 알려준다');
+  ok(D11.run('(function(){ const a = AGENT_DATA; AGENT_DATA = {beat_targets: ["direct", "pc"]}; const t = pcBeatHowText(); AGENT_DATA = a; return t; })()').indexOf('pcbeat') >= 0, '서버가 pc 를 알면 pcbeat 를 켜라고 알려준다');
   ok(/대기 \d+ · 승인 \d+ · 실행 \d+ · 오늘 완료 \d+/.test(D11.run('monDevNotebook()')) && /#order-card/.test(D11.run('monDevNotebook()')), '🏠 허브 카드 끝에 오더 요약과 오더함 이동 링크');
   ok(/🏠 노트북/.test(feed11()) && /💻 회사 PC/.test(feed11()), '이력에 출처가 붙는다');
   D11.run('monFilter({dataset:{f:"pc"}})');

@@ -430,9 +430,6 @@ console.log('10) 🤖 피클 상태 파일 (agent_status) — 드라이브 포�
   ok(post({action: 'agent_status', key: 'x'.repeat(64)}).error === 'unauthorized', '키 없이는 피클 상태도 안 준다');
 }
 
-console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);
-process.exit(fail?1:0);
-
 console.log('11) ⌨️ 노트북 직접작업 상태 (agent_beat) — 드라이브 포털_agent_직접.json');
 {
   const K5 = S.props.SECRET_KEY;
@@ -469,3 +466,89 @@ console.log('11) ⌨️ 노트북 직접작업 상태 (agent_beat) — 드라이
   r = post({action:'agent_status', key:K5});
   ok(r.ok===true && !r.direct, '직접작업 파일이 깨져도 예외 없이 direct 없이 응답');
 }
+
+console.log('12) 💻 회사 PC 비트(agent_beat target=pc) — 비공개 레포 작업·커밋 전 상태');
+{
+  const K6 = S.props.SECRET_KEY;
+  const folder = S.ROOT.folders.filter(x=>x.name==='김성래포털')[0];
+  const pcFile = ()=>folder.files.filter(x=>x.name==='포털_agent_pc.json')[0];
+
+  // ① target 을 주면 pc 파일에 따로 쌓이고, direct 파일은 건드리지 않는다
+  let d = post({action:'agent_beat', key:K6, target:'direct', state:'working', project:'portal', task:'노트북 작업'});
+  ok(d.ok===true && d.target==='direct', 'target=direct 는 direct 로 기록');
+  const directBefore = JSON.parse(folder.files.filter(x=>x.name==='포털_agent_직접.json')[0].content).updated_at;
+  let r = post({action:'agent_beat', key:K6, target:'pc', state:'working', project:'smartstore', task:'상품 상세페이지 수정'});
+  ok(r.ok===true && r.target==='pc' && r.state==='working', 'target=pc 를 받는다');
+  ok(!!pcFile(), 'pc 상태 파일(포털_agent_pc.json)이 따로 생긴다');
+  const pd = JSON.parse(pcFile().content);
+  ok(pd.agent.state==='working' && pd.agent.project==='smartstore' && pd.target==='pc', 'pc 파일에 상태·프로젝트·target 기록');
+  ok(JSON.parse(folder.files.filter(x=>x.name==='포털_agent_직접.json')[0].content).updated_at===directBefore, 'pc 비트는 direct 파일을 덮어쓰지 않는다');
+
+  // ② agent_status 가 direct·pc 를 같이 준다
+  r = post({action:'agent_status', key:K6});
+  ok(r.ok===true && r.pc && r.pc.state==='working' && r.pc.project==='smartstore', 'agent_status 에 pc 블록이 붙는다');
+  ok(r.direct && r.direct.project==='portal', 'direct 블록도 그대로');
+  ok(JSON.stringify(r.beat_targets)===JSON.stringify(['direct','pc']), 'beat_targets 로 이 배포가 pc 를 아는지 알려준다');
+
+  // ③ stale_min — 커밋 알림은 120분, 값은 5~240 으로 자른다
+  r = post({action:'agent_beat', key:K6, target:'pc', state:'working', source:'commit', stale_min:120, project:'smartstore', task:'커밋'});
+  ok(r.ok===true && r.stale_min===120, '커밋 알림의 stale_min 120 을 그대로 받는다');
+  ok(post({action:'agent_status', key:K6}).pc.stale_min===120, 'agent_status 가 stale_min 을 실어 준다');
+  ok(post({action:'agent_beat', key:K6, target:'pc', stale_min:9999}).stale_min===240, '너무 큰 stale_min 은 240 으로 자름');
+  ok(post({action:'agent_beat', key:K6, target:'pc', stale_min:3}).stale_min===5, '5분 아래는 5분으로 올림');
+  ok(post({action:'agent_beat', key:K6, target:'pc', stale_min:0}).stale_min===30, '0 이하는 값이 없는 것으로 보고 30분');
+  ok(post({action:'agent_beat', key:K6, target:'pc'}).stale_min===30, '안 주면 30분');
+
+  // ④ 가림 — 작업명의 전화번호는 저장 전에 지운다
+  r = post({action:'agent_beat', key:K6, target:'pc', state:'working', project:'smartstore', task:'고객 010-1234-5678 안내'});
+  ok(String(JSON.parse(pcFile().content).agent.task).indexOf('010-1234-5678')<0, 'pc 작업명의 전화번호도 가려서 저장');
+
+  // ⑤ idle 이면 이력 한 줄 + 쉬는 중
+  r = post({action:'agent_beat', key:K6, target:'pc', state:'idle', source:'commit'});
+  const pd2 = JSON.parse(pcFile().content);
+  ok(pd2.agent.state==='idle' && pd2.history.length>=1 && typeof pd2.history[0].dur_min==='number', 'pc idle 이면 이력 한 줄');
+  ok(post({action:'agent_status', key:K6}).pc.state==='idle', 'agent_status 도 쉬는 중으로');
+
+  // ⑥ 모르는 target 은 예전 그대로 direct (free 함수 하위호환)
+  r = post({action:'agent_beat', key:K6, target:'tablet', state:'working', project:'portal', task:'x'});
+  ok(r.ok===true && r.target==='direct', '모르는 target 은 direct 로');
+
+  // ⑦ pc 파일이 깨져도 direct 는 그대로 온다
+  pcFile().content='not json';
+  r = post({action:'agent_status', key:K6});
+  ok(r.ok===true && !r.pc && !!r.direct, 'pc 파일이 깨져도 예외 없이 direct 만 응답');
+}
+
+console.log('13) 💻 회사 PC 1줄 리포터(tools/pc-beat.ps1) — 키 없는 공개 도구');
+{
+  const fs = require('fs'), path = require('path');
+  const p = path.join(__dirname, '..', 'tools', 'pc-beat.ps1');
+  const ps = fs.readFileSync(p, 'utf8');
+  ok(ps.length > 2000, 'pc-beat.ps1 이 있다');
+  ok(/target\s*=\s*'pc'/.test(ps), "보내는 본문의 target 은 'pc'");
+  ok(/action\s*=\s*'agent_beat'/.test(ps), 'action 은 agent_beat');
+  ok(ps.indexOf('.portal-beat.json') >= 0 && ps.indexOf('USERPROFILE') >= 0, '키는 사용자 폴더(%USERPROFILE%)에만 둔다');
+  ok(ps.indexOf('PC_BEAT_KEY') >= 0 && ps.indexOf('PC_BEAT_URL') >= 0, '환경변수로도 받는다');
+  ok(!/script\.google\.com/.test(ps) && !/https?:\/\/[a-z0-9.-]+\/macros/.test(ps), '공개 저장소에 서버 주소를 넣지 않는다');
+  ok(ps.indexOf('post-commit') >= 0 && ps.indexOf('pcbeat start') >= 0, '커밋 훅과 start/done 사용법을 안내한다');
+  ok(ps.indexOf('StaleCommit = 120') >= 0, '커밋 알림은 120분 기준(커밋 간격)');
+  ok(ps.indexOf('$ConfigPath') >= 0 && !/Add-Content[^\n]*\.portal-beat/.test(ps), '설정은 덮어쓰기(비밀번호가 로그에 안 쌓임)');
+
+  // 가림 규칙은 .NET·JS 공통 문법 — 같은 정규식으로 여기서 시험한다
+  const block = ps.match(/<PCBEAT_MASK>([\s\S]*?)<\/PCBEAT_MASK>/);
+  ok(!!block, '가림 규칙 구간이 있다');
+  const pats = [];
+  const rc = /'((?:[^']|'')*)'/g; let mm;
+  while ((mm = rc.exec(block ? block[1] : '')) !== null) pats.push(mm[1].replace(/''/g, "'"));
+  ok(pats.length >= 4, '가림 규칙 4개 이상');
+  const mask = s => { let t = String(s); pats.forEach(x => { t = t.replace(new RegExp(x, 'g'), '***'); }); return t.replace(/\s+/g, ' ').trim(); };
+  ok(mask('고객 010-1234-5678 안내').indexOf('010-1234-5678') < 0, '작업명의 휴대전화는 가림');
+  ok(mask('메일 a.b@c.co 로').indexOf('a.b@c.co') < 0, '작업명의 메일은 가림');
+  ok(mask('주민 900101-1234567').indexOf('900101-1234567') < 0, '주민번호 모양은 가림');
+  ok(mask('key 0123456789abcdef0123456789abcdef').indexOf('0123456789abcdef') < 0, '키 모양(32자 hex)은 가림');
+  ok(mask('상품 상세페이지 수정 4건') === '상품 상세페이지 수정 4건', '보통 작업명은 그대로');
+  ok(mask('x'.repeat(100)).length === 100, '가림은 길이를 늘리지 않는다(자르기는 서버가 60자로)');
+}
+
+console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);
+process.exit(fail?1:0);

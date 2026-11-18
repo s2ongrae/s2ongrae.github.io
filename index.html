@@ -318,6 +318,16 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .mon-tx b{color:var(--text)}
 .mon-tx em{font-style:normal;color:var(--hint)}
 .mon-note{font-size:10.5px;color:var(--hint);line-height:1.55;margin-top:8px}
+/* 💻 회사 PC 1줄 연결 — 관제에서 바로 복사하는 안내 */
+.mon-pc-help{margin-top:6px;font-size:10.5px;color:var(--hint)}
+.mon-pc-help summary{cursor:pointer;color:var(--blue-d);font-weight:700;list-style:none}
+.mon-pc-help summary::-webkit-details-marker{display:none}
+.mon-pc-body{border:1px solid var(--border);border-radius:10px;padding:9px 11px;margin-top:6px;background:#fff;line-height:1.6}
+.mon-pc-body p{margin:0 0 5px}
+.mon-pc-body p:last-child{margin-bottom:0}
+.mon-code{display:block;margin:5px 0;padding:7px 9px;background:var(--bg);border-radius:8px;font-size:10px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-all;color:var(--text2);user-select:all}
+.mon-pc-body code{background:var(--bg);border-radius:5px;padding:0 4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
 /* 오더 생애주기 — 뭘 할 거다(예정) → 하는 중 → 끝냈다 */
 .ord-steps{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-top:6px}
 .ord-stp{font-size:9.5px;border:1px solid var(--border);border-radius:999px;padding:1px 7px;background:#fff;color:var(--hint);white-space:nowrap}
@@ -497,6 +507,15 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       <button class="mon-f" data-f="pc" onclick="monFilter(this)">💻 회사 PC</button></div>
     <div class="mon-filters" id="mon-proj"></div>
     <div class="mon-feed" id="mon-feed"><div class="ord-empty">오더를 한 번 불러오면 노트북·회사 PC 가 한 일이 여기 시간순으로 쌓여요</div></div>
+    <details class="mon-pc-help" id="mon-pc-help">
+      <summary>💻 회사 PC 연결 — 파워셸에 1줄</summary>
+      <div class="mon-pc-body">
+        <p>회사 PC <b>파워셸</b>에서 아래 한 줄을 붙여넣고 주소·키를 넣으면, 그 PC의 작업(비공개 레포 <b>smartstore-hub</b>·커밋 전 작업 포함)이 위 카드에 실시간으로 떠요.</p>
+        <span class="mon-code">irm https://s2ongrae.github.io/tools/pc-beat.ps1 -OutFile "$env:LOCALAPPDATA\pc-beat.ps1"; &amp; "$env:LOCALAPPDATA\pc-beat.ps1" setup</span>
+        <p>키는 그 PC 사용자 폴더(<code>%USERPROFILE%\.portal-beat.json</code>)에만 저장되고 레포·커밋에는 남지 않아요.</p>
+        <p>그다음부터: <code>pcbeat start "작업명"</code> · <code>pcbeat done</code> · <code>pcbeat hook</code>(그 폴더에서 커밋할 때마다 자동)</p>
+      </div>
+    </details>
     <div class="mon-note" id="mon-foot"></div>
   </div>
 
@@ -1322,7 +1341,8 @@ function ordKey(e){
 // ══════════════════════════════════════════
 // 🖥️ 작업 관제 — 집 노트북 · 회사 PC · 오더 큐
 //  · 노트북 : queue_status 의 heartbeat + Command_Queue 의 RUNNING 오더 (실시간 신호)
-//  · 회사 PC: 데몬이 없어 GitHub 공개 저장소의 커밋·CI 만 신호예요. 브라우저가 직접 읽어요(로그인 없음 → 공개 4곳만)
+//  · 회사 PC: PC 가 보내는 비트(agent_beat target=pc — 비공개 레포·커밋 전 작업)를 먼저 보고,
+//    비트가 없으면 GitHub 공개 저장소 커밋(푸시)으로 대신해요(로그인 없음 → 공개 4곳만)
 //  · 오더 큐 : queue_list 가 주는 건수(PENDING · RUNNING · 승인 대기 · TIMEOUT_REVIEW)와 누적 완료
 //  · '정체 의심' = RUNNING 인데 20분(워커 CQ.STALE_MS)을 넘긴 오더, 1시간을 넘기면 '멈춘 것 같아요'
 //    노트북이 꺼지거나 데몬이 죽으면 시트의 RUNNING 은 그대로 남아요(포털이 지울 수 없어요).
@@ -1563,6 +1583,8 @@ async function agentLoad(force){
     if(pick){
       const merged = Object.assign({}, pick);
       if(fromServer && fromServer.direct && !merged.direct) merged.direct = fromServer.direct;
+      if(fromServer && fromServer.pc && !merged.pc) merged.pc = fromServer.pc;
+      if(fromServer && Array.isArray(fromServer.beat_targets)) merged.beat_targets = fromServer.beat_targets;
       if(!merged.updated_at) merged.updated_at = (fromFile && fromFile.updated_at) || (fromServer && fromServer.updated_at) || '';
       merged.fetched_at = new Date().toISOString();
       merged.source = (pick === fromServer) ? 'drive' : 'repo';
@@ -1779,22 +1801,55 @@ function monDevNotebook(){
 }
 /** 회사 PC 표식 설정 안내 — 공개 저장소 검사에 걸리지 않게 주소를 조각으로 만든다 */
 function pcMailHint(){ return 'git config --global user.email "' + 's2ongrae' + '+work' + String.fromCharCode(64) + 'gmail.com"'; }
+/** 💻 회사 PC — PC 가 보낸 실시간 비트(agent_beat target=pc)가 있으면 그걸 먼저, 없으면 공개 저장소 커밋 */
 function monDevPc(){
+  const d = AGENT_DATA && AGENT_DATA.pc ? AGENT_DATA.pc : null;
+  if(d) return monDevPcBeat(d);
   const L=[];
   GH_REPOS.forEach(R=>{((ghSlot(R.id).commits)||[]).forEach(c=>{const t=Date.parse(String(c.at||''));if(isFinite(t)&&ghWho(c)==='pc')L.push({t:t,R:R,c:c});});});
   L.sort((a,b)=>b.t-a.t);
   const b=L[0];
+  const how = pcBeatHowText();
   if(!b){
-    const s=GH_DATA&&GH_DATA.limited;
+    const s = GH_DATA && GH_DATA.limited;
+    const sub = !GH_DATA ? 'GitHub 기록을 아직 못 읽었어요'
+      : (s ? '잠시 뒤 ⟳ 로 다시 확인'
+        : (how || ('한 번만 설정: ' + pcMailHint())));
     return monCard({name:'💻 회사 PC',cls:'wait',state:'표식 없음',
-      main:s?'GitHub 호출 한도가 찼어요':'회사 PC 표식 커밋이 아직 없어요',
-      sub:s?'잠시 뒤 ⟳ 로 다시 확인':(GH_DATA?'한 번만 설정: ' + pcMailHint() : 'GitHub 기록을 아직 못 읽었어요')});
+      main: s ? 'GitHub 호출 한도가 찼어요' : '회사 PC 신호가 아직 없어요', sub: sub});
   }
   const m=Math.max(0,Math.round((Date.now()-b.t)/60000)),ci=ghCiText(b.R.id);
   return monCard({name:'💻 회사 PC',cls:m<=10?'run':(m<=60?'ok':'wait'),state:m<=10?'방금 작업':(m<=60?'최근 작업':'조용함'),
     main:`<b>${esc(b.R.name)}</b> · ${esc(ordShort(b.c.msg,80)||'(메시지 없음)')}`,
     sub:`${esc(agoText(m)||'방금')} 푸시 · ${esc(String(b.c.sha||''))}`+(ci?' · '+esc(ci):''),
-    extra:'<div class="mon-note" style="margin-top:4px">PC엔 도는 프로그램이 없어 GitHub 푸시가 유일한 신호예요</div>'});}
+    extra:'<div class="mon-note" style="margin-top:4px">푸시만 보여요 — pcbeat 한 줄을 켜면 커밋 전 작업과 비공개 레포 작업도 실시간으로 보여요</div>'});}
+/** PC 비트가 없을 때 무엇을 하면 보이는지 — 서버가 예전 배포인지도 구분 */
+function pcBeatHowText(){
+  if(!serverConfigured()) return '';
+  if(!AGENT_DATA || !Array.isArray(AGENT_DATA.beat_targets)) return 'Apps Script 재배포하면 PC 실시간 상태가 켜져요';
+  return 'PC에서 pcbeat 한 줄을 켜면 커밋 전 작업도 보여요';
+}
+/** PC 가 보낸 비트 하나로 카드를 그린다 — 작업 중·쉬는 중·미확인(무신호) */
+function monDevPcBeat(d){
+  const st = String(d.state || '').toLowerCase();
+  const up = Date.parse(String(d.updated_at || ''));
+  const ageMin = isFinite(up) ? Math.max(0, Math.round((Date.now() - up) / 60000)) : numOf(d.min);
+  const lim = numOf(d.stale_min) || 30;
+  const stale = st === 'working' && ageMin !== null && ageMin >= lim;
+  const src = String(d.source || '') === 'commit' ? '커밋 알림' : '직접 표시';
+  if(st === 'working'){
+    const since = Date.parse(String(d.started_at || ''));
+    return monCard({name:'💻 회사 PC', cls: stale ? 'bad' : 'run', state: stale ? '미확인' : '작업 중',
+      main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '작업 중')}`,
+      sub: (isFinite(since) ? '⏱ <span class="ord-elapsed" data-since="' + since + '">' + esc(monDur(Date.now() - since)) + '</span>째' : '') +
+        (ageMin === null ? '' : ' · 마지막 신호 ' + esc(agoText(ageMin) || '방금')) + ' · ' + esc(src),
+      bar: !stale,
+      extra: stale ? `<div class="ord-stale bad">⚠ ${esc(lim)}분 넘게 신호가 없어요 — 작업을 마쳤으면 PC에서 pcbeat done</div>` : ''});
+  }
+  return monCard({name:'💻 회사 PC', cls: '', state: '쉬는 중',
+    main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '마지막 작업')}`,
+    sub: (ageMin === null ? '' : '마지막 신호 ' + esc(agoText(ageMin) || '방금') + ' · ') + esc(src) + ' · 다음 작업은 pcbeat start'});
+}
 function ordSumText(){
   const p = ORD_ITEMS.filter(x => x.status === 'PENDING').length;
   const r = ORD_ITEMS.filter(x => x.status === 'RUNNING').length;
@@ -1831,6 +1886,16 @@ function monEvents(){
     });
   });
   agentEvents().forEach(e => evs.push(e));
+  // ⌨️ 직접(free) · 💻 회사 PC 비트 — 마지막 신호를 이력에 한 줄(작업 중·쉬는 중)
+  [['direct', 'nd', '⌨️ 노트북·직접', '⌨️'], ['pc', 'pc', '💻 회사 PC', '💻']].forEach(k => {
+    const b = AGENT_DATA && AGENT_DATA[k[0]];
+    if(!b) return;
+    const t = Date.parse(String(b.updated_at || ''));
+    if(!isFinite(t)) return;
+    const working = String(b.state || '').toLowerCase() === 'working';
+    evs.push({at: t, who: k[1], whoTxt: k[2], proj: b.project || 'life', ic: k[3],
+      tx: `<b>${esc(projLabel(b.project))}</b> · ${esc(ordShort(b.task || '', 70) || (working ? '작업 중' : '마침'))} <em>${working ? '작업 중' : '마침'}</em>`});
+  });
   evs.sort((a, b) => b.at - a.at);
   return evs;
 }
@@ -1849,7 +1914,7 @@ function monFeedHtml(){
 function monFootText(){
   const bits = ['🍋 피클 = status/agent.json(작업 시작·종료 때 기록)',
     '🏠 노트북 = 오더함 시트(Command_Queue) + 하트비트',
-    '💻 회사 PC = GitHub 공개 저장소 커밋(데몬 없음 — 실시간 신호 아님)',
+    '⌨️ 노트북·직접 · 💻 회사 PC = 기기 비트(agent_beat · 비공개 레포·커밋 전 작업 포함)',
     '⚡ 에이전트 = agent/* 브랜치를 머지한 커밋'];
   const add = [];
   if(GH_DATA && GH_DATA.limited) add.push('GitHub 호출 한도가 찼어요 — 저장된 기록으로 보여줘요');
@@ -1875,6 +1940,8 @@ function monRender(force){
     '\u0003' + (GH_DATA ? (GH_DATA.at || '') + '|' + (GH_DATA.runs_at || '') + '|' + (GH_DATA.limited ? 1 : 0) : '') +
     '\u0003' + (QSTAT_DATA ? (QSTAT_DATA.at || '') + JSON.stringify(QSTAT_DATA.heartbeat || {}) + (QSTAT_DATA.at ? '' : '') : '') +
     '\u0003' + (AGENT_DATA ? (AGENT_DATA.updated_at || '') + '|' + JSON.stringify(AGENT_DATA.agent || {}) + '|' + (AGENT_DATA.tasks || []).length : '') +
+    '\u0003' + (AGENT_DATA && AGENT_DATA.pc ? JSON.stringify(AGENT_DATA.pc) : '') +
+    '\u0003' + (AGENT_DATA && AGENT_DATA.direct ? JSON.stringify(AGENT_DATA.direct) : '') +
     '\u0003' + MON_FILTER + '\u0003' + MON_PROJ + '\u0003' + (ORD_POLL.timer ? 1 : 0) + (ORD_POLL.paused ? 1 : 0);
   if(!force && sig === MON_SIG) return;
   MON_SIG = sig;

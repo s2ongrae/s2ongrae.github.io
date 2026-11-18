@@ -582,23 +582,10 @@ function agentStatus() {
       };
     });
     res.tasks = res.tasks.slice(0, 40);
-    // ⌨️ 노트북 직접작업(free) 상태 — 있으면 direct 블록으로 함께 준다(없거나 깨져도 예외 없이)
-    const dfs = DriveApp.getFoldersByName(PORTAL_FOLDER);
-    if (dfs.hasNext()) {
-      const dfa = dfs.next().getFilesByName(AD_FILE);
-      if (dfa.hasNext()) {
-        const dd = JSON.parse(dfa.next().getBlob().getDataAsString());
-        if (isObj(dd) && isObj(dd.agent)) {
-          const dm = Date.parse(String(dd.updated_at || ''));
-          res.direct = {
-            state: clip(dd.agent.state, 12), project: clip(dd.agent.project, 24),
-            task: qqMask_(dd.agent.task, 60), started_at: clip(dd.agent.started_at, 40),
-            updated_at: clip(dd.updated_at, 40),
-            min: isFinite(dm) ? Math.max(0, Math.round((Date.now() - dm) / 60000)) : null
-          };
-        }
-      }
-    }
+    // ⌨️ 기기 상태 비트 — 노트북 '직접(free)'·회사 PC. 있으면 블록으로 함께 준다(없거나 깨져도 예외 없이)
+    const bDirect = agentBeatRead_('direct'); if (bDirect) res.direct = bDirect;
+    const bPc = agentBeatRead_('pc'); if (bPc) res.pc = bPc;
+    res.beat_targets = AB_TARGETS.slice(0);      // 예전 배포와 구분(화면이 재배포 안내를 고를 때 씀)
   } catch (err) {
     Logger.log('agent_status: ' + String((err && err.message) || err));
     res.note = '상태 파일을 읽지 못했어요';
@@ -1124,21 +1111,47 @@ function queueDecide(body) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ⌨️ 노트북 직접작업(free) 상태 — $PROFILE free 함수가 시작/종료 때 POST
+// ⌨️ 기기 상태 비트(agent_beat) — 노트북 직접작업(free) · 회사 PC
 //
-//  {action:'agent_beat', key, state:'working'|'idle', project, task}
-//  → Drive 김성래포털/포털_agent_직접.json 에 지금 상태 + 최근 8건 이력을 남긴다.
-//  포털 관제의 '⌨️ 노트북·직접' 카드와 agent_status.direct 가 이 파일을 읽는다.
+//  {action:'agent_beat', key, target:'direct'|'pc', state:'working'|'idle',
+//   project, task, source:'manual'|'commit', stale_min}
+//  → Drive 김성래포털/포털_agent_직접.json · 포털_agent_pc.json 에
+//     지금 상태 + 최근 8건 이력을 남긴다.
+//  포털 관제의 '⌨️ 노트북·직접' · '💻 회사 PC' 카드와 agent_status 의 direct·pc 가 이 파일을 읽는다.
+//
+//  · target 이 없으면 direct — 예전 $PROFILE free 함수와 그대로 호환된다.
+//  · stale_min = '이만큼 조용하면 미확인' 기준(5~240분). 회사 PC 의 커밋 알림은 120분을 보낸다
+//    (커밋 간격은 30분~2시간이라 25분으로 두면 작업 중에도 계속 '미확인'이 뜬다).
+//  · 이 파일에는 비밀도, 사람 이름·전화번호도 남기지 않는다(작업명은 qqMask_ 로 가림).
 // ═══════════════════════════════════════════════════════════════
-const AD_FILE = '포털_agent_직접.json';
+const AB_TARGETS = ['direct', 'pc'];
+const AB_FILE = { direct: '포털_agent_직접.json', pc: '포털_agent_pc.json' };
+const AD_FILE = AB_FILE.direct;              // 예전 이름 그대로(다른 곳에서 씀)
+const AB_STALE_DEFAULT = 30, AB_STALE_LOW = 5, AB_STALE_HIGH = 240;
+const AB_KEEP = 8;                           // 보관하는 이력 줄 수
 
+/** 'direct' | 'pc' — 모르는 값은 예전 그대로 direct */
+function abTarget_(v) {
+  const t = String(v == null ? '' : v).toLowerCase();
+  return AB_TARGETS.indexOf(t) >= 0 ? t : 'direct';
+}
+/** 조용하면 '미확인'으로 볼 기준(분) — 5~240 으로 자르고, 없으면 30 */
+function abStale_(v) {
+  const n = Math.round(Number(v));
+  if (!isFinite(n) || n <= 0) return AB_STALE_DEFAULT;
+  return Math.min(AB_STALE_HIGH, Math.max(AB_STALE_LOW, n));
+}
 function agentBeat_(body) {
   const b = isObj(body) ? body : {};
+  const target = abTarget_(b.target);
   const st = String(b.state || '').toLowerCase() === 'idle' ? 'idle' : 'working';
+  const staleMin = abStale_(b.stale_min);
+  const source = String(b.source || '').toLowerCase() === 'commit' ? 'commit' : 'manual';
   return qqLock_(function () {
     const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
     const folder = fo.hasNext() ? fo.next() : DriveApp.createFolder(PORTAL_FOLDER);
-    const it = folder.getFilesByName(AD_FILE);
+    const name = AB_FILE[target];
+    const it = folder.getFilesByName(name);
     const f = it.hasNext() ? it.next() : null;
     let d = null;
     if (f) { try { d = JSON.parse(f.getBlob().getDataAsString()); } catch (_) { d = null; } }
@@ -1150,20 +1163,43 @@ function agentBeat_(body) {
       const s0 = Date.parse(String(prev.started_at || ''));
       d.history.unshift({
         project: clip(prev.project, 24), started_at: clip(prev.started_at, 40), ended_at: now,
-        dur_min: isFinite(s0) ? Math.max(0, Math.round((Date.now() - s0) / 60000)) : 0
+        dur_min: isFinite(s0) ? Math.max(0, Math.round((Date.now() - s0) / 60000)) : 0,
+        source: clip(prev.source, 12)
       });
-      d.history = d.history.slice(0, 8);
-      d.agent = { state: 'idle', project: clip(prev.project, 24), task: qqMask_(prev.task, 60), started_at: clip(prev.started_at, 40) };
+      d.history = d.history.slice(0, AB_KEEP);
+      d.agent = { state: 'idle', project: clip(prev.project, 24), task: qqMask_(prev.task, 60),
+        started_at: clip(prev.started_at, 40), source: clip(prev.source, 12) || source, stale_min: staleMin };
     } else {
       d.agent = {
         state: 'working', project: clip(b.project, 24), task: qqMask_(b.task, 60),
-        started_at: String((prev.state === 'working' && prev.started_at) ? prev.started_at : now).slice(0, 40)
+        started_at: String((prev.state === 'working' && prev.started_at) ? prev.started_at : now).slice(0, 40),
+        source: source, stale_min: staleMin
       };
     }
     d.version = 1;
+    d.target = target;
     d.updated_at = now;
     const js = JSON.stringify(d);
-    if (f) f.setContent(js); else folder.createFile(AD_FILE, js, 'application/json');
-    return { ok: true, state: st };
+    if (f) f.setContent(js); else folder.createFile(name, js, 'application/json');
+    return { ok: true, target: target, state: st, stale_min: staleMin };
   });
+}
+/** 기기 상태 파일 하나를 포털이 쓰는 모양으로 — 없거나 깨졌으면 null */
+function agentBeatRead_(target) {
+  try {
+    const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    if (!fo.hasNext()) return null;
+    const it = fo.next().getFilesByName(AB_FILE[abTarget_(target)]);
+    if (!it.hasNext()) return null;
+    const dd = JSON.parse(it.next().getBlob().getDataAsString());
+    if (!isObj(dd) || !isObj(dd.agent)) return null;
+    const a = dd.agent;
+    const dm = Date.parse(String(dd.updated_at || ''));
+    return {
+      state: clip(a.state, 12), project: clip(a.project, 24), task: qqMask_(a.task, 60),
+      started_at: clip(a.started_at, 40), source: clip(a.source, 12) || 'manual',
+      stale_min: abStale_(a.stale_min), updated_at: clip(dd.updated_at, 40),
+      min: isFinite(dm) ? Math.max(0, Math.round((Date.now() - dm) / 60000)) : null
+    };
+  } catch (_) { return null; }
 }
