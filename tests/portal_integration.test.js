@@ -333,14 +333,23 @@ console.log('R) 🤖 노트북 오더함 (포털 안 오더 창구)');
   ok(D6.get('ORD_ITEMS').some(i => i.summary.indexOf('가계부 11월 지출 점검해줘') >= 0), '보낸 오더가 바로 목록에 쌓인다');
   ok(D6.el('sync-txt').textContent.indexOf('접수됨') >= 0, '접수 안내가 뜬다');
 
-  // ⑦ 파일 수정 허용 → 승인 대기로 접수
+  // ⑦ 파일 수정 허용 → 자동 승인(가계부)은 바로 실행 대기, 포털은 승인 대기
   D6.el('ord-edit-mode').checked = true;
   D6.el('ord-inp').value = '메리 쇼츠 제목 후보 3개 뽑아줘';
   await D6.run('sendOrder()');
   be = lastBody('queue_enqueue');
   ok(be && be.payload.mode === 'edit', '파일 수정 허용이면 mode=edit 로 보낸다');
-  ok(D6.get('ORD_ITEMS').some(i => i.status === 'WAITING_APPROVAL' && i.summary.indexOf('메리 쇼츠 제목') >= 0), '파일 수정 오더는 승인 대기에 쌓인다');
+  ok(D6.get('ORD_ITEMS').some(i => i.status === 'PENDING' && i.summary.indexOf('메리 쇼츠 제목') >= 0), '가계부 수정 오더는 자동 승인으로 바로 대기(PENDING)');
   ok(D6.el('ord-edit-mode').checked === false, '접수 뒤 체크를 풀어 둔다');
+  ok(D6.el('ord-ws').innerHTML.indexOf('s2ongrae.github.io') >= 0, '포털도 작업 위치로 고를 수 있다');
+  D6.el('ord-ws').value = 's2ongrae.github.io';
+  D6.el('ord-edit-mode').checked = true;
+  D6.el('ord-inp').value = '카드 문구 고쳐줘';
+  await D6.run('sendOrder()');
+  const portalItem = D6.get('ORD_ITEMS').filter(i => i.summary.indexOf('카드 문구') >= 0)[0];
+  ok(portalItem && portalItem.status === 'WAITING_APPROVAL' && portalItem.approval_by !== 'auto', '포털(제어면) 수정은 승인 대기로 쌓인다');
+  ok(box().indexOf('자동(위임)') >= 0, '자동 승인 건은 배지로 구분한다');
+  D6.el('ord-ws').value = 'gaegyebu';
 
   // ⑧ Enter 로 보내기, Shift+Enter 는 줄바꿈
   nCalls = D6.calls.length;
@@ -419,7 +428,7 @@ console.log('R) 🤖 노트북 오더함 (포털 안 오더 창구)');
 
   // ⑯ 오더 도움말 패널 — 기능 안내·예시·눌러서 채우기
   ok(/id="ord-help"/.test(html) && /data-fill=/.test(html), '오더 도움말 패널이 있다');
-  ok(/저장소 · 최신화/.test(html) && /가계부 · 돈/.test(html) && /조회 · 분석/.test(html) && /파일 수정 \(승인 필요\)/.test(html), '기능 4갈래를 한눈에 보여준다');
+  ok(/저장소 · 최신화/.test(html) && /가계부 · 돈/.test(html) && /조회 · 분석/.test(html) && /파일 수정 \(일부는 승인\)/.test(html), '기능 4갈래를 한눈에 보여준다');
   ok(/토스증권 → 가계부 동기화/.test(html) && /\[✅ 승인\]/.test(html), '동기화 예시버튼과 승인 안내가 있다');
   D6.run(`ordExample({dataset:{fill:'이번 달 납비만 모아줘'}})`);
   ok(D6.el('ord-inp').value === '이번 달 납비만 모아줘' && D6.el('ord-edit-mode').checked === false, '예시를 누르면 입력칸이 채워지고(조회 예시는 수정 아님)');

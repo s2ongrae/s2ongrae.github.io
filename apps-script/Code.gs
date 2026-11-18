@@ -658,6 +658,50 @@ const QQ_MAX_PAYLOAD = 4000;                       // CommandQueue 와 같은 pa
 const QQ_MAX_PROMPT = 2000;                        // 오더 글 길이 상한
 const QQ_FINAL = { DONE: true, FAILED: true, REJECTED: true, EXPIRED: true };
 
+// ── 자동 승인(위임) — 2026-11-18 ───────────────────────────────
+// 사용자가 채팅에서 이미 시킨 "일반 코드 작업"은 승인 버튼 없이 바로 PENDING 으로 내려 실행한다.
+//  · 자동 대상: 가계부·콘텐츠허브·보험툴·스마트스토어 4개 저장소의 파일 수정 오더
+//  · 계속 수동: 포털(s2ongrae.github.io) — 오더를 내는 제어면이라 스스로 고치게 두지 않는다
+//  · 되돌릴 수 없거나 비밀값·배포를 건드리는 지시는 프롬프트에 있으면 수동
+//  · 같은 조건표가 노트북(hub-agent lib/approval.js)·게이트웨이(CommandQueue.gs)에도 있어
+//    실행 직전에 한 번 더 검증한다(제로 트러스트).
+const QQ_AUTO_WS = ['gaegyebu', 'content-hub', 'insurance-manager', 'smartstore-hub'];
+const QQ_AUTO_DENY = [
+  [/\brm\s+-[a-z]*[rf][a-z]*\b/i, 'rm -rf'],
+  [/\bgit\s+reset\s+--hard\b/i, 'git reset --hard'],
+  [/\bgit\s+push\b/i, 'git push'],
+  [/\bgit\s+clean\s+-[a-z]*[dfx]/i, 'git clean -fd'],
+  [/\bgit\s+checkout\s+--\s+\./i, 'git checkout -- .'],
+  [/(^|[^A-Za-z0-9_.])\.env(?!\.example|\.sample|\.template)\b/i, '.env'],
+  [/\.github[\/\\]workflows/i, '.github/workflows'],
+  [/\bdrop\s+table\b/i, 'DROP TABLE'],
+  [/\.\.[\/\\]/, '상위 경로(..)'],
+  [/(?:secret|api[_-]?key|password|token)\s*[:=]\s*\S+/i, '비밀값 쓰기']
+];
+
+/** 프롬프트에 걸리는 금지 지시 이름(없으면 빈 문자열). */
+function qqForbidden_(text) {
+  const s = String(text == null ? '' : text);
+  for (let i = 0; i < QQ_AUTO_DENY.length; i++) {
+    if (QQ_AUTO_DENY[i][0].test(s)) return QQ_AUTO_DENY[i][1];
+  }
+  return '';
+}
+
+/** 이 오더를 승인 없이 실행해도 되는가. { auto: true|false, reason: '…' } */
+function qqAutoDelegation_(type, payload, workspace) {
+  const p = isObj(payload) ? payload : {};
+  const ws = String(workspace || '').trim();
+  if (type !== 'claude_prompt') return { auto: false, reason: '자동 위임은 파일 수정 오더(claude_prompt)에만 적용됩니다.' };
+  const mode = String(p.mode || p.risk || '').toLowerCase();
+  if (mode !== 'edit' && mode !== 'write' && mode !== 'high') return { auto: false, reason: '파일을 고치지 않는 오더입니다.' };
+  if (!ws) return { auto: false, reason: '작업 위치가 없습니다.' };
+  if (QQ_AUTO_WS.indexOf(ws) < 0) return { auto: false, reason: '자동 승인 대상이 아닌 작업 위치입니다: ' + ws };
+  const hit = qqForbidden_(p.prompt);
+  if (hit) return { auto: false, reason: '사람이 승인해야 하는 지시가 들어 있습니다: ' + hit };
+  return { auto: true, reason: '위임된 일반 코드 작업(' + ws + ')' };
+}
+
 function qqErr_(code, msg) { const e = new Error(msg); e.code = code; return e; }
 function qqProp_(name) { return clip(PropertiesService.getScriptProperties().getProperty(name), 200).trim(); }
 function qqInt_(v, min, max, dflt) {
@@ -837,6 +881,7 @@ function qqItem_(r) {
     error: qqMask_(r.error, 200),
     approval_by: clip(r.approval_by, 20),
     approval_at: clip(r.approval_at, 40),
+    auto_approved: String(r.approval_by == null ? '' : r.approval_by).trim().toLowerCase() === 'auto',
     approval_expires_at: clip(r.approval_expires_at, 40),
     expires_in_ms: st === 'WAITING_APPROVAL' && isFinite(expMs) ? Math.max(0, expMs - Date.now()) : null,
     summary: qqSummary_(type, p),
@@ -977,7 +1022,9 @@ function queueEnqueue(body) {
   if (payload.length > QQ_MAX_PAYLOAD) throw qqErr_('too_long', '오더 내용이 너무 길어요.');
 
   const risk = (type === 'claude_prompt' && qqModeOf_(payload) === 'edit') ? 'HIGH' : 'LOW';
-  const needsApproval = risk === 'HIGH';
+  const verdict = risk === 'HIGH' ? qqAutoDelegation_(type, qqParse_(payload), workspace) : { auto: false, reason: '' };
+  const autoBy = risk === 'HIGH' && verdict.auto ? 'auto' : '';
+  const needsApproval = risk === 'HIGH' && !verdict.auto;
   const nowMs = Date.now();
   const ttlMin = Math.round(QQ_APPROVAL_TTL_MS / 60000);
 
@@ -997,14 +1044,17 @@ function queueEnqueue(body) {
       payload: payload, status: needsApproval ? 'WAITING_APPROVAL' : 'PENDING', attempts: 0,
       claimed_at: '', claimed_by: '', finished_at: '', duration_ms: '', exit_code: '', result: '', error: '', detail: '',
       risk_level: risk, approval_expires_at: needsApproval ? qqIso_(nowMs + QQ_APPROVAL_TTL_MS) : '',
-      approval_by: '', approval_at: '', approval_note: '', approval_hash: qqHashPayload_(payload)
+      approval_by: autoBy, approval_at: autoBy ? qqIso_(nowMs) : '',
+      approval_note: autoBy ? verdict.reason : '', approval_hash: qqHashPayload_(payload)
     };
     qqAppend_(ctx, row);
     return {
       ok: true, duplicate: false, item: qqItem_(row),
       note: needsApproval
         ? '파일을 고치는 오더예요 — ' + ttlMin + '분 안에 승인해야 노트북이 실행해요.'
-        : '접수했어요. 노트북이 다음 확인 때 실행해요.'
+        : (autoBy
+          ? '자동 승인(위임) — 승인 없이 바로 실행 대기열에 들어갔어요.'
+          : '접수했어요. 노트북이 다음 확인 때 실행해요.')
     };
   });
 }

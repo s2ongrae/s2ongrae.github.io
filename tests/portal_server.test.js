@@ -238,14 +238,31 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   const pull2 = post({action: 'queue_enqueue', key: K3, type: 'git_pull', workspace: 'gaegyebu', payload: {}});
   ok(pull2.ok === true && pull2.duplicate === false, '멱등(git_pull)은 중복을 막지 않는다');
 
-  // ⑤ 파일 수정 오더 → 승인 대기 (절대 바로 실행 안 됨)
+  // ⑤ 파일 수정 오더 → 허용 4개 레포는 자동 승인(PENDING), 포털·금지지시는 승인 대기
   const ed = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '제목 고쳐줘', mode: 'edit'}});
-  ok(ed.ok === true && ed.item.status === 'WAITING_APPROVAL' && ed.item.risk_level === 'HIGH', 'mode=edit 은 WAITING_APPROVAL(HIGH) — 승인 없이 실행되지 않는다');
-  ok(ed.item.needs_decision === true && ed.item.expires_in_ms > 14 * 60000 && ed.item.expires_in_ms <= 15 * 60000, '승인 기한 15분이 잡힌다');
-  const editId = ed.item.id;
+  ok(ed.ok === true && ed.item.status === 'PENDING' && ed.item.risk_level === 'HIGH', '일반 레포(콘텐츠허브) mode=edit 은 자동 승인으로 바로 PENDING', ed);
+  ok(ed.item.auto_approved === true && ed.item.needs_decision === false, '자동 승인 표시가 내려오고 승인 버튼은 필요 없다');
+  ok(/자동 승인/.test(String(ed.note)), '접수 안내가 자동 승인이라고 말한다', ed.note);
+  const autoRow = qrows().find(x => x[0] === ed.item.id);
+  ok(col(autoRow, 'approval_by') === 'auto' && String(col(autoRow, 'approval_note')).indexOf('위임된') >= 0, '시트에 approval_by=auto 로 감사 기록');
+  ok(col(autoRow, 'approval_expires_at') === '', '자동 승인에는 15분 기한을 걸지 않는다');
+  for (const ws of ['gaegyebu', 'insurance-manager', 'smartstore-hub']) {
+    const x = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: ws, payload: {prompt: ws + ' 문구 고쳐줘', mode: 'edit'}});
+    ok(x.ok === true && x.item.status === 'PENDING' && x.item.auto_approved === true, '자동 승인 대상: ' + ws, x);
+  }
+  const portalEd = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '카드 문구 고쳐줘', mode: 'edit'}});
+  ok(portalEd.ok === true && portalEd.item.status === 'WAITING_APPROVAL' && portalEd.item.needs_decision === true, '포털(제어면) 수정은 계속 승인 대기', portalEd);
+  const dangerEd = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'smartstore-hub', payload: {prompt: 'git reset --hard 하고 고쳐줘', mode: 'edit'}});
+  ok(dangerEd.ok === true && dangerEd.item.status === 'WAITING_APPROVAL', '금지 지시(reset --hard)가 있으면 승인 대기로 남는다', dangerEd);
+  ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'smartstore-hub', payload: {prompt: '.env 에 키 추가해줘', mode: 'edit'}}).item.status === 'WAITING_APPROVAL', '.env 를 건드리는 지시는 승인 대기');
+  ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '지출 화면 고쳐줘', mode: 'edit'}}).item.status === 'PENDING', '평범한 수정 지시는 자동');
+  const ed2 = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '승인 카드 색 고쳐줘', mode: 'edit'}});
+  ok(ed2.ok === true && ed2.item.status === 'WAITING_APPROVAL' && ed2.item.risk_level === 'HIGH', '포털 mode=edit 은 WAITING_APPROVAL(HIGH)', ed2);
+  ok(ed2.item.needs_decision === true && ed2.item.expires_in_ms > 14 * 60000 && ed2.item.expires_in_ms <= 15 * 60000, '승인 기한 15분이 잡힌다');
+  const editId = ed2.item.id;
   const edRow = qrows().find(x => x[0] === editId);
   ok(col(edRow, 'approval_expires_at') && col(edRow, 'approval_by') === '', '기한은 적고 승인자는 아직 비어 있다');
-  ok(col(edRow, 'approval_hash') === hashOf({prompt: '제목 고쳐줘', mode: 'edit'}), '승인 해시가 payload 와 묶인다');
+  ok(col(edRow, 'approval_hash') === hashOf({prompt: '승인 카드 색 고쳐줘', mode: 'edit'}), '승인 해시가 payload 와 묶인다');
   ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '   ', mode: 'edit'}}).code === 'bad_request', '빈 오더 거절');
 
   // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
@@ -299,12 +316,12 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(col(aRow, 'status') === 'PENDING' && col(aRow, 'approval_by') === 'portal' && !!col(aRow, 'approval_at'), '승인자·시각 기록');
   ok(Array.isArray(audit()) && audit()[0][0] === 'at' && audit().some(a => a[1] === editId && a[5] === 'approve' && a[6] === 'portal' && a[7] === 'portal'), 'Audit_Log 에 approve/portal 기록');
   const aForEdit = (audit() || []).find(a => a[1] === editId) || [];
-  ok(String(aForEdit[9]) === hashOf({prompt: '제목 고쳐줘', mode: 'edit'}), '감사 기록에 payload 해시가 남는다');
+  ok(String(aForEdit[9]) === hashOf({prompt: '승인 카드 색 고쳐줘', mode: 'edit'}), '감사 기록에 payload 해시가 남는다');
   dec = post({action: 'queue_decide', key: K3, id: editId, decision: 'approve'});
   ok(dec.ok === true && dec.changed === false && /이미 승인/.test(dec.note), '이미 승인된 오더를 또 승인하면 changed=false 로 알려준다');
 
   // ⑨ 거절
-  const rj = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '지우지 마', mode: 'edit'}});
+  const rj = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '지우지 마', mode: 'edit'}});
   const rjd = post({action: 'queue_decide', key: K3, id: rj.item.id, decision: 'deny'});
   ok(rjd.ok === true && rjd.status === 'REJECTED', 'deny 도 거절로 처리');
   ok(String(col(qrows().find(x => x[0] === rj.item.id), 'error')).indexOf('승인 거절') === 0, '거절 사유를 적는다');
@@ -312,7 +329,7 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(post({action: 'queue_decide', key: K3, id: rj.item.id, decision: 'approve'}).code === 'not_waiting', '이미 거절된 오더는 다시 결정할 수 없다');
 
   // ⑩ 기한 만료 — 승인 없는 실행 금지
-  const ex = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '늦게 승인', mode: 'edit'}});
+  const ex = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '늦게 승인', mode: 'edit'}});
   S.tick(16 * 60000);
   const exd = post({action: 'queue_decide', key: K3, id: ex.item.id, decision: 'approve'});
   ok(exd.ok === false && exd.code === 'expired', '기한(15분)이 지나면 승인할 수 없다');
@@ -321,7 +338,7 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok((audit() || []).some(a => a[1] === ex.item.id && a[5] === 'expired'), '만료도 Audit_Log 에 남는다');
 
   // ⑪ 해시 불일치
-  const hx = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '해시 시험', mode: 'edit'}});
+  const hx = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '해시 시험', mode: 'edit'}});
   const mm = post({action: 'queue_decide', key: K3, id: hx.item.id, decision: 'approve', payload_hash: '0'.repeat(64)});
   ok(mm.ok === false && mm.code === 'hash_mismatch', '승인하려는 내용(해시)이 다르면 거절');
   ok(col(qrows().find(x => x[0] === hx.item.id), 'status') === 'WAITING_APPROVAL', '해시가 다르면 상태도 그대로');
