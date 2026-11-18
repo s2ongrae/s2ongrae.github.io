@@ -652,6 +652,17 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   ok(D11.run('ordStale({status:"RUNNING",claimed_at:"' + at(nowMs - 25 * 60000) + '"}).lv') === 'warn', '25분 RUNNING 은 정체 의심(warn)');
   ok(D11.run('ordStale({status:"RUNNING",claimed_at:"' + at(nowMs - 5 * 60000) + '"})') === null, '5분짜리 실행은 정상(경고 없음)');
   ok(D11.run('ordStale({status:"DONE",claimed_at:"' + at(nowMs - 16 * 3600000) + '"})') === null, '끝난 오더는 정체가 아니다');
+  // 2026-11-18 야간 무인 — 정체 판정은 "시작부터 흐른 시간"이 아니라 "마지막 신호" 기준이다.
+  ok(D11.run('ordStale({status:"RUNNING",started_at:"' + at(nowMs - 50 * 60000) + '",beat_at:"' + at(nowMs - 8000) + '"})') === null,
+    '50분째 실행 중이어도 신호가 살아 있으면 정상(예전엔 30분 넘으면 경고했다)');
+  ok(D11.run('ordStale({status:"RUNNING",started_at:"' + at(nowMs - 50 * 60000) + '",beat_at:"' + at(nowMs - 25 * 60000) + '"}).lv') === 'warn',
+    '신호가 25분 끊기면 정체 의심(warn)');
+  ok(D11.run('ordStale({status:"RUNNING",started_at:"' + at(nowMs - 2 * 3600000) + '",beat_at:"' + at(nowMs - 70 * 60000) + '"}).lv') === 'bad',
+    '신호가 70분 끊기면 멈춘 것 같음(bad)');
+  ok(D11.run('ordElapsedMs({status:"RUNNING",started_at:"' + at(nowMs - 30 * 60000) + '",claimed_at:"' + at(nowMs - 1000) + '"})') >= 29 * 60000,
+    '경과 시간은 started_at 부터 센다(claimed_at 이 touch 로 움직여도 흐른다)');
+  ok(/마지막 신호 \d+초 전/.test(D11.run('ordBeatText({status:"RUNNING",beat_at:"' + at(nowMs - 6000) + '"})')), '오더 줄에 마지막 신호를 보여준다');
+  ok(D11.run('ordBeatText({status:"DONE",beat_at:"' + at(nowMs - 6000) + '"})') === '', '끝난 오더에는 마지막 신호를 안 붙인다');
   ok(/멈춘 것 같아요/.test(cards11()) && /mon-dev bad/.test(cards11()), '노트북 카드가 빨간색으로 멈춘 것 같다고 알린다');
   ok(/ord-stale bad/.test(D11.el('ord-list').innerHTML), '오더 카드에도 정체 경고 배지');
   ok(D11.el('mon-badge').textContent.indexOf('정체') >= 0, '관제 배지에 정체 건수');

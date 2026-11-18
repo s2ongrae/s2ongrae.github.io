@@ -440,6 +440,7 @@ function queueSheetStatus_(sheetId) {
   const head = values[0].map(function (v) { return String(v == null ? '' : v).trim(); });
   const at = function (name) { return head.indexOf(name); };
   const iStatus = at('status'), iCreated = at('created_at'), iClaimed = at('claimed_at'), iFinished = at('finished_at');
+  const iBeat = at('beat_at'), iStarted = at('started_at');
   if (iStatus < 0) return { summary: { state: 'unknown', error: 'status 칸을 찾지 못했어요' }, lastActivityAt: '' };
 
   let pending = 0, waiting = 0, timeout = 0, review = 0, oldest = 0, last = 0;
@@ -459,6 +460,8 @@ function queueSheetStatus_(sheetId) {
     last = Math.max(last,
       created,
       iClaimed >= 0 ? qsCellMs_(row[iClaimed]) : 0,
+      iStarted >= 0 ? qsCellMs_(row[iStarted]) : 0,
+      iBeat >= 0 ? qsCellMs_(row[iBeat]) : 0,
       iFinished >= 0 ? qsCellMs_(row[iFinished]) : 0);
   }
 
@@ -864,6 +867,11 @@ function qqItem_(r) {
     created_at: clip(r.created_at, 40),
     // 누가·언제 집어 갔는지 — 포털이 '실행 중 경과 시간'을 접수 시각이 아니라 실제 시작 시각으로 셉니다.
     claimed_at: clip(r.claimed_at, 40),
+    // 2026-11-18 야간 무인 — started_at(첫 점유)과 beat_at(마지막 신호)을 따로 읽는다.
+    //   claimed_at 은 이제 touch 로 움직이지 않으므로 경과 시간이 맞게 흐르고,
+    //   beat_at 이 20분 넘게 끊길 때만 '정체'로 본다(노트북이 살아서 도는 중인 것과 구분).
+    started_at: clip(r.started_at, 40),
+    beat_at: clip(r.beat_at, 40),
     claimed_by: clip(r.claimed_by, 20),
     finished_at: clip(r.finished_at, 40),
     duration_ms: r.duration_ms === '' || r.duration_ms == null ? null : Number(r.duration_ms),

@@ -1201,10 +1201,12 @@ function renderOrders(){
     else if(it.status === 'PENDING') sub.push('노트북이 다음 확인 때 실행해요');
     else if(numOf(it.duration_ms) !== null) sub.push(monDur(numOf(it.duration_ms)) + ' 걸림' + (it.finished_at ? ' · ' + ordWhen(it.finished_at) + ' 끝' : ''));
     if(it.claimed_by) sub.push('실행한 곳 ' + String(it.claimed_by));
+    const beatTxt = ordBeatText(it);
     // 실행 중은 경과 시간을 1초마다 세어요 (진짜 돌고 있는지 눈으로 보이게)
     const el = it.status === 'RUNNING'
       ? `<div class="ord-sub">⏱ <span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ordElapsedMs(it) || 0))}</span>째 실행 중` +
-        (it.claimed_at ? ' · 시작 ' + esc(ordWhen(it.claimed_at)) : ' · 접수 ' + esc(ordWhen(it.created_at))) + '</div>'
+        (it.started_at || it.claimed_at ? ' · 시작 ' + esc(ordWhen(it.started_at || it.claimed_at)) : ' · 접수 ' + esc(ordWhen(it.created_at))) +
+        beatTxt + '</div>'
       : '';
     const again = (it.type === 'git_pull' || it.type === 'toss_sync') &&
       (it.status === 'FAILED' || it.status === 'TIMEOUT_REVIEW' || it.status === 'EXPIRED');
@@ -1410,14 +1412,27 @@ function monToday(){
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
-/** 오더가 노트북에 잡힌 시각(claimed_at) — 없으면 접수 시각 */
+/** 오더가 노트북에 잡힌 시각 — started_at(첫 점유) → claimed_at → 접수 시각 */
 function ordStartMs(it){
-  const t = Date.parse(String((it && (it.claimed_at || it.created_at)) || ''));
+  const t = Date.parse(String((it && (it.started_at || it.claimed_at || it.created_at)) || ''));
+  return isFinite(t) ? t : 0;
+}
+/** 마지막으로 노트북이 살아 있다고 신호한 시각(beat_at) — 없으면 시작 시각 */
+function ordBeatMs(it){
+  const t = Date.parse(String((it && (it.beat_at || it.started_at || it.claimed_at || it.created_at)) || ''));
   return isFinite(t) ? t : 0;
 }
 function ordEndMs(it){
   const t = Date.parse(String((it && it.finished_at) || ''));
   return isFinite(t) ? t : 0;
+}
+/** ' · 마지막 신호 12초 전' — 워커가 30초마다 보내는 하트비트(beat_at)가 살아 있는지 눈에 보이게. */
+function ordBeatText(it){
+  if(!it || it.status !== 'RUNNING') return '';
+  const b = ordBeatMs(it);
+  if(!b) return '';
+  const gap = Math.max(0, Date.now() - b);
+  return ' · 마지막 신호 ' + (gap < 90000 ? Math.max(1, Math.round(gap / 1000)) + '초 전' : monDur(gap) + ' 전');
 }
 /** 걸린 시간 — 끝난 오더는 finished_at, 실행 중이면 지금까지 */
 function ordElapsedMs(it){
@@ -1431,13 +1446,18 @@ function ordElapsedMs(it){
   if(done) return null;
   return Math.max(0, Date.now() - s);
 }
-/** RUNNING 인데 너무 오래 걸리는 오더 → 정체 의심(20분) / 멈춘 것 같음(1시간) */
+/** RUNNING 인데 신호가 끊긴 오더 → 정지 의심(20분) / 멈춘 것 같음(1시간)
+ *  2026-11-18: 판정 기준을 "시작부터 흐른 시간"이 아니라 **마지막 신호(beat_at) 이후**로 바꿨어요.
+ *  워커가 30초마다 신호를 보내므로, 30분째 실행 중이어도 신호가 살아 있으면 정상이고,
+ *  신호가 20분 끊기면 그때가 진짜 멈춘 것입니다(예전엔 30분만 넘으면 무조건 경고가 떴어요).
+ */
 function ordStale(it){
   if(!it || it.status !== 'RUNNING') return null;
-  const ms = ordElapsedMs(it);
-  if(ms === null) return null;
-  if(ms >= MON_STALE_BAD) return {lv: 'bad', t: '멈춘 것 같아요', why: '1시간 넘게 실행 중인 채로 남아 있어요 — 노트북 전원·hub-agent 서비스·로그를 확인하세요. 노트북이 다시 켜지면 다음 확인 때 자동으로 정리(확인 필요)돼요'};
-  if(ms >= MON_STALE_WARN) return {lv: 'warn', t: '정체 의심', why: '20분이 넘었어요 — 노트북이 회수했어야 하는데 아직 실행 중으로 남아 있어요'};
+  const b = ordBeatMs(it);
+  if(!b) return null;
+  const gap = Math.max(0, Date.now() - b);
+  if(gap >= MON_STALE_BAD) return {lv: 'bad', t: '멈춘 것 같아요', why: '1시간 넘게 노트북 신호가 없어요 — 노트북 전원·hub-agent 서비스·로그를 확인하세요. 노트북이 다시 켜지면 다음 확인 때 자동으로 정리(확인 필요)돼요'};
+  if(gap >= MON_STALE_WARN) return {lv: 'warn', t: '정체 의심', why: '20분 넘게 노트북 신호가 없어요 — 실행은 중인데 응답이 끊겼습니다. 잠시 뒤 다시 확인하세요'};
   return null;
 }
 /** 오더 생애주기 — ① 접수 → ② 실행(또는 승인) → ③ 결과 */
@@ -1784,7 +1804,8 @@ function monDevNotebookBody(){
     const cls = stale ? stale.lv : 'run';
     const main = `<b>${esc(ordTypeName(it.type))}</b> · ${esc(ordWsName(it.workspace) || '공통')}` +
       (it.summary ? ` — ${esc(ordShort(it.summary, 70))}` : '');
-    const sub = `⏱ <span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ms))}</span>째 실행 중 · 접수 ${esc(ordWhen(it.created_at))}` +
+    const sub = `⏱ <span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ms))}</span>째 실행 중 · 시작 ${esc(ordWhen(it.started_at || it.claimed_at || it.created_at))}` +
+      ordBeatText(it) +
       (runs.length > 1 ? ` · 실행 중 ${runs.length}건` : '') +
       (pend.length ? ` · 다음 차례 ${pend.length}건` : '') + hbLine;
     return monCard({name: '🏠 집 노트북', cls: cls, state: stale ? stale.t : '작업 중', main: main, sub: sub,

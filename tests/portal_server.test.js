@@ -378,6 +378,29 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
     '실행 중 오더의 시작 시각·집어간 곳을 준다(포털이 경과 시간·정체를 판단)', runQ.items[0]);
   ok(runQ.running === 1 && runQ.pending === 0, '목록 요약에 RUNNING 건수도 같이');
 
+  // ⑬-3 야간 무인 하트비트(2026-11-18) — started_at·beat_at 을 같이 내려주고 정체 판단에 쓴다
+  {
+    const HEAD28 = HEAD.concat(['branch', 'block_reason', 'diff_summary', 'changed_files', 'started_at', 'beat_at']);
+    const SHEET28 = 'SHEETidBeat28Cols001';
+    const beatVals = {
+      id: 'Q-20261118-130000-beat', created_at: '2026-11-18T13:00:00+09:00', source: 'pickle',
+      type: 'claude_prompt', workspace: 'content-hub', payload: JSON.stringify({ prompt: '큰 작업', mode: 'edit' }),
+      status: 'RUNNING', attempts: 0, claimed_at: '2026-11-18T13:00:05+09:00', claimed_by: 'notebook',
+      started_at: '2026-11-18T13:00:05+09:00', beat_at: '2026-11-18T13:27:40+09:00'
+    };
+    const beatRow = HEAD28.map(n => (beatVals[n] === undefined ? '' : beatVals[n]));
+    S.addSheet(SHEET28, { Command_Queue: [HEAD28.slice(), beatRow] });
+    S.props.QUEUE_SHEET_ID = SHEET28;
+    const bq = post({ action: 'queue_list', key: K3 });
+    const bi = bq.items[0];
+    ok(bi && bi.started_at === '2026-11-18T13:00:05+09:00' && bi.beat_at === '2026-11-18T13:27:40+09:00',
+      '목록에 시작 시각과 마지막 신호를 같이 준다(포털이 경과·정체를 판단)', bi);
+    ok(bi && bi.claimed_at === '2026-11-18T13:00:05+09:00', 'claimed_at 은 시작 시각으로 남녕 있다(구버전 화면 호환)');
+    const bs = post({ action: 'queue_status', key: K3 });
+    ok(bs && bs.queue && bs.queue.state, '상태등이 heartbeat 신호(beat_at)를 읽고 오류 없이 응답한다', bs && bs.queue);
+    S.props.QUEUE_SHEET_ID = SHEET;
+  }
+
   // ⑭ 사후 게이트(2026-11-18) — REVIEW_NEEDED 는 검토 필요로 내려오고 브랜치·사유·변경 요약이 함께 온다
   {
     const HEAD26 = HEAD.concat(['branch', 'block_reason', 'diff_summary', 'changed_files']);
