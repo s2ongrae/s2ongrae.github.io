@@ -1,4 +1,4 @@
-<#
+﻿<#
   pc-beat — 회사 PC 를 포털 관제(💻 회사 PC 카드)에 1줄로 알리는 도구
 
   · 공개 저장소에 두는 파일이라 키·주소가 없다. 키는 이 PC 의 사용자 폴더에만 둔다:
@@ -16,8 +16,10 @@
     pcbeat status                 설정이 있는지만 확인(키는 안 보여줌)
 
   처음 설치(포털이 만들어 주는 1줄):
-    irm https://s2ongrae.github.io/tools/pc-beat.ps1 -OutFile "$env:LOCALAPPDATA\pc-beat.ps1"; & "$env:LOCALAPPDATA\pc-beat.ps1" setup
+    irm https://s2ongrae.github.io/tools/pc-beat.ps1 -OutFile "$env:LOCALAPPDATA\pc-beat.ps1"; powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\pc-beat.ps1" setup
 #>
+
+#  ※ 이 파일은 UTF-8(BOM)로 저장합니다 — 윈도우 파워셸 5.1 이 한글을 바르게 읽으려면 BOM 이 필요해요.
 
 param(
   [Parameter(Position = 0)][string] $Command = 'help',
@@ -99,6 +101,10 @@ function Send-Beat {
     if (-not $Quiet) { Write-Host ' 설정이 없어요 — 먼저: pcbeat setup' -ForegroundColor Yellow }
     return $false
   }
+  # 윈도우 파워셸 5.1 은 TLS 1.2 가 꺼져 있는 경우가 있어 한 번 켜 둡니다(실패해도 그냥 진행)
+  try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+  } catch { }
   $body = @{
     action    = 'agent_beat'
     key       = $cfg.key
@@ -153,8 +159,8 @@ function Invoke-Setup {
     Write-Host (' 복사했어요: ' + $target) -ForegroundColor Green
   }
 
-  # 프로필에 pcbeat 한 줄 별칭(이미 있으면 건너뜀)
-  $line = 'function pcbeat { & "' + $target + '" @args }'
+  # 프로필에 pcbeat 한 줄 별칭(이미 있으면 건너뜀) — 실행 정책을 피해 자식 파워셸로 돈다
+  $line = 'function pcbeat { powershell -NoProfile -ExecutionPolicy Bypass -File "' + $target + '" @args }'
   try {
     if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
     $prof = Get-Content -Raw -Path $PROFILE

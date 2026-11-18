@@ -511,7 +511,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       <summary>💻 회사 PC 연결 — 파워셸에 1줄</summary>
       <div class="mon-pc-body">
         <p>회사 PC <b>파워셸</b>에서 아래 한 줄을 붙여넣고 주소·키를 넣으면, 그 PC의 작업(비공개 레포 <b>smartstore-hub</b>·커밋 전 작업 포함)이 위 카드에 실시간으로 떠요.</p>
-        <span class="mon-code">irm https://s2ongrae.github.io/tools/pc-beat.ps1 -OutFile "$env:LOCALAPPDATA\pc-beat.ps1"; &amp; "$env:LOCALAPPDATA\pc-beat.ps1" setup</span>
+        <span class="mon-code">irm https://s2ongrae.github.io/tools/pc-beat.ps1 -OutFile "$env:LOCALAPPDATA\pc-beat.ps1"; powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\pc-beat.ps1" setup</span>
         <p>키는 그 PC 사용자 폴더(<code>%USERPROFILE%\.portal-beat.json</code>)에만 저장되고 레포·커밋에는 남지 않아요.</p>
         <p>그다음부터: <code>pcbeat start "작업명"</code> · <code>pcbeat done</code> · <code>pcbeat hook</code>(그 폴더에서 커밋할 때마다 자동)</p>
       </div>
