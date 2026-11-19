@@ -252,18 +252,23 @@ function renderGauge() {
   const L = (MODEL.thresholds && MODEL.thresholds.orderLadder) || { warn: 35, lock: 42, urgent: 44 };
   const stage = count >= L.urgent ? 'URGENT' : count >= L.lock ? 'LOCK' : count >= L.warn ? 'WARN' : 'NORMAL';
   const pct = Math.min(100, (count / 45) * 100);
-  const stageLabel = { NORMAL: '정상', WARN: '유입 중단', LOCK: '판매중지 요청', URGENT: '즉시 중지' }[stage];
-  const act = {
-    NORMAL: `잔여 ${45 - count}건. 지금은 그대로 팔아도 됩니다.`,
-    WARN: `<b>${count}건</b> — SNS·쇼츠 유입을 멈추고 자연검색만 남기세요.`,
-    LOCK: `<b>${count}건</b> — 전 상품 판매중지 승인 요청 단계입니다. 승인 후에도 상품은 삭제하지 마세요.`,
-    URGENT: `<b>${count}건</b> — 즉시 판매중지. 구매확정 50건이 통신판매업 신고 기준입니다.`,
-  }[stage];
+  // 스토어가 판매중지면 이 카운터는 의미가 없다 — 숫자가 '그대로 팔아도 됩니다'라고 말하지 않게 덮는다.
+  const suspended = !!(MODEL.summary && MODEL.summary.storeSuspended);
+  const stageLabel = suspended ? '판매중지 기간'
+    : { NORMAL: '정상', WARN: '유입 중단', LOCK: '판매중지 요청', URGENT: '즉시 중지' }[stage];
+  const act = suspended
+    ? `스토어가 <b>판매중지 ${(MODEL.summary && MODEL.summary.suspendedCount) || ''}종</b>입니다. 이 카운터는 재오픈(2027-01-02) 전까지 쓸 일이 없습니다.`
+    : {
+      NORMAL: `잔여 ${45 - count}건. 지금은 그대로 팔아도 됩니다.`,
+      WARN: `<b>${count}건</b> — SNS·쇼츠 유입을 멈추고 자연검색만 남기세요.`,
+      LOCK: `<b>${count}건</b> — 전 상품 판매중지 승인 요청 단계입니다. 승인 후에도 상품은 삭제하지 마세요.`,
+      URGENT: `<b>${count}건</b> — 즉시 판매중지. 구매확정 50건이 통신판매업 신고 기준입니다.`,
+    }[stage];
   $('#gNow').textContent = count;
   $('#gStage').textContent = stageLabel;
-  $('#gStage').className = `stage${stage === 'WARN' ? ' warn' : stage === 'LOCK' || stage === 'URGENT' ? ' crit' : ''}`;
+  $('#gStage').className = `stage${suspended ? ' crit' : stage === 'WARN' ? ' warn' : stage === 'LOCK' || stage === 'URGENT' ? ' crit' : ''}`;
   const bar = $('#gBar');
-  bar.className = `bar${stage === 'WARN' ? ' warn' : stage === 'LOCK' || stage === 'URGENT' ? ' crit' : ''}`;
+  bar.className = `bar${suspended ? ' crit' : stage === 'WARN' ? ' warn' : stage === 'LOCK' || stage === 'URGENT' ? ' crit' : ''}`;
   bar.firstElementChild.style.width = `${pct}%`;
   $('#gAct').innerHTML = act;
   $('#gInput').value = count;
