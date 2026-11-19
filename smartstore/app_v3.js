@@ -775,11 +775,16 @@ function renderSettings(v) {
 /* ─────────────── 이벤트 ─────────────── */
 function goTab(name) {
   $$('section[data-tab]').forEach((s) => { s.hidden = s.dataset.tab !== name; });
-  $$('#tabs button').forEach((b) => {
-    const on = b.dataset.go === name;
-    b.setAttribute('aria-selected', String(on));
-    if (on && b.scrollIntoView) { try { b.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
-  });
+  $$('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.go === name)));
+  // 폰에서 탭이 가로로 넘칠 때 활성 탭이 보이게 스크롤한다(페이지 스크롤이 아니라 탭바만).
+  const nav = $('#tabs');
+  const active = nav.querySelector(`button[data-go="${name}"]`);
+  if (nav && active) {
+    const left = active.offsetLeft;
+    if (left < nav.scrollLeft || left + active.offsetWidth > nav.scrollLeft + nav.clientWidth) {
+      nav.scrollLeft = Math.max(0, left - 10);
+    }
+  }
   writeLS(LS.tab, name);
   // 숨겨진 탭은 clientWidth 가 0 이라 차트를 320px 로 그린다 → 보이게 된 뒤 다시 그린다.
   const v = view();

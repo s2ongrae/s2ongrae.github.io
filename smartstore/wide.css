@@ -40,6 +40,10 @@
 /* 폰: 8탭 가로 스크롤 · 위젯 2열(이미 기본) · 표는 가로 스크롤 */
 @media (max-width: 520px) {
   .hdr-in, main { padding-left: 12px; padding-right: 12px; }
+  /* 시스템 바는 한 줄로 두고 '갱신 안내'가 탭 줄을 덮지 않게 한다 */
+  .sysbar { flex-wrap: nowrap; overflow: hidden; gap: 6px; }
+  .sysbar #sysText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sysbar .sp { flex: 0 0 auto; }
   .brand .v { display: none; }
   .tabs button { padding: 9px 9px; font-size: 12px; }
   .out { gap: 6px; }
