@@ -780,10 +780,11 @@ function goTab(name) {
   const nav = $('#tabs');
   const active = nav.querySelector(`button[data-go="${name}"]`);
   if (nav && active) {
-    const left = active.offsetLeft;
-    if (left < nav.scrollLeft || left + active.offsetWidth > nav.scrollLeft + nav.clientWidth) {
-      nav.scrollLeft = Math.max(0, left - 10);
-    }
+    const navRect = nav.getBoundingClientRect();
+    const left = active.getBoundingClientRect().left - navRect.left + nav.scrollLeft; // 스크롤 내용 안에서의 위치
+    const w = active.offsetWidth;
+    if (left < nav.scrollLeft) nav.scrollLeft = Math.max(0, left - 4);
+    else if (left + w > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = left + w - nav.clientWidth + 4;
   }
   writeLS(LS.tab, name);
   // 숨겨진 탭은 clientWidth 가 0 이라 차트를 320px 로 그린다 → 보이게 된 뒤 다시 그린다.
