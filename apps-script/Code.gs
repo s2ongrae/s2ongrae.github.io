@@ -51,9 +51,11 @@ function doPost(e) {
       case 'loadMemos':         return out(loadMemos());
       case 'saveMemos':         return out(saveMemos(body));
       case 'queue_status':      return out(queueStatus());   // 포털 상단 상태등(읽기 전용)
+      case 'agent_status':      return out(agentStatus());        // 🤖 피클이 남긴 작업 상태(읽기 전용)
       case 'queue_list':        return out(queueList(body));      // 🤖 오더함 — 최근 오더
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
       case 'queue_decide':      return out(queueDecide(body));    // 🤖 오더함 — 승인/거절
+      case 'agent_beat':        return out(agentBeat_(body));      // ⌨️ 노트북 직접작업 상태
       default:                  return out({ ok: false, error: '알 수 없는 요청이에요.' });
     }
   } catch (err) {
@@ -351,8 +353,10 @@ function out(obj) {
 // ═══════════════════════════════════════════════════════════════
 // 관제 상태등 (읽기 전용) — 포털 상단의 배지 3개가 이걸 부른다
 //
-//   ① 노트북 응답   : HEARTBEAT_FILE_ID 가 있으면 그 파일의 updated_at,
-//                     없으면 Command_Queue 의 마지막 활동 시각(대략)
+//   ① 노트북 응답   : HEARTBEAT_FILE_ID 가 있으면 그 파일의 updated_at.
+//                     없으면 '알 수 없음(unknown)' — 시트 활동 시각은 '오더를 넣었다'는
+//                     흔적일 뿐 노트북이 살아 있다는 뜻이 아니라서 초록불로 쓰지 않는다
+//                     (2026-11-18 실전점검: 피클이 오더만 넣어도 '방금' 초록이 되던 거짓 안심 제거)
 //   ② 밀린 명령     : Command_Queue 의 PENDING · WAITING_APPROVAL · TIMEOUT_REVIEW 수
 //   ③ 토스 동기화   : 드라이브 가계부/가계부_주식스냅샷.json 의 최신 날짜
 //
@@ -368,6 +372,9 @@ const QS_PROP_HEARTBEAT = 'HEARTBEAT_FILE_ID';
 const QS_TAB = 'Command_Queue';
 const QS_TOSS_FOLDER = '가계부';
 const QS_TOSS_FILE = '가계부_주식스냅샷.json';
+const AS_FILE = '포털_에이전트상태.json';      // 🤖 피클이 직접 덮어쓰는 상태 파일(드라이브 김성래포털)
+const AS_MAX_TASKS = 12;
+const AS_MAX_TEXT = 160;
 const QS_HB_OK_MIN = 5;                  // 5분 이내 = 초록
 const QS_HB_WARN_MIN = 60;               // 5분~1시간 = 노랑, 그 뒤는 빨강
 const QS_PENDING_LATE_MIN = 15;           // 15분 넘게 PENDING 이면 빨강
@@ -404,8 +411,24 @@ function queueStatus() {
       Logger.log('queue_status: 하트비트 파일을 읽지 못했어요 — ' + String((err && err.message) || err));
       res.heartbeat = { state: 'unknown', error: '하트비트 파일을 읽지 못했어요' };
     }
-  } else if (lastQueueAt) {
-    res.heartbeat = heartAge_(lastQueueAt, 'sheet');   // 정확한 하트비트가 없을 때의 대략값
+  } else {
+    // ① 노트북이 폴링 때 남기는 Agent_Status 1행 — 2026-11-19부터 이게 1순위다.
+    //    파일을 따로 올릴 필요도, 노트북에 드라이브 권한도 필요 없다(폴링 자체가 생존 신호).
+    let nb = null;
+    if (sheetId) { try { nb = notebookBeat_(sheetId); } catch (err) { nb = null; } }
+    if (nb && isFinite(nb.min)) {
+      const st = heartAge_(nb.at, 'agent_status');
+      res.heartbeat = {
+        state: st.state, source: 'agent_status', approx: false, min: nb.min, at: nb.at,
+        agent: nb.agent, busy: nb.busy, order_id: nb.order_id, version: nb.version
+      };
+    } else {
+      // ② 그것도 없으면 '알 수 없다'고 정직하게 답한다.
+      //    시트 활동 시각은 참고값(min·at)으로만 실어 보내고 state 는 unknown 으로 둔다.
+      const h = lastQueueAt ? heartAge_(lastQueueAt, 'sheet') : null;
+      res.heartbeat = { state: 'unknown', source: 'sheet', approx: true, reason: 'no_heartbeat' };
+      if (h && isFinite(h.min)) { res.heartbeat.min = h.min; res.heartbeat.at = h.at; }
+    }
   }
 
   try {
@@ -437,9 +460,10 @@ function queueSheetStatus_(sheetId) {
   const head = values[0].map(function (v) { return String(v == null ? '' : v).trim(); });
   const at = function (name) { return head.indexOf(name); };
   const iStatus = at('status'), iCreated = at('created_at'), iClaimed = at('claimed_at'), iFinished = at('finished_at');
+  const iBeat = at('beat_at'), iStarted = at('started_at');
   if (iStatus < 0) return { summary: { state: 'unknown', error: 'status 칸을 찾지 못했어요' }, lastActivityAt: '' };
 
-  let pending = 0, waiting = 0, timeout = 0, oldest = 0, last = 0;
+  let pending = 0, waiting = 0, timeout = 0, review = 0, oldest = 0, last = 0;
   const start = Math.max(1, values.length - QS_MAX_ROWS);
   for (let r = start; r < values.length; r++) {
     const row = values[r];
@@ -452,9 +476,12 @@ function queueSheetStatus_(sheetId) {
       if (created && (!oldest || created < oldest)) oldest = created;
     } else if (st === 'WAITING_APPROVAL') waiting++;
     else if (st === 'TIMEOUT_REVIEW') timeout++;
+    else if (st === 'REVIEW_NEEDED') review++;
     last = Math.max(last,
       created,
       iClaimed >= 0 ? qsCellMs_(row[iClaimed]) : 0,
+      iStarted >= 0 ? qsCellMs_(row[iStarted]) : 0,
+      iBeat >= 0 ? qsCellMs_(row[iBeat]) : 0,
       iFinished >= 0 ? qsCellMs_(row[iFinished]) : 0);
   }
 
@@ -464,12 +491,12 @@ function queueSheetStatus_(sheetId) {
   else if (oldestMin !== null && oldestMin >= QS_PENDING_LATE_MIN) state = 'bad';
   else if (pending >= 2 || waiting >= 1) state = 'warn';
   return {
-    summary: { state: state, pending: pending, waiting: waiting, timeout: timeout, oldest_min: oldestMin },
+    summary: { state: state, pending: pending, waiting: waiting, timeout: timeout, review: review, oldest_min: oldestMin },
     lastActivityAt: last ? new Date(last).toISOString() : ''
   };
 }
 
-/** 마지막 응답 시각 → 신호등. source:'sheet' 은 '죽었나/쉬나'를 가릴 수 없어 빨강을 주지 않는다. */
+/** 마지막 응답 시각 → 신호등(드라이브 하트비트 파일 전용). 시트 시각은 위 queueStatus 가 unknown 으로 처리한다. */
 function heartAge_(iso, source) {
   const t = Date.parse(String(iso || ''));
   if (!isFinite(t)) return { state: 'unknown', source: source };
@@ -481,12 +508,46 @@ function heartAge_(iso, source) {
   return { state: state, at: new Date(t).toISOString(), min: min, source: source, approx: source === 'sheet' };
 }
 
+/**
+ * 노트북 생존 신호 — Command_Queue 와 같은 스프레드시트의 `Agent_Status` 탭 1행.
+ *  (updated_at, agent, state, order_id, script_version) — CommandQueue.gs 가 poll 응답 때 제자리 갱신한다.
+ *  없거나 깨졌으면 null. 읽기만 한다.
+ */
+function notebookBeat_(sheetId) {
+  const ss = SpreadsheetApp.openById(sheetId);
+  const sh = ss.getSheetByName('Agent_Status');
+  if (!sh || sh.getLastRow() < 2) return null;
+  const v = sh.getRange(2, 1, 1, 5).getValues()[0] || [];
+  const at = String(v[0] || '');
+  const t = Date.parse(at);
+  if (!isFinite(t)) return null;
+  return {
+    at: new Date(t).toISOString(),
+    min: Math.max(0, Math.round((Date.now() - t) / 60000)),
+    agent: clip(v[1], 24), state: clip(v[2], 12), busy: String(v[2] || '') === 'busy',
+    order_id: clip(v[3], 40), version: clip(v[4], 40)
+  };
+}
+
 function heartbeatStatus_(fileId) {
   const f = DriveApp.getFileById(fileId);
   let d;
   try { d = JSON.parse(f.getBlob().getDataAsString()); }
   catch (_) { return { state: 'unknown', source: 'drive', error: '하트비트 파일을 읽을 수 없어요' }; }
-  return heartAge_((d && (d.updated_at || d.last_poll_at)) || '', 'drive');
+  const res = heartAge_((d && (d.updated_at || d.last_poll_at)) || '', 'drive');
+  // 노트북 데몬이 "지금 무엇을 돌리는지"를 하트비트에 실어 보냅니다(SSH 없이도 보이게).
+  // 값이 없거나 예전 형식이면 그 칸만 비워요(상태·신호등은 그대로).
+  try {
+    const cur = d && d.current;
+    res.current = clip(typeof cur === 'string' ? cur : (cur && cur.id) || '', 40);
+    res.current_type = clip(d && d.current_type, 20);
+    res.daemon = clip(d && d.state, 16);
+    res.processed = qqInt_(d && d.processed, 0, 1000000, 0);
+    res.polls = qqInt_(d && d.polls, 0, 100000000, 0);
+    res.started_at = clip(d && d.started_at, 40);
+    res.version = clip(d && d.version, 20);
+  } catch (_) { /* 넘겨주는 칸이 없어도 신호등은 살립니다 */ }
+  return res;
 }
 
 /** 가계부 폴더의 토스 스냅샷 파일에서 마지막 동기화 날짜를 읽는다 (없으면 unknown) */
@@ -514,6 +575,70 @@ function tossSyncStatus_() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 🤖 피클(총괄 AI) 작업 상태 — 드라이브 김성래포털/포털_에이전트상태.json
+//
+//  피클은 일을 시작할 때·끝낼 때 이 파일을 통째로 덮어씁니다(가벼운 JSON 한 장).
+//  포털은 그걸 읽어서 "피클이 지금 무엇을 하는지 · 무엇을 했는지"를 보여줍니다.
+//
+//   { "version": 1, "updated_at": "2026-11-17T10:40:00+09:00",
+//     "agent": { "state": "working|idle", "task": "...", "project": "portal", "started_at": "...", "id": "..." },
+//     "tasks": [ { "id":"...", "project":"portal", "title":"...", "state":"working|done|failed",
+//               "started_at":"...", "ended_at":"...", "result":"..." } ] }
+//
+//  · 읽기 전용 — 폴더·파일을 만들지 않는다(없으면 안내만).
+//  · 이름·전화·주민번호·키 모양은 내보내기 직전에 가립니다(qqMask_).
+//  · 30분 넘게 갱신이 없으면 state 를 stale 로 알려 화면이 "응답 없음"을 보여준다.
+// ═══════════════════════════════════════════════════════════════
+const AS_STALE_MIN = 30;
+function agentStatus() {
+  const res = { ok: true, at: new Date().toISOString(), connected: false, updated_at: '', agent: null, tasks: [], note: '' };
+  let f = null;
+  try {
+    const folders = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    if (!folders.hasNext()) { res.note = '포털 폴더가 아직 없어요'; return res; }
+    const files = folders.next().getFilesByName(AS_FILE);
+    if (!files.hasNext()) { res.note = '아직 피클 기록이 없어요'; return res; }
+    f = files.next();
+    let d = null;
+    try { d = JSON.parse(f.getBlob().getDataAsString()); } catch (_) { d = null; }
+    if (!isObj(d)) { res.note = '상태 파일을 읽을 수 없어요'; return res; }
+    res.connected = true;
+    res.updated_at = clip(d.updated_at, 40);
+    const upMs = Date.parse(res.updated_at);
+    res.min = isFinite(upMs) ? Math.max(0, Math.round((Date.now() - upMs) / 60000)) : null;
+    res.stale = res.min !== null && res.min >= AS_STALE_MIN;
+    const a = d.agent;
+    if (isObj(a)) {
+      res.agent = {
+        state: clip(a.state, 16), task: qqMask_(a.task, AS_MAX_TEXT), project: clip(a.project, 24),
+        started_at: clip(a.started_at, 40), id: clip(a.id, 40),
+        // 진행 중인데 30분 넘게 소식이 없으면 멈춘 것 같다고 알려줘요
+        stale: res.stale && String(a.state || '').toLowerCase() === 'working'
+      };
+    }
+    const list = Array.isArray(d.tasks) ? d.tasks.slice(0, AS_MAX_TASKS) : [];
+    res.tasks = list.map(function (t) {
+      const o = isObj(t) ? t : {};
+      return {
+        id: clip(o.id, 40), project: clip(o.project, 24),
+        title: qqMask_(o.title, AS_MAX_TEXT), state: clip(o.state, 12),
+        started_at: clip(o.started_at, 40), ended_at: clip(o.ended_at, 40),
+        result: qqMask_(o.result, AS_MAX_TEXT)
+      };
+    });
+    res.tasks = res.tasks.slice(0, 40);
+    // ⌨️ 기기 상태 비트 — 노트북 '직접(free)'·회사 PC. 있으면 블록으로 함께 준다(없거나 깨져도 예외 없이)
+    const bDirect = agentBeatRead_('direct'); if (bDirect) res.direct = bDirect;
+    const bPc = agentBeatRead_('pc'); if (bPc) res.pc = bPc;
+    res.beat_targets = AB_TARGETS.slice(0);      // 예전 배포와 구분(화면이 재배포 안내를 고를 때 씀)
+  } catch (err) {
+    Logger.log('agent_status: ' + String((err && err.message) || err));
+    res.note = '상태 파일을 읽지 못했어요';
+  }
+  return res;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 🤖 노트북 오더함 — Command_Queue 읽기·접수·승인/거절
 //
 //  포털에서 "메모처럼" 오더를 적어 두면 노트북(hub-agent 워커)이 집어 가 실행하고,
@@ -535,7 +660,9 @@ const QQ_AUDIT_TAB = 'Audit_Log';
 const QQ_COLS = [
   'id', 'created_at', 'source', 'type', 'workspace', 'payload', 'status', 'attempts',
   'claimed_at', 'claimed_by', 'finished_at', 'duration_ms', 'exit_code', 'result', 'error', 'detail',
-  'risk_level', 'approval_expires_at', 'approval_by', 'approval_at', 'approval_note', 'approval_hash'
+  'risk_level', 'approval_expires_at', 'approval_by', 'approval_at', 'approval_note', 'approval_hash',
+  // 2026-11-18 사후 자동 게이트 — 앞 22칸은 그대로 두고 뒤에만 붙인다(구버전과 섞여도 밀리지 않게)
+  'branch', 'block_reason', 'diff_summary', 'changed_files'
 ];
 const QQ_AUDIT_COLS = [
   'at', 'command_id', 'type', 'workspace', 'risk_level', 'decision', 'by', 'channel', 'note', 'payload_hash', 'source'
@@ -552,7 +679,10 @@ const QQ_TYPES = {
   claude_prompt: { label: '클로드 지시', needsWorkspace: true,  idempotent: false }
 };
 const QQ_PROP_WS = 'QUEUE_WORKSPACES';            // (선택) 허용 워크스페이스 덮어쓰기
-const QQ_WS_DEFAULT = 'gaegyebu,content-hub,insurance-manager,smartstore-hub';
+// AI 엔진 — 노트북 lib/engines.js 의 ENGINE_IDS 와 같아야 한다.
+//   auto 는 claude → agy → freellmapi 순으로 넘어간다(워커가 판단).
+const QQ_ENGINES = ['auto', 'claude', 'agy', 'freellmapi'];
+const QQ_WS_DEFAULT = 'gaegyebu,content-hub,insurance-manager,smartstore-hub,s2ongrae.github.io';
 const QQ_LIST_DEFAULT = 15;
 const QQ_LIST_MAX = 20;
 const QQ_SCAN_ROWS = 400;                          // 목록·중복 확인용으로 아래에서 읽는 줄 수
@@ -560,7 +690,53 @@ const QQ_DEDUPE_MS = 5 * 60000;                    // 같은 비멱등 오더 �
 const QQ_APPROVAL_TTL_MS = 15 * 60000;             // 승인 대기 15분 (워커와 같은 값)
 const QQ_MAX_PAYLOAD = 4000;                       // CommandQueue 와 같은 payload 상한(자)
 const QQ_MAX_PROMPT = 2000;                        // 오더 글 길이 상한
-const QQ_FINAL = { DONE: true, FAILED: true, REJECTED: true, EXPIRED: true };
+const QQ_FINAL = { DONE: true, FAILED: true, REJECTED: true, EXPIRED: true, REVIEW_NEEDED: true };
+// 사후 게이트가 main 반영을 보류하고 auto-review 브랜치에 보존한 상태(사람이 병합)
+const QQ_REVIEW = 'REVIEW_NEEDED';
+
+// ── 자동 승인(위임) — 2026-11-18 ───────────────────────────────
+// 사용자가 채팅에서 이미 시킨 "일반 코드 작업"은 승인 버튼 없이 바로 PENDING 으로 내려 실행한다.
+//  · 자동 대상: 가계부·콘텐츠허브·보험툴·스마트스토어 4개 저장소의 파일 수정 오더
+//  · 계속 수동: 포털(s2ongrae.github.io) — 오더를 내는 제어면이라 스스로 고치게 두지 않는다
+//  · 되돌릴 수 없거나 비밀값·배포를 건드리는 지시는 프롬프트에 있으면 수동
+//  · 같은 조건표가 노트북(hub-agent lib/approval.js)·게이트웨이(CommandQueue.gs)에도 있어
+//    실행 직전에 한 번 더 검증한다(제로 트러스트).
+const QQ_AUTO_WS = ['gaegyebu', 'content-hub', 'insurance-manager', 'smartstore-hub'];
+const QQ_AUTO_DENY = [
+  [/\brm\s+-[a-z]*[rf][a-z]*\b/i, 'rm -rf'],
+  [/\bgit\s+reset\s+--hard\b/i, 'git reset --hard'],
+  [/\bgit\s+push\b/i, 'git push'],
+  [/\bgit\s+clean\s+-[a-z]*[dfx]/i, 'git clean -fd'],
+  [/\bgit\s+checkout\s+--\s+\./i, 'git checkout -- .'],
+  [/(^|[^A-Za-z0-9_.])\.env(?!\.example|\.sample|\.template)\b/i, '.env'],
+  [/\.github[\/\\]workflows/i, '.github/workflows'],
+  [/\bdrop\s+table\b/i, 'DROP TABLE'],
+  [/\.\.[\/\\]/, '상위 경로(..)'],
+  [/(?:secret|api[_-]?key|password|token)\s*[:=]\s*\S+/i, '비밀값 쓰기']
+];
+
+/** 프롬프트에 걸리는 금지 지시 이름(없으면 빈 문자열). */
+function qqForbidden_(text) {
+  const s = String(text == null ? '' : text);
+  for (let i = 0; i < QQ_AUTO_DENY.length; i++) {
+    if (QQ_AUTO_DENY[i][0].test(s)) return QQ_AUTO_DENY[i][1];
+  }
+  return '';
+}
+
+/** 이 오더를 승인 없이 실행해도 되는가. { auto: true|false, reason: '…' } */
+function qqAutoDelegation_(type, payload, workspace) {
+  const p = isObj(payload) ? payload : {};
+  const ws = String(workspace || '').trim();
+  if (type !== 'claude_prompt') return { auto: false, reason: '자동 위임은 파일 수정 오더(claude_prompt)에만 적용됩니다.' };
+  const mode = String(p.mode || p.risk || '').toLowerCase();
+  if (mode !== 'edit' && mode !== 'write' && mode !== 'high') return { auto: false, reason: '파일을 고치지 않는 오더입니다.' };
+  if (!ws) return { auto: false, reason: '작업 위치가 없습니다.' };
+  if (QQ_AUTO_WS.indexOf(ws) < 0) return { auto: false, reason: '자동 승인 대상이 아닌 작업 위치입니다: ' + ws };
+  const hit = qqForbidden_(p.prompt);
+  if (hit) return { auto: false, reason: '사람이 승인해야 하는 지시가 들어 있습니다: ' + hit };
+  return { auto: true, reason: '위임된 일반 코드 작업(' + ws + ')' };
+}
 
 function qqErr_(code, msg) { const e = new Error(msg); e.code = code; return e; }
 function qqProp_(name) { return clip(PropertiesService.getScriptProperties().getProperty(name), 200).trim(); }
@@ -707,8 +883,10 @@ function qqSummary_(type, p) {
   if (type === 'git_pull') s = '코드 최신화 (git pull --ff-only)';
   else if (type === 'toss_sync') s = '토스증권 → 가계부 동기화';
   else if (type === 'claude_prompt') {
+    const eng = String(p.engine || '').toLowerCase();
     s = '클로드: ' + String(p.prompt || '').replace(/\s+/g, ' ').slice(0, 160) +
-      (String(p.mode || '').toLowerCase() === 'edit' ? ' (파일 수정)' : '');
+      (String(p.mode || '').toLowerCase() === 'edit' ? ' (파일 수정)' : '') +
+      (eng && eng !== 'auto' ? ' · 엔진 ' + eng : '');
   } else if (type === 'git_push') s = '깃 푸시 → ' + String(p.branch || '(브랜치 없음)');
   else if (type === 'smartstore_api_relay') s = '스마트스토어 API ' + String(p.op || '');
   else s = Object.keys(p).length ? Object.keys(p).join(', ') : '(내용 없음)';
@@ -728,6 +906,14 @@ function qqItem_(r) {
     status: st,
     risk_level: clip(r.risk_level, 10).toUpperCase() || 'LOW',
     created_at: clip(r.created_at, 40),
+    // 누가·언제 집어 갔는지 — 포털이 '실행 중 경과 시간'을 접수 시각이 아니라 실제 시작 시각으로 셉니다.
+    claimed_at: clip(r.claimed_at, 40),
+    // 2026-11-18 야간 무인 — started_at(첫 점유)과 beat_at(마지막 신호)을 따로 읽는다.
+    //   claimed_at 은 이제 touch 로 움직이지 않으므로 경과 시간이 맞게 흐르고,
+    //   beat_at 이 20분 넘게 끊길 때만 '정체'로 본다(노트북이 살아서 도는 중인 것과 구분).
+    started_at: clip(r.started_at, 40),
+    beat_at: clip(r.beat_at, 40),
+    claimed_by: clip(r.claimed_by, 20),
     finished_at: clip(r.finished_at, 40),
     duration_ms: r.duration_ms === '' || r.duration_ms == null ? null : Number(r.duration_ms),
     exit_code: r.exit_code === '' || r.exit_code == null ? null : Number(r.exit_code),
@@ -735,7 +921,12 @@ function qqItem_(r) {
     result: qqMask_(r.result, 200),
     error: qqMask_(r.error, 200),
     approval_by: clip(r.approval_by, 20),
+    branch: clip(r.branch, 120),
+    block_reason: qqMask_(r.block_reason, 400),
+    diff_summary: clip(r.diff_summary, 200),
+    changed_files: qqMask_(r.changed_files, 400),
     approval_at: clip(r.approval_at, 40),
+    auto_approved: String(r.approval_by == null ? '' : r.approval_by).trim().toLowerCase() === 'auto',
     approval_expires_at: clip(r.approval_expires_at, 40),
     expires_in_ms: st === 'WAITING_APPROVAL' && isFinite(expMs) ? Math.max(0, expMs - Date.now()) : null,
     summary: qqSummary_(type, p),
@@ -765,7 +956,20 @@ function qqPayloadOf_(type, p) {
   const prompt = raw.trim();
   if (!prompt) throw qqErr_('bad_request', '오더 내용을 적어주세요.');
   const edit = isObj(p) && String(p.mode || '').toLowerCase() === 'edit';
-  return JSON.stringify({ prompt: prompt, mode: edit ? 'edit' : 'ask' });
+  const out = { prompt: prompt, mode: edit ? 'edit' : 'ask' };
+  // AI 엔진(auto · claude · agy · freellmapi) — auto 는 굳이 싣지 않는다(워커 기본값과 같은 뜻).
+  const engine = qqEngineOf_(p);
+  if (engine !== 'auto') out.engine = engine;
+  return JSON.stringify(out);
+}
+/** payload.engine 를 허용 목록으로 검증한다. 모르는 값이면 거절(조용히 auto 로 바꾸지 않는다). */
+function qqEngineOf_(p) {
+  const raw = isObj(p) && p.engine != null ? String(p.engine).trim().toLowerCase() : '';
+  if (!raw) return 'auto';
+  if (QQ_ENGINES.indexOf(raw) < 0) {
+    throw qqErr_('bad_request', 'AI 엔진은 auto·claude·agy·freellmapi 중 하나여야 해요.');
+  }
+  return raw;
 }
 function qqModeOf_(payload) { return String(qqParse_(payload).mode || '').toLowerCase(); }
 
@@ -829,13 +1033,14 @@ function queueList(body) {
   const ctx = qqOpen_();
   const limit = qqInt_(body && body.limit, 1, QQ_LIST_MAX, QQ_LIST_DEFAULT);
   const rows = qqRows_(ctx, QQ_SCAN_ROWS);
-  const c = { pending: 0, waiting: 0, running: 0, timeout: 0, done: 0, failed: 0 };
+  const c = { pending: 0, waiting: 0, running: 0, timeout: 0, review: 0, done: 0, failed: 0 };
   for (let i = 0; i < rows.length; i++) {
     const st = String(rows[i].status == null ? '' : rows[i].status).trim().toUpperCase();
     if (st === 'PENDING') c.pending++;
     else if (st === 'WAITING_APPROVAL') c.waiting++;
     else if (st === 'RUNNING') c.running++;
     else if (st === 'TIMEOUT_REVIEW') c.timeout++;
+    else if (st === 'REVIEW_NEEDED') c.review++;
     else if (st === 'DONE') c.done++;
     else if (st === 'FAILED') c.failed++;
   }
@@ -844,13 +1049,35 @@ function queueList(body) {
   return {
     ok: true, at: qqNow_(), items: items, count: items.length,
     pending: c.pending, waiting: c.waiting, running: c.running, timeout: c.timeout,
-    done: c.done, failed: c.failed,
-    workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES),
+    review: c.review, done: c.done, failed: c.failed,
+    workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES), engines: QQ_ENGINES.slice(),
     approval_ttl_min: Math.round(QQ_APPROVAL_TTL_MS / 60000)
   };
 }
 
 /** 오더 한 건 접수. 위험(파일 수정)이면 WAITING_APPROVAL 로 세워 승인을 기다린다. */
+/**
+ * 오더 프롬프트에 "셸은 없다"를 코드로 붙인다 (2026-11-19).
+ *  AI 엔진은 Bash 권한이 없어 테스트·빌드 명령을 못 돌린다. 그런데 오더에 "npm test 로 확인해라"가
+ *  들어가면 엔진이 그걸 시도하다 턴을 버리고 "테스트를 못 돌렸다"로 끝난다(11/19 실측: 스마트스토어 12건).
+ *  포털은 시트에 직접 쓰므로 CommandQueue.gs 를 거치지 않는다 — 여기에도 같은 문구를 붙인다.
+ *  · claude_prompt 에만, 이미 있으면 다시 붙이지 않는다(멱등). 해시는 이 문구 뒤 payload 로 계산된다.
+ */
+var QQ_WORKER_NOTE = '\n\n[워커 규칙] 셸(Bash)은 차단되어 있다. 테스트·문법 검증은 네가 저장한 뒤 워커가 직접 돌린다. ' +
+  'npm test·node --test 같은 실행 명령을 시도하지 말고, 바꾼 파일과 완료 조건만 보고해라.';
+function qqWithWorkerNote_(type, payload) {
+  if (type !== 'claude_prompt') return payload;
+  var p;
+  try { p = qqParse_(payload); } catch (err) { return payload; }
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return payload;
+  var prompt = String(p.prompt || '');
+  if (!prompt || prompt.indexOf('[워커 규칙]') !== -1) return payload;
+  if (prompt.length + QQ_WORKER_NOTE.length > QQ_MAX_PAYLOAD) return payload;
+  p.prompt = prompt + QQ_WORKER_NOTE;
+  p.worker_note = 'auto';
+  return JSON.stringify(p);
+}
+
 function queueEnqueue(body) {
   const type = String((body && body.type) || '').trim();
   const spec = QQ_TYPES[type];
@@ -859,11 +1086,13 @@ function queueEnqueue(body) {
   if (spec.needsWorkspace && !workspace) throw qqErr_('workspace', '작업 위치를 골라주세요.');
   if (workspace) qqCheckWorkspace_(workspace);
   else workspace = '';
-  const payload = qqPayloadOf_(type, body && body.payload);
+  const payload = qqWithWorkerNote_(type, qqPayloadOf_(type, body && body.payload));
   if (payload.length > QQ_MAX_PAYLOAD) throw qqErr_('too_long', '오더 내용이 너무 길어요.');
 
   const risk = (type === 'claude_prompt' && qqModeOf_(payload) === 'edit') ? 'HIGH' : 'LOW';
-  const needsApproval = risk === 'HIGH';
+  const verdict = risk === 'HIGH' ? qqAutoDelegation_(type, qqParse_(payload), workspace) : { auto: false, reason: '' };
+  const autoBy = risk === 'HIGH' && verdict.auto ? 'auto' : '';
+  const needsApproval = risk === 'HIGH' && !verdict.auto;
   const nowMs = Date.now();
   const ttlMin = Math.round(QQ_APPROVAL_TTL_MS / 60000);
 
@@ -883,14 +1112,17 @@ function queueEnqueue(body) {
       payload: payload, status: needsApproval ? 'WAITING_APPROVAL' : 'PENDING', attempts: 0,
       claimed_at: '', claimed_by: '', finished_at: '', duration_ms: '', exit_code: '', result: '', error: '', detail: '',
       risk_level: risk, approval_expires_at: needsApproval ? qqIso_(nowMs + QQ_APPROVAL_TTL_MS) : '',
-      approval_by: '', approval_at: '', approval_note: '', approval_hash: qqHashPayload_(payload)
+      approval_by: autoBy, approval_at: autoBy ? qqIso_(nowMs) : '',
+      approval_note: autoBy ? verdict.reason : '', approval_hash: qqHashPayload_(payload)
     };
     qqAppend_(ctx, row);
     return {
       ok: true, duplicate: false, item: qqItem_(row),
       note: needsApproval
         ? '파일을 고치는 오더예요 — ' + ttlMin + '분 안에 승인해야 노트북이 실행해요.'
-        : '접수했어요. 노트북이 다음 확인 때 실행해요.'
+        : (autoBy
+          ? '자동 승인(위임) — 승인 없이 바로 실행 대기열에 들어갔어요.'
+          : '접수했어요. 노트북이 다음 확인 때 실행해요.')
     };
   });
 }
@@ -957,4 +1189,152 @@ function queueDecide(body) {
       status: decision === 'approve' ? 'PENDING' : 'REJECTED', at: now, audit: true
     };
   });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ⌨️ 기기 상태 비트(agent_beat) — 노트북 직접작업(free) · 회사 PC
+//
+//  {action:'agent_beat', key, target:'direct'|'pc', state:'working'|'idle',
+//   project, task, source:'manual'|'commit', stale_min}
+//  → Drive 김성래포털/포털_agent_직접.json · 포털_agent_pc.json 에
+//     지금 상태 + 최근 8건 이력을 남긴다.
+//  포털 관제의 '⌨️ 노트북·직접' · '💻 회사 PC' 카드와 agent_status 의 direct·pc 가 이 파일을 읽는다.
+//
+//  · target 이 없으면 direct — 예전 $PROFILE free 함수와 그대로 호환된다.
+//  · stale_min = '이만큼 조용하면 미확인' 기준(5~240분). 회사 PC 의 커밋 알림은 120분을 보낸다
+//    (커밋 간격은 30분~2시간이라 25분으로 두면 작업 중에도 계속 '미확인'이 뜬다).
+//  · 이 파일에는 비밀도, 사람 이름·전화번호도 남기지 않는다(작업명은 qqMask_ 로 가림).
+// ═══════════════════════════════════════════════════════════════
+const AB_TARGETS = ['direct', 'pc'];
+const AB_FILE = { direct: '포털_agent_직접.json', pc: '포털_agent_pc.json' };
+const AD_FILE = AB_FILE.direct;              // 예전 이름 그대로(다른 곳에서 씀)
+const AB_STALE_DEFAULT = 30, AB_STALE_LOW = 5, AB_STALE_HIGH = 240;
+const AB_KEEP = 8;                           // 보관하는 이력 줄 수
+
+/** 'direct' | 'pc' — 모르는 값은 예전 그대로 direct */
+function abTarget_(v) {
+  const t = String(v == null ? '' : v).toLowerCase();
+  return AB_TARGETS.indexOf(t) >= 0 ? t : 'direct';
+}
+/** 조용하면 '미확인'으로 볼 기준(분) — 5~240 으로 자르고, 없으면 30 */
+function abStale_(v) {
+  const n = Math.round(Number(v));
+  if (!isFinite(n) || n <= 0) return AB_STALE_DEFAULT;
+  return Math.min(AB_STALE_HIGH, Math.max(AB_STALE_LOW, n));
+}
+function agentBeat_(body) {
+  const b = isObj(body) ? body : {};
+  const target = abTarget_(b.target);
+  const st = String(b.state || '').toLowerCase() === 'idle' ? 'idle' : 'working';
+  const staleMin = abStale_(b.stale_min);
+  const source = String(b.source || '').toLowerCase() === 'commit' ? 'commit' : 'manual';
+  const logInfo = qqLock_(function () {
+    const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    const folder = fo.hasNext() ? fo.next() : DriveApp.createFolder(PORTAL_FOLDER);
+    const name = AB_FILE[target];
+    const it = folder.getFilesByName(name);
+    const f = it.hasNext() ? it.next() : null;
+    let d = null;
+    if (f) { try { d = JSON.parse(f.getBlob().getDataAsString()); } catch (_) { d = null; } }
+    if (!isObj(d)) d = { version: 1, agent: null, history: [] };
+    if (!Array.isArray(d.history)) d.history = [];
+    const now = new Date().toISOString();
+    const prev = isObj(d.agent) ? d.agent : {};
+    let logEvt = null;
+    if (st === 'idle') {
+      const s0 = Date.parse(String(prev.started_at || ''));
+      const durMin = isFinite(s0) ? Math.max(0, Math.round((Date.now() - s0) / 60000)) : 0;
+      d.history.unshift({
+        project: clip(prev.project, 24), started_at: clip(prev.started_at, 40), ended_at: now,
+        dur_min: durMin,
+        source: clip(prev.source, 12)
+      });
+      d.history = d.history.slice(0, AB_KEEP);
+      if (prev.state === 'working' || source === 'commit') {
+        logEvt = {
+          device: target,
+          project: clip(b.project || prev.project, 40),
+          ev: source === 'commit' ? 'COMMIT' : 'DONE',
+          task: qqMask_(b.task || prev.task || '(작업 완료)', 120),
+          via: source,
+          status: 'DONE',
+          note: durMin ? (durMin + '분') : ''
+        };
+      }
+      d.agent = { state: 'idle', project: clip(prev.project, 24), task: qqMask_(prev.task, 60),
+        started_at: clip(prev.started_at, 40), source: clip(prev.source, 12) || source, stale_min: staleMin };
+    } else {
+      const nextProj = clip(b.project, 24);
+      const nextTask = qqMask_(b.task, 60);
+      if (prev.state !== 'working' || prev.project !== nextProj || prev.task !== nextTask) {
+        logEvt = {
+          device: target,
+          project: clip(b.project, 40),
+          ev: 'START',
+          task: qqMask_(b.task || '(작업 시작)', 120),
+          via: source,
+          status: 'WORKING',
+          note: ''
+        };
+      }
+      d.agent = {
+        state: 'working', project: nextProj, task: nextTask,
+        started_at: String((prev.state === 'working' && prev.started_at) ? prev.started_at : now).slice(0, 40),
+        source: source, stale_min: staleMin
+      };
+    }
+    d.version = 1;
+    d.target = target;
+    d.updated_at = now;
+    const js = JSON.stringify(d);
+    if (f) f.setContent(js); else folder.createFile(name, js, 'application/json');
+    return logEvt;
+  });
+  if (logInfo) workLogAppend_(logInfo.device, logInfo.project, logInfo.ev, logInfo.task, logInfo.via, logInfo.status, logInfo.note);
+  return { ok: true, target: target, state: st, stale_min: staleMin };
+}
+
+/** 통합 작업 로그(Work_Log) 1줄 추가 — 회사 PC(pc)·노트북 직접(direct) 시작/종료 이중 기록 */
+function workLogAppend_(device, project, ev, task, via, status, note) {
+  try {
+    const id = String(PropertiesService.getScriptProperties().getProperty('QUEUE_SHEET_ID') || '').trim();
+    if (!id) return;
+    const ss = SpreadsheetApp.openById(id);
+    let sh = ss.getSheetByName('Work_Log');
+    if (!sh) {
+      sh = ss.insertSheet('Work_Log');
+      sh.getRange(1, 1, 1, 8).setValues([['시각', '기기', '프로젝트', '이벤트', '작업명', '경로', '상태', '비고']]);
+      sh.setFrozenRows(1);
+    }
+    const kst = Utilities.formatDate(new Date(), 'Asia/Seoul', "yyyy-MM-dd'T'HH:mm:ss+09:00");
+    sh.appendRow([
+      kst,
+      clip(device, 30),
+      clip(project, 40),
+      clip(ev, 20),
+      qqMask_(task, 120),
+      clip(via, 40),
+      clip(status, 30),
+      clip(note, 120)
+    ]);
+  } catch (_) {}
+}
+/** 기기 상태 파일 하나를 포털이 쓰는 모양으로 — 없거나 깨졌으면 null */
+function agentBeatRead_(target) {
+  try {
+    const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    if (!fo.hasNext()) return null;
+    const it = fo.next().getFilesByName(AB_FILE[abTarget_(target)]);
+    if (!it.hasNext()) return null;
+    const dd = JSON.parse(it.next().getBlob().getDataAsString());
+    if (!isObj(dd) || !isObj(dd.agent)) return null;
+    const a = dd.agent;
+    const dm = Date.parse(String(dd.updated_at || ''));
+    return {
+      state: clip(a.state, 12), project: clip(a.project, 24), task: qqMask_(a.task, 60),
+      started_at: clip(a.started_at, 40), source: clip(a.source, 12) || 'manual',
+      stale_min: abStale_(a.stale_min), updated_at: clip(dd.updated_at, 40),
+      min: isFinite(dm) ? Math.max(0, Math.round((Date.now() - dm) / 60000)) : null
+    };
+  } catch (_) { return null; }
 }

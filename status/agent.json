@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "updated_at": "2026-11-17T11:34:00+09:00",
+  "agent": {
+    "state": "idle",
+    "task": "",
+    "project": "portal",
+    "started_at": "",
+    "id": ""
+  },
+  "tasks": [
+    {
+      "id": "p-20261117-ascript",
+      "project": "portal",
+      "title": "포털 Apps Script 재배포(버전 7)와 관제 연동 검증",
+      "state": "done",
+      "started_at": "2026-11-17T11:01:00+09:00",
+      "ended_at": "2026-11-17T11:34:00+09:00",
+      "result": "v7 배포 · claimed 필드·agent_status 응답 확인 · smartstore-hub 코드 최신화 완료"
+    },
+    {
+      "id": "p-20261117-monitor",
+      "project": "portal",
+      "title": "포털 작업 관제(피클·노트북·회사 PC) + 프로젝트 필터",
+      "state": "done",
+      "started_at": "2026-11-17T10:12:00+09:00",
+      "ended_at": "2026-11-17T11:02:00+09:00",
+      "result": "관제 화면·피클 상태·프로젝트 칩 배포 · 테스트 593건 통과"
+    },
+    {
+      "id": "p-20261116-store",
+      "project": "smartstore",
+      "title": "묘한살림 위탁 후보·상세페이지 규칙 정리",
+      "state": "done",
+      "started_at": "2026-11-16T20:10:00+09:00",
+      "ended_at": "2026-11-16T21:05:00+09:00",
+      "result": "위탁 후보 정리·가격 벤치마킹 규칙 반영"
+    },
+    {
+      "id": "p-20261116-content",
+      "project": "content",
+      "title": "콘텐츠 허브 v3 화면 정리와 블로그 초안",
+      "state": "done",
+      "started_at": "2026-11-16T17:00:00+09:00",
+      "ended_at": "2026-11-16T18:10:00+09:00",
+      "result": "v3.3 배포·초안 전달"
+    },
+    {
+      "id": "p-20261115-ledger",
+      "project": "gaegyebu",
+      "title": "가계부 공모주·자산 탭 점검",
+      "state": "done",
+      "started_at": "2026-11-15T10:00:00+09:00",
+      "ended_at": "2026-11-15T11:00:00+09:00",
+      "result": "공모주 일정 반영"
+    },
+    {
+      "id": "p-20261114-ins",
+      "project": "insurance",
+      "title": "보험 보장분석 표 정리(개인정보 없이)",
+      "state": "done",
+      "started_at": "2026-11-14T20:00:00+09:00",
+      "ended_at": "2026-11-14T21:30:00+09:00",
+      "result": "담보 표 정리·빈칸 확인"
+    }
+  ]
+}

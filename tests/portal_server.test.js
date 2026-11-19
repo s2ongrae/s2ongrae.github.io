@@ -6,7 +6,7 @@ const memo = (id,x={})=>Object.assign({id,title:'제목'+id,body:'내용'+id,col
 
 console.log('1) 접근 통제');
 let r = S.doGet(); ok(r.ok===false && r.error==='POST로만 사용할 수 있어요.' && Object.keys(r).length===2, 'doGet은 안내 문구만(캘린더·메모 안 줌)');
-for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide']){
+for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide','agent_beat']){
   r = post({action:a}); ok(r.error==='unauthorized', `키 없이 ${a} 거절`);
   r = post({action:a, key:'x'.repeat(64)}); ok(r.error==='unauthorized', `틀린 키로 ${a} 거절`);
 }
@@ -115,7 +115,25 @@ console.log('8) 관제 상태등 (queue_status) — 읽기 전용');
   ok(q.queue.pending===1 && q.queue.waiting===1 && q.queue.timeout===0, 'PENDING·WAITING_APPROVAL 건수');
   ok(q.queue.state==='warn', '승인 대기 1건이면 노랑');
   ok(q.queue.oldest_min>=7 && q.queue.oldest_min<=9, '가장 오래된 PENDING 경과 시간');
-  ok(q.heartbeat.state==='ok' && q.heartbeat.source==='sheet' && q.heartbeat.min===2 && q.heartbeat.approx===true, '하트비트 파일이 없으면 시트 마지막 활동(2분 전)으로 대략 표시');
+  ok(q.heartbeat.state==='unknown' && q.heartbeat.source==='sheet' && q.heartbeat.min===2 && q.heartbeat.approx===true &&
+    q.heartbeat.reason==='no_heartbeat', '하트비트 파일이 없으면 살아 있는지 모른다고 답한다(시트 활동은 참고값만·초록 금지)');
+
+  // 2026-11-19 — 노트북이 폴링 때 남기는 Agent_Status 1행이 있으면 그걸로 살아 있음을 판정한다
+  const abHead = ['updated_at','agent','state','order_id','script_version'];
+  const setRowsWithBeat = (rows, beat) => S.addSheet('SHEETidForTest0001',
+    { 'Command_Queue': [head].concat(rows), 'Agent_Status': [abHead].concat([beat]) });
+  setRowsWithBeat([row('c1', iso(30), 'DONE', iso(2))], [iso(1), 'notebook', 'busy', 'Q-1', '2026-11-19-beat']);
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.state==='ok' && q.heartbeat.source==='agent_status', '폴링 1분 전이면 초록(신호 있음)');
+  ok(q.heartbeat.busy===true && q.heartbeat.order_id==='Q-1', '오더 실행 중(busy) 표시');
+  ok(q.heartbeat.approx===false && q.heartbeat.min===1, '시트 활동 추정이 아니라 실제 신호');
+  setRowsWithBeat([row('c1', iso(30), 'DONE', iso(2))], [iso(20), 'notebook', 'idle', '', '2026-11-19-beat']);
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.state==='warn' && q.heartbeat.busy===false, '20분 전 신호면 노랑·대기 중');
+  setRowsWithBeat([row('c1', iso(30), 'DONE', iso(2))], [iso(600), 'notebook', 'idle', '', '2026-11-19-beat']);
+  ok(post({action:'queue_status', key:K2}).heartbeat.state==='bad', '10시간 전 신호면 빨강(노트북 멈춤)');
+  S.addSheet('SHEETidForTest0001', { 'Command_Queue': [head].concat([row('c1', iso(30), 'DONE', iso(2))]), 'Agent_Status': [abHead] });
+  ok(post({action:'queue_status', key:K2}).heartbeat.reason==='no_heartbeat', 'Agent_Status 가 비면 예전처럼 모른다고 답한다');
 
   setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(8), 'PENDING'), row('c3', iso(12), 'PENDING')]);
   ok(post({action:'queue_status', key:K2}).queue.state==='warn', 'PENDING 2건이면 노랑');
@@ -132,6 +150,19 @@ console.log('8) 관제 상태등 (queue_status) — 읽기 전용');
   S.props.HEARTBEAT_FILE_ID = hbf.id;
   q = post({action:'queue_status', key:K2});
   ok(q.config.heartbeat===true && q.heartbeat.source==='drive' && q.heartbeat.state==='ok', '하트비트 파일(2분 전) → 초록');
+  // 2026-11-17: 노트북이 "지금 무엇을 돌리는지"도 하트비트로 같이 보여줍니다(없으면 그 칸만 빠짐)
+  hbf.content = JSON.stringify({updated_at:iso(1), state:'running', processed: 12, polls: 340, version:'1.2.0',
+    started_at:'2026-10-12T20:00:00+09:00', current:'Q-20261013-120000-abcd', current_type:'claude_prompt'});
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.current==='Q-20261013-120000-abcd' && q.heartbeat.current_type==='claude_prompt', '하트비트의 현재 작업을 그대로 넘긴다');
+  ok(q.heartbeat.processed===12 && q.heartbeat.polls===340 && q.heartbeat.daemon==='running' && q.heartbeat.version==='1.2.0', '처리 건수·데몬 상태·버전도 같이');
+  ok(q.heartbeat.state==='ok' && q.heartbeat.min===1, '지금 작업이 있어도 신호등은 그대로');
+  hbf.content = JSON.stringify({updated_at:iso(1), current:{id:'Q-obj'}, processed:'많음'});
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.current==='Q-obj' && q.heartbeat.processed===0, '예전 형식(객체·이상한 값)도 예외 없이 처리');
+  hbf.content = JSON.stringify({updated_at:iso(30)});
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.current==='' && q.heartbeat.state==='warn', '하트비트에 현재 작업 칸이 없으면 빈 칸(경고 없음, 신호등만 노랑)');
   hbf.content = JSON.stringify({updated_at:iso(30)});
   ok(post({action:'queue_status', key:K2}).heartbeat.state==='warn', '30분 전(1시간 안쪽) → 노랑');
   hbf.content = JSON.stringify({updated_at:iso(200)});
@@ -225,15 +256,49 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   const pull2 = post({action: 'queue_enqueue', key: K3, type: 'git_pull', workspace: 'gaegyebu', payload: {}});
   ok(pull2.ok === true && pull2.duplicate === false, '멱등(git_pull)은 중복을 막지 않는다');
 
-  // ⑤ 파일 수정 오더 → 승인 대기 (절대 바로 실행 안 됨)
+  // ⑤ 파일 수정 오더 → 허용 4개 레포는 자동 승인(PENDING), 포털·금지지시는 승인 대기
   const ed = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '제목 고쳐줘', mode: 'edit'}});
-  ok(ed.ok === true && ed.item.status === 'WAITING_APPROVAL' && ed.item.risk_level === 'HIGH', 'mode=edit 은 WAITING_APPROVAL(HIGH) — 승인 없이 실행되지 않는다');
-  ok(ed.item.needs_decision === true && ed.item.expires_in_ms > 14 * 60000 && ed.item.expires_in_ms <= 15 * 60000, '승인 기한 15분이 잡힌다');
-  const editId = ed.item.id;
+  ok(ed.ok === true && ed.item.status === 'PENDING' && ed.item.risk_level === 'HIGH', '일반 레포(콘텐츠허브) mode=edit 은 자동 승인으로 바로 PENDING', ed);
+  ok(ed.item.auto_approved === true && ed.item.needs_decision === false, '자동 승인 표시가 내려오고 승인 버튼은 필요 없다');
+  ok(/자동 승인/.test(String(ed.note)), '접수 안내가 자동 승인이라고 말한다', ed.note);
+  const autoRow = qrows().find(x => x[0] === ed.item.id);
+  ok(col(autoRow, 'approval_by') === 'auto' && String(col(autoRow, 'approval_note')).indexOf('위임된') >= 0, '시트에 approval_by=auto 로 감사 기록');
+  ok(col(autoRow, 'approval_expires_at') === '', '자동 승인에는 15분 기한을 걸지 않는다');
+  for (const ws of ['gaegyebu', 'insurance-manager', 'smartstore-hub']) {
+    const x = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: ws, payload: {prompt: ws + ' 문구 고쳐줘', mode: 'edit'}});
+    ok(x.ok === true && x.item.status === 'PENDING' && x.item.auto_approved === true, '자동 승인 대상: ' + ws, x);
+  }
+  const portalEd = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '카드 문구 고쳐줘', mode: 'edit'}});
+  ok(portalEd.ok === true && portalEd.item.status === 'WAITING_APPROVAL' && portalEd.item.needs_decision === true, '포털(제어면) 수정은 계속 승인 대기', portalEd);
+  const dangerEd = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'smartstore-hub', payload: {prompt: 'git reset --hard 하고 고쳐줘', mode: 'edit'}});
+  ok(dangerEd.ok === true && dangerEd.item.status === 'WAITING_APPROVAL', '금지 지시(reset --hard)가 있으면 승인 대기로 남는다', dangerEd);
+  ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'smartstore-hub', payload: {prompt: '.env 에 키 추가해줘', mode: 'edit'}}).item.status === 'WAITING_APPROVAL', '.env 를 건드리는 지시는 승인 대기');
+  ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '지출 화면 고쳐줘', mode: 'edit'}}).item.status === 'PENDING', '평범한 수정 지시는 자동');
+  const ed2 = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '승인 카드 색 고쳐줘', mode: 'edit'}});
+  ok(ed2.ok === true && ed2.item.status === 'WAITING_APPROVAL' && ed2.item.risk_level === 'HIGH', '포털 mode=edit 은 WAITING_APPROVAL(HIGH)', ed2);
+  ok(ed2.item.needs_decision === true && ed2.item.expires_in_ms > 14 * 60000 && ed2.item.expires_in_ms <= 15 * 60000, '승인 기한 15분이 잡힌다');
+  const editId = ed2.item.id;
   const edRow = qrows().find(x => x[0] === editId);
   ok(col(edRow, 'approval_expires_at') && col(edRow, 'approval_by') === '', '기한은 적고 승인자는 아직 비어 있다');
-  ok(col(edRow, 'approval_hash') === hashOf({prompt: '제목 고쳐줘', mode: 'edit'}), '승인 해시가 payload 와 묶인다');
+  // 2026-11-19 — 접수 때 '워커 규칙' 문구가 자동으로 붙으므로, 해시는 저장된 payload 로 맞춰 본다.
+  ok(col(edRow, 'approval_hash') === hashOf(JSON.parse(String(col(edRow, 'payload')))), '승인 해시가 payload 와 묶인다');
   ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '   ', mode: 'edit'}}).code === 'bad_request', '빈 오더 거절');
+
+  // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
+  const engQ = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}});
+  ok(engQ.ok === true, '엔진을 붙인 오더도 접수');
+  const engRow = qrows().find(x => x[0] === engQ.item.id);
+  const engPayload = JSON.parse(String(col(engRow, 'payload')));
+  ok(engPayload.engine === 'agy' && engPayload.prompt.indexOf('제미나이로 요약') === 0 && engPayload.mode === 'ask', 'payload 에 engine 이 실린다(예전엔 버려졌음)', engPayload);
+  ok(col(engRow, 'approval_hash') === hashOf(engPayload), '승인 해시가 engine 까지 묶는다');
+  ok(String(engQ.item.summary).indexOf('엔진 agy') >= 0, '목록 요약에 엔진이 보인다', engQ.item.summary);
+  const engAuto = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '기본으로', mode: 'ask', engine: 'auto'}});
+  ok(JSON.parse(String(col(qrows().find(x => x[0] === engAuto.item.id), 'payload'))).engine === undefined, 'auto 는 payload 에 넣지 않는다(워커 기본값)');
+  const engEdit = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '고쳐줘', mode: 'edit', engine: 'free'}});
+  ok(engEdit.ok === false && engEdit.code === 'bad_request', '모르는 엔진 이름은 거절(조용히 auto 로 바꾸지 않음)', engEdit);
+  ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '고쳐줘', mode: 'edit', engine: 'AGY'}}).ok === true, '대문자 엔진 이름은 받아준다');
+  q = post({action: 'queue_list', key: K3});
+  ok(Array.isArray(q.engines) && q.engines.join(',') === 'auto,claude,agy,freellmapi', '목록 응답에 엔진 4종', q.engines);
 
   // ⑥ 타입·워크스페이스 화이트리스트
   for (const t of ['git_push', 'smartstore_api_relay', 'rm_rf']) {
@@ -270,12 +335,12 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(col(aRow, 'status') === 'PENDING' && col(aRow, 'approval_by') === 'portal' && !!col(aRow, 'approval_at'), '승인자·시각 기록');
   ok(Array.isArray(audit()) && audit()[0][0] === 'at' && audit().some(a => a[1] === editId && a[5] === 'approve' && a[6] === 'portal' && a[7] === 'portal'), 'Audit_Log 에 approve/portal 기록');
   const aForEdit = (audit() || []).find(a => a[1] === editId) || [];
-  ok(String(aForEdit[9]) === hashOf({prompt: '제목 고쳐줘', mode: 'edit'}), '감사 기록에 payload 해시가 남는다');
+  ok(String(aForEdit[9]) === col(aRow, 'approval_hash'), '감사 기록에 payload 해시가 남는다');
   dec = post({action: 'queue_decide', key: K3, id: editId, decision: 'approve'});
   ok(dec.ok === true && dec.changed === false && /이미 승인/.test(dec.note), '이미 승인된 오더를 또 승인하면 changed=false 로 알려준다');
 
   // ⑨ 거절
-  const rj = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '지우지 마', mode: 'edit'}});
+  const rj = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '지우지 마', mode: 'edit'}});
   const rjd = post({action: 'queue_decide', key: K3, id: rj.item.id, decision: 'deny'});
   ok(rjd.ok === true && rjd.status === 'REJECTED', 'deny 도 거절로 처리');
   ok(String(col(qrows().find(x => x[0] === rj.item.id), 'error')).indexOf('승인 거절') === 0, '거절 사유를 적는다');
@@ -283,7 +348,7 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(post({action: 'queue_decide', key: K3, id: rj.item.id, decision: 'approve'}).code === 'not_waiting', '이미 거절된 오더는 다시 결정할 수 없다');
 
   // ⑩ 기한 만료 — 승인 없는 실행 금지
-  const ex = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '늦게 승인', mode: 'edit'}});
+  const ex = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '늦게 승인', mode: 'edit'}});
   S.tick(16 * 60000);
   const exd = post({action: 'queue_decide', key: K3, id: ex.item.id, decision: 'approve'});
   ok(exd.ok === false && exd.code === 'expired', '기한(15분)이 지나면 승인할 수 없다');
@@ -292,12 +357,14 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok((audit() || []).some(a => a[1] === ex.item.id && a[5] === 'expired'), '만료도 Audit_Log 에 남는다');
 
   // ⑪ 해시 불일치
-  const hx = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '해시 시험', mode: 'edit'}});
+  const hx = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 's2ongrae.github.io', payload: {prompt: '해시 시험', mode: 'edit'}});
   const mm = post({action: 'queue_decide', key: K3, id: hx.item.id, decision: 'approve', payload_hash: '0'.repeat(64)});
   ok(mm.ok === false && mm.code === 'hash_mismatch', '승인하려는 내용(해시)이 다르면 거절');
   ok(col(qrows().find(x => x[0] === hx.item.id), 'status') === 'WAITING_APPROVAL', '해시가 다르면 상태도 그대로');
   ok((audit() || []).some(a => a[1] === hx.item.id && a[5] === 'mismatch'), '해시 불일치도 Audit_Log 에 남는다');
-  const mm2 = post({action: 'queue_decide', key: K3, id: hx.item.id, decision: 'approve', payload_hash: hashOf({prompt: '해시 시험', mode: 'edit'})});
+  const hxRow = qrows().find(x => x[0] === hx.item.id);
+  const mm2 = post({action: 'queue_decide', key: K3, id: hx.item.id, decision: 'approve',
+    payload_hash: hashOf(JSON.parse(String(col(hxRow, 'payload'))))});
   ok(mm2.ok === true && mm2.status === 'PENDING', '해시가 맞으면 승인된다');
 
   // ⑫ 없는 id · 이상한 결정 · 잠금
@@ -322,10 +389,267 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(post({action: 'queue_list', key: K3}).code === 'unreachable', '시트를 못 열면 unreachable 안내');
   S.props.QUEUE_SHEET_ID = SHEET;
 
+  // ⑬-2 포털 관제 — 누가·언제 집어 갔는지(claimed_at·claimed_by)도 목록에 준다
+  setQ([qrow('Q-20261116-173532-gde8', '2026-11-16T17:35:32+09:00', 'RUNNING',
+    {type: 'claude_prompt', workspace: 'content-hub', claimed_at: '2026-11-16T17:36:02+09:00', claimed_by: 'notebook',
+      payload: JSON.stringify({prompt: '점검', mode: 'ask'})})]);
+  S.props.QUEUE_SHEET_ID = SHEET;
+  const runQ = post({action: 'queue_list', key: K3});
+  ok(runQ.items[0].claimed_at === '2026-11-16T17:36:02+09:00' && runQ.items[0].claimed_by === 'notebook',
+    '실행 중 오더의 시작 시각·집어간 곳을 준다(포털이 경과 시간·정체를 판단)', runQ.items[0]);
+  ok(runQ.running === 1 && runQ.pending === 0, '목록 요약에 RUNNING 건수도 같이');
+
+  // ⑬-3 야간 무인 하트비트(2026-11-18) — started_at·beat_at 을 같이 내려주고 정체 판단에 쓴다
+  {
+    const HEAD28 = HEAD.concat(['branch', 'block_reason', 'diff_summary', 'changed_files', 'started_at', 'beat_at']);
+    const SHEET28 = 'SHEETidBeat28Cols001';
+    const beatVals = {
+      id: 'Q-20261118-130000-beat', created_at: '2026-11-18T13:00:00+09:00', source: 'pickle',
+      type: 'claude_prompt', workspace: 'content-hub', payload: JSON.stringify({ prompt: '큰 작업', mode: 'edit' }),
+      status: 'RUNNING', attempts: 0, claimed_at: '2026-11-18T13:00:05+09:00', claimed_by: 'notebook',
+      started_at: '2026-11-18T13:00:05+09:00', beat_at: '2026-11-18T13:27:40+09:00'
+    };
+    const beatRow = HEAD28.map(n => (beatVals[n] === undefined ? '' : beatVals[n]));
+    S.addSheet(SHEET28, { Command_Queue: [HEAD28.slice(), beatRow] });
+    S.props.QUEUE_SHEET_ID = SHEET28;
+    const bq = post({ action: 'queue_list', key: K3 });
+    const bi = bq.items[0];
+    ok(bi && bi.started_at === '2026-11-18T13:00:05+09:00' && bi.beat_at === '2026-11-18T13:27:40+09:00',
+      '목록에 시작 시각과 마지막 신호를 같이 준다(포털이 경과·정체를 판단)', bi);
+    ok(bi && bi.claimed_at === '2026-11-18T13:00:05+09:00', 'claimed_at 은 시작 시각으로 남녕 있다(구버전 화면 호환)');
+    const bs = post({ action: 'queue_status', key: K3 });
+    ok(bs && bs.queue && bs.queue.state, '상태등이 heartbeat 신호(beat_at)를 읽고 오류 없이 응답한다', bs && bs.queue);
+    S.props.QUEUE_SHEET_ID = SHEET;
+  }
+
+  // ⑭ 사후 게이트(2026-11-18) — REVIEW_NEEDED 는 검토 필요로 내려오고 브랜치·사유·변경 요약이 함께 온다
+  {
+    const HEAD26 = HEAD.concat(['branch', 'block_reason', 'diff_summary', 'changed_files']);
+    const SHEET26 = 'SHEETidGate26Cols01';
+    const gateVals = {
+      id: 'Q-20261118-120000-gate', created_at: '2026-11-18T12:00:00+09:00', source: 'pickle',
+      type: 'claude_prompt', workspace: 'content-hub', payload: JSON.stringify({ prompt: '고쳐줘', mode: 'edit' }),
+      status: 'REVIEW_NEEDED', attempts: 0, claimed_at: '2026-11-18T12:00:01+09:00', claimed_by: 'notebook',
+      finished_at: '2026-11-18T12:03:00+09:00', duration_ms: 180000, exit_code: 0, result: '게이트 보류',
+      risk_level: 'LOW', approval_by: 'auto', approval_at: '2026-11-18T12:00:00+09:00',
+      approval_note: '위임된 일반 코드 작업', approval_hash: 'abcdef',
+      branch: 'auto-review/Q-20261118-120000-gate', block_reason: '게이트 보류 — 민감 경로를 건드렸습니다(.env)',
+      diff_summary: '3개 파일 +20/-4', changed_files: 'a.js, b.js, c.js'
+    };
+    const gateRow = HEAD26.map(n => (gateVals[n] === undefined ? '' : gateVals[n]));
+    S.addSheet(SHEET26, {'Command_Queue': [HEAD26.slice(), gateRow]});
+    S.props.QUEUE_SHEET_ID = SHEET26;
+    const gq = post({ action: 'queue_list', key: K3 });
+    const gi = gq.items[0];
+    ok(gi && gi.status === 'REVIEW_NEEDED' && gi.needs_decision === false, '검토 필요 상태로 내려오고 승인 버튼은 필요 없다', gi);
+    ok(gi.branch === 'auto-review/Q-20261118-120000-gate' && /민감 경로/.test(gi.block_reason) && gi.diff_summary === '3개 파일 +20/-4',
+      '브랜치·차단 사유·변경 요약을 함께 준다(포털이 compare 링크를 만든다)', gi);
+    ok(gi.changed_files === 'a.js, b.js, c.js', '바뀐 파일 목록도 준다');
+    ok(gq.review === 1, '목록 건수에 검토 필요가 잡힌다');
+    const gs = post({ action: 'queue_status', key: K3 });
+    ok(gs.ok === true && gs.queue && gs.queue.review === 1, '상태등(queue_status)에도 검토 필요 건수', gs.queue);
+    // 예전 22칸 시트에서는 새 칸이 없어도 빈 값으로 안전하게 내려온다(하위호환)
+    setQ([qrow('Q-20261118-121500-old', '2026-11-18T12:15:00+09:00', 'DONE')]);
+    S.props.QUEUE_SHEET_ID = SHEET;
+    const oldQ = post({ action: 'queue_list', key: K3 });
+    ok(oldQ.items[0].branch === '' && oldQ.items[0].block_reason === '' && oldQ.items[0].diff_summary === '',
+      '예전 시트(22칸)에서는 게이트 칸이 빈 값으로 내려와 화면이 깨지지 않는다', oldQ.items[0]);
+  }
+
   // ⑭ 응답 전체에 시트 ID·비밀 키가 없다
   const all = JSON.stringify([post({action: 'queue_list', key: K3}),
     post({action: 'queue_enqueue', key: K3, type: 'toss_sync', payload: {}})]);
   ok(all.indexOf(SHEET) < 0 && all.indexOf(K3) < 0, '오더함 응답에 시트 ID·비밀 키가 없다');
+}
+
+console.log('9-1) 🤖 오더 프롬프트에 "셸은 없다" 자동 주입 (2026-11-19)');
+{
+  const K3 = S.props.SECRET_KEY;
+  const before = S.books['SHEETidForTest0001']['Command_Queue'].length;
+  const r = post({action:'queue_enqueue', key:K3, type:'claude_prompt', workspace:'content-hub',
+    payload:{mode:'edit', prompt:'파일 하나만 고쳐라. 끝나면 npm test 로 확인해라.'}});
+  ok(r.ok === true && r.item && r.item.id, 'claude_prompt 접수', r.error);
+  const bk = S.books[S.props.QUEUE_SHEET_ID] || {};
+  const findRow = id => {
+    let found = null;
+    Object.keys(bk).forEach(t => { const f = (bk[t] || []).find(x => x && x[0] === id); if (f) found = f; });
+    return found;
+  };
+  const row = findRow(r.item.id);
+  const pl = JSON.parse(row[5]);
+  ok(/\[워커 규칙\]/.test(pl.prompt), '워커 규칙이 붙는다', pl.prompt.slice(-60));
+  ok(pl.prompt.indexOf('파일 하나만 고쳐라') === 0, '원래 지시는 보존');
+  ok(pl.worker_note === 'auto', '자동 주입 표식');
+  const again = post({action:'queue_enqueue', key:K3, type:'git_pull', workspace:'gaegyebu', payload:{}});
+  const grow = findRow(again.item.id) || [];
+  ok(String(grow[5]).indexOf('워커 규칙') === -1, '다른 타입에는 안 붙는다');
+  ok(!!grow.length, '두 번째 오더도 접수됐다');
+}
+
+console.log('10) 🤖 피클 상태 파일 (agent_status) — 드라이브 포털_에이전트상태.json');
+{
+  const K4 = S.props.SECRET_KEY;
+  const nowMs = S.run('Date.now()');
+  const at = ms => new Date(ms).toISOString();
+  let r = post({action: 'agent_status', key: K4});
+  ok(r.ok === true && typeof r.connected === 'boolean' && !r.agent, '폴더·파일이 아직 없어도 예외 없이 상태만 돌려준다');
+
+  const found = S.ROOT.folders.filter(f => f.name === '김성래포털');
+  const folder = found.length ? found[0] : S.ROOT.createFolder('김성래포털');
+  r = post({action: 'agent_status', key: K4});
+  ok(r.ok === true && (r.connected === false ? /기록이 없|폴더/.test(String(r.note || '')) : true), '상태 파일이 없으면 기록 없음 안내');
+
+  const f = folder.createFile('포털_에이전트상태.json', JSON.stringify({
+    version: 1, updated_at: at(nowMs - 3 * 60000),
+    agent: {state: 'working', task: '포털 관제 개선', project: 'portal', started_at: at(nowMs - 20 * 60000), id: 't1'},
+    tasks: [
+      {id: 't1', project: 'portal', title: '포털 관제 개선', state: 'working', started_at: at(nowMs - 20 * 60000)},
+      {id: 't0', project: 'gaegyebu', title: '가계부 점검 010-1234-5678', state: 'done', started_at: at(nowMs - 90 * 60000), ended_at: at(nowMs - 60 * 60000), result: '공모주 일정 정리 완료'}
+    ]
+  }));
+  r = post({action: 'agent_status', key: K4});
+  ok(r.ok === true && r.connected === true && r.min === 3, '최근 갱신 시각과 나이(분)를 준다');
+  ok(r.agent && r.agent.state === 'working' && r.agent.task === '포털 관제 개선' && r.agent.project === 'portal' && r.agent.stale === false, '지금 하는 일·프로젝트·정체 여부');
+  ok(Array.isArray(r.tasks) && r.tasks.length === 2 && r.tasks[1].ended_at && r.tasks[1].result === '공모주 일정 정리 완료', '최근 작업 목록과 결과');
+  ok(JSON.stringify(r).indexOf('010-1234-5678') < 0 && JSON.stringify(r).indexOf('[REDACTED]') >= 0, '제목의 전화번호는 가려서 내보낸다');
+  ok(!JSON.stringify(r).includes(f.id), '파일 ID 는 응답에 넣지 않는다');
+
+  f.content = JSON.stringify({updated_at: at(nowMs - 45 * 60000), agent: {state: 'working', task: '오래 걸리는 일', project: 'portal'}, tasks: []});
+  r = post({action: 'agent_status', key: K4});
+  ok(r.agent.stale === true && r.stale === true, '30분 넘게 갱신이 없으면 stale 로 표시');
+
+  f.content = JSON.stringify({updated_at: at(nowMs), agent: {state: 'idle'}, tasks: [{id: 'x'}]});
+  r = post({action: 'agent_status', key: K4});
+  ok(r.agent.state === 'idle' && r.agent.stale === false && r.tasks[0].title === '', '쉬는 중이면 stale 아님, 모자란 칸은 빈 값');
+
+  f.content = 'not json';
+  r = post({action: 'agent_status', key: K4});
+  ok(r.ok === true && r.connected === false && /읽을 수 없/.test(String(r.note || '')), '깨진 파일은 예외 없이 안내');
+
+  f.content = JSON.stringify({version: 1, updated_at: at(nowMs), agent: {state: 'idle'}, tasks: new Array(40).fill({id: 'y', title: 'x', state: 'done'})});
+  r = post({action: 'agent_status', key: K4});
+  ok(r.tasks.length <= 12, '작업 목록은 최대 12건만 내보낸다');
+  ok(post({action: 'agent_status', key: 'x'.repeat(64)}).error === 'unauthorized', '키 없이는 피클 상태도 안 준다');
+}
+
+console.log('11) ⌨️ 노트북 직접작업 상태 (agent_beat) — 드라이브 포털_agent_직접.json');
+{
+  const K5 = S.props.SECRET_KEY;
+  let r = post({action:'agent_beat', key:K5, state:'working', project:'portal', task:'포털 관제 010-1234-5678'});
+  ok(r.ok===true && r.state==='working', 'working 상태를 받아 기록');
+  const folder = S.ROOT.folders.filter(f=>f.name==='김성래포털')[0];
+  const f = folder && folder.files.filter(x=>x.name==='포털_agent_직접.json')[0];
+  ok(!!f, '드라이브에 직접작업 상태 파일이 생긴다');
+  const d1 = JSON.parse(f.content);
+  ok(d1.agent.state==='working' && d1.agent.project==='portal' && String(d1.agent.task).indexOf('010-1234-5678')<0, '작업명의 전화번호는 가려서 저장');
+  ok(!!Date.parse(d1.updated_at) && !!Date.parse(d1.agent.started_at), '갱신·시작 시각을 남긴다');
+
+  r = post({action:'agent_status', key:K5});
+  ok(r.ok===true && r.direct && r.direct.state==='working' && r.direct.project==='portal', 'agent_status 에 direct 블록이 붙는다');
+  ok(typeof r.direct.min==='number' && r.direct.min>=0, 'direct 에 경과 분(min)을 준다');
+
+  r = post({action:'agent_beat', key:K5, state:'idle'});
+  const d2 = JSON.parse(f.content);
+  ok(r.ok===true && d2.agent.state==='idle', 'idle 이면 쉬는 중으로');
+  ok(d2.history.length===1 && d2.history[0].project==='portal' && typeof d2.history[0].dur_min==='number', 'idle 때 이력 한 줄(프로젝트·소요 분)');
+
+  r = post({action:'agent_beat', key:K5, state:'SLEEP', project:'x'});
+  ok(r.ok===true && JSON.parse(f.content).agent.state==='working', '이상한 state 는 working 으로 정규화');
+
+  for(let i=0;i<12;i++){ post({action:'agent_beat', key:K5, state:'working', project:'p'+i}); post({action:'agent_beat', key:K5, state:'idle'}); }
+  ok(JSON.parse(f.content).history.length<=8, '이력은 최대 8건만 보관');
+
+  S.setLock(true);
+  r = post({action:'agent_beat', key:K5, state:'working'});
+  ok(r.ok===false, '동시 저장(잠금) 중이면 거절');
+  S.setLock(false);
+
+  f.content='not json';
+  r = post({action:'agent_status', key:K5});
+  ok(r.ok===true && !r.direct, '직접작업 파일이 깨져도 예외 없이 direct 없이 응답');
+}
+
+console.log('12) 💻 회사 PC 비트(agent_beat target=pc) — 비공개 레포 작업·커밋 전 상태');
+{
+  const K6 = S.props.SECRET_KEY;
+  const folder = S.ROOT.folders.filter(x=>x.name==='김성래포털')[0];
+  const pcFile = ()=>folder.files.filter(x=>x.name==='포털_agent_pc.json')[0];
+
+  // ① target 을 주면 pc 파일에 따로 쌓이고, direct 파일은 건드리지 않는다
+  let d = post({action:'agent_beat', key:K6, target:'direct', state:'working', project:'portal', task:'노트북 작업'});
+  ok(d.ok===true && d.target==='direct', 'target=direct 는 direct 로 기록');
+  const directBefore = JSON.parse(folder.files.filter(x=>x.name==='포털_agent_직접.json')[0].content).updated_at;
+  let r = post({action:'agent_beat', key:K6, target:'pc', state:'working', project:'smartstore', task:'상품 상세페이지 수정'});
+  ok(r.ok===true && r.target==='pc' && r.state==='working', 'target=pc 를 받는다');
+  ok(!!pcFile(), 'pc 상태 파일(포털_agent_pc.json)이 따로 생긴다');
+  const pd = JSON.parse(pcFile().content);
+  ok(pd.agent.state==='working' && pd.agent.project==='smartstore' && pd.target==='pc', 'pc 파일에 상태·프로젝트·target 기록');
+  ok(JSON.parse(folder.files.filter(x=>x.name==='포털_agent_직접.json')[0].content).updated_at===directBefore, 'pc 비트는 direct 파일을 덮어쓰지 않는다');
+
+  // ② agent_status 가 direct·pc 를 같이 준다
+  r = post({action:'agent_status', key:K6});
+  ok(r.ok===true && r.pc && r.pc.state==='working' && r.pc.project==='smartstore', 'agent_status 에 pc 블록이 붙는다');
+  ok(r.direct && r.direct.project==='portal', 'direct 블록도 그대로');
+  ok(JSON.stringify(r.beat_targets)===JSON.stringify(['direct','pc']), 'beat_targets 로 이 배포가 pc 를 아는지 알려준다');
+
+  // ③ stale_min — 커밋 알림은 120분, 값은 5~240 으로 자른다
+  r = post({action:'agent_beat', key:K6, target:'pc', state:'working', source:'commit', stale_min:120, project:'smartstore', task:'커밋'});
+  ok(r.ok===true && r.stale_min===120, '커밋 알림의 stale_min 120 을 그대로 받는다');
+  ok(post({action:'agent_status', key:K6}).pc.stale_min===120, 'agent_status 가 stale_min 을 실어 준다');
+  ok(post({action:'agent_beat', key:K6, target:'pc', stale_min:9999}).stale_min===240, '너무 큰 stale_min 은 240 으로 자름');
+  ok(post({action:'agent_beat', key:K6, target:'pc', stale_min:3}).stale_min===5, '5분 아래는 5분으로 올림');
+  ok(post({action:'agent_beat', key:K6, target:'pc', stale_min:0}).stale_min===30, '0 이하는 값이 없는 것으로 보고 30분');
+  ok(post({action:'agent_beat', key:K6, target:'pc'}).stale_min===30, '안 주면 30분');
+
+  // ④ 가림 — 작업명의 전화번호는 저장 전에 지운다
+  r = post({action:'agent_beat', key:K6, target:'pc', state:'working', project:'smartstore', task:'고객 010-1234-5678 안내'});
+  ok(String(JSON.parse(pcFile().content).agent.task).indexOf('010-1234-5678')<0, 'pc 작업명의 전화번호도 가려서 저장');
+
+  // ⑤ idle 이면 이력 한 줄 + 쉬는 중
+  r = post({action:'agent_beat', key:K6, target:'pc', state:'idle', source:'commit'});
+  const pd2 = JSON.parse(pcFile().content);
+  ok(pd2.agent.state==='idle' && pd2.history.length>=1 && typeof pd2.history[0].dur_min==='number', 'pc idle 이면 이력 한 줄');
+  ok(post({action:'agent_status', key:K6}).pc.state==='idle', 'agent_status 도 쉬는 중으로');
+
+  // ⑥ 모르는 target 은 예전 그대로 direct (free 함수 하위호환)
+  r = post({action:'agent_beat', key:K6, target:'tablet', state:'working', project:'portal', task:'x'});
+  ok(r.ok===true && r.target==='direct', '모르는 target 은 direct 로');
+
+  // ⑦ pc 파일이 깨져도 direct 는 그대로 온다
+  pcFile().content='not json';
+  r = post({action:'agent_status', key:K6});
+  ok(r.ok===true && !r.pc && !!r.direct, 'pc 파일이 깨져도 예외 없이 direct 만 응답');
+}
+
+console.log('13) 💻 회사 PC 1줄 리포터(tools/pc-beat.ps1) — 키 없는 공개 도구');
+{
+  const fs = require('fs'), path = require('path');
+  const p = path.join(__dirname, '..', 'tools', 'pc-beat.ps1');
+  const ps = fs.readFileSync(p, 'utf8');
+  ok(ps.length > 2000, 'pc-beat.ps1 이 있다');
+  ok(/target\s*=\s*'pc'/.test(ps), "보내는 본문의 target 은 'pc'");
+  ok(/action\s*=\s*'agent_beat'/.test(ps), 'action 은 agent_beat');
+  ok(ps.indexOf('.portal-beat.json') >= 0 && ps.indexOf('USERPROFILE') >= 0, '키는 사용자 폴더(%USERPROFILE%)에만 둔다');
+  ok(ps.indexOf('PC_BEAT_KEY') >= 0 && ps.indexOf('PC_BEAT_URL') >= 0, '환경변수로도 받는다');
+  ok(!/script\.google\.com/.test(ps) && !/https?:\/\/[a-z0-9.-]+\/macros/.test(ps), '공개 저장소에 서버 주소를 넣지 않는다');
+  ok(ps.indexOf('post-commit') >= 0 && ps.indexOf('pcbeat start') >= 0, '커밋 훅과 start/done 사용법을 안내한다');
+  ok(ps.indexOf('StaleCommit = 120') >= 0, '커밋 알림은 120분 기준(커밋 간격)');
+  ok(ps.indexOf('$ConfigPath') >= 0 && !/Add-Content[^\n]*\.portal-beat/.test(ps), '설정은 덮어쓰기(비밀번호가 로그에 안 쌓임)');
+
+  // 가림 규칙은 .NET·JS 공통 문법 — 같은 정규식으로 여기서 시험한다
+  const block = ps.match(/<PCBEAT_MASK>([\s\S]*?)<\/PCBEAT_MASK>/);
+  ok(!!block, '가림 규칙 구간이 있다');
+  const pats = [];
+  const rc = /'((?:[^']|'')*)'/g; let mm;
+  while ((mm = rc.exec(block ? block[1] : '')) !== null) pats.push(mm[1].replace(/''/g, "'"));
+  ok(pats.length >= 4, '가림 규칙 4개 이상');
+  const mask = s => { let t = String(s); pats.forEach(x => { t = t.replace(new RegExp(x, 'g'), '***'); }); return t.replace(/\s+/g, ' ').trim(); };
+  ok(mask('고객 010-1234-5678 안내').indexOf('010-1234-5678') < 0, '작업명의 휴대전화는 가림');
+  ok(mask('메일 a.b@c.co 로').indexOf('a.b@c.co') < 0, '작업명의 메일은 가림');
+  ok(mask('주민 900101-1234567').indexOf('900101-1234567') < 0, '주민번호 모양은 가림');
+  ok(mask('key 0123456789abcdef0123456789abcdef').indexOf('0123456789abcdef') < 0, '키 모양(32자 hex)은 가림');
+  ok(mask('상품 상세페이지 수정 4건') === '상품 상세페이지 수정 4건', '보통 작업명은 그대로');
+  ok(mask('x'.repeat(100)).length === 100, '가림은 길이를 늘리지 않는다(자르기는 서버가 60자로)');
 }
 
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);

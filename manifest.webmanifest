@@ -1,0 +1,28 @@
+{
+  "id": "./",
+  "name": "김성래 포털",
+  "short_name": "성래포털",
+  "description": "가계부·보험관리툴·사전진단툴로 가는 허브 — 캘린더·할 일·메모",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F0F4FF",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
