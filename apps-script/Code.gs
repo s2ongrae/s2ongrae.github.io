@@ -1226,7 +1226,7 @@ function agentBeat_(body) {
   const st = String(b.state || '').toLowerCase() === 'idle' ? 'idle' : 'working';
   const staleMin = abStale_(b.stale_min);
   const source = String(b.source || '').toLowerCase() === 'commit' ? 'commit' : 'manual';
-  return qqLock_(function () {
+  const logInfo = qqLock_(function () {
     const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
     const folder = fo.hasNext() ? fo.next() : DriveApp.createFolder(PORTAL_FOLDER);
     const name = AB_FILE[target];
@@ -1238,19 +1238,45 @@ function agentBeat_(body) {
     if (!Array.isArray(d.history)) d.history = [];
     const now = new Date().toISOString();
     const prev = isObj(d.agent) ? d.agent : {};
+    let logEvt = null;
     if (st === 'idle') {
       const s0 = Date.parse(String(prev.started_at || ''));
+      const durMin = isFinite(s0) ? Math.max(0, Math.round((Date.now() - s0) / 60000)) : 0;
       d.history.unshift({
         project: clip(prev.project, 24), started_at: clip(prev.started_at, 40), ended_at: now,
-        dur_min: isFinite(s0) ? Math.max(0, Math.round((Date.now() - s0) / 60000)) : 0,
+        dur_min: durMin,
         source: clip(prev.source, 12)
       });
       d.history = d.history.slice(0, AB_KEEP);
+      if (prev.state === 'working' || source === 'commit') {
+        logEvt = {
+          device: target,
+          project: clip(b.project || prev.project, 40),
+          ev: source === 'commit' ? 'COMMIT' : 'DONE',
+          task: qqMask_(b.task || prev.task || '(작업 완료)', 120),
+          via: source,
+          status: 'DONE',
+          note: durMin ? (durMin + '분') : ''
+        };
+      }
       d.agent = { state: 'idle', project: clip(prev.project, 24), task: qqMask_(prev.task, 60),
         started_at: clip(prev.started_at, 40), source: clip(prev.source, 12) || source, stale_min: staleMin };
     } else {
+      const nextProj = clip(b.project, 24);
+      const nextTask = qqMask_(b.task, 60);
+      if (prev.state !== 'working' || prev.project !== nextProj || prev.task !== nextTask) {
+        logEvt = {
+          device: target,
+          project: clip(b.project, 40),
+          ev: 'START',
+          task: qqMask_(b.task || '(작업 시작)', 120),
+          via: source,
+          status: 'WORKING',
+          note: ''
+        };
+      }
       d.agent = {
-        state: 'working', project: clip(b.project, 24), task: qqMask_(b.task, 60),
+        state: 'working', project: nextProj, task: nextTask,
         started_at: String((prev.state === 'working' && prev.started_at) ? prev.started_at : now).slice(0, 40),
         source: source, stale_min: staleMin
       };
@@ -1260,8 +1286,36 @@ function agentBeat_(body) {
     d.updated_at = now;
     const js = JSON.stringify(d);
     if (f) f.setContent(js); else folder.createFile(name, js, 'application/json');
-    return { ok: true, target: target, state: st, stale_min: staleMin };
+    return logEvt;
   });
+  if (logInfo) workLogAppend_(logInfo.device, logInfo.project, logInfo.ev, logInfo.task, logInfo.via, logInfo.status, logInfo.note);
+  return { ok: true, target: target, state: st, stale_min: staleMin };
+}
+
+/** 통합 작업 로그(Work_Log) 1줄 추가 — 회사 PC(pc)·노트북 직접(direct) 시작/종료 이중 기록 */
+function workLogAppend_(device, project, ev, task, via, status, note) {
+  try {
+    const id = String(PropertiesService.getScriptProperties().getProperty('QUEUE_SHEET_ID') || '').trim();
+    if (!id) return;
+    const ss = SpreadsheetApp.openById(id);
+    let sh = ss.getSheetByName('Work_Log');
+    if (!sh) {
+      sh = ss.insertSheet('Work_Log');
+      sh.getRange(1, 1, 1, 8).setValues([['시각', '기기', '프로젝트', '이벤트', '작업명', '경로', '상태', '비고']]);
+      sh.setFrozenRows(1);
+    }
+    const kst = Utilities.formatDate(new Date(), 'Asia/Seoul', "yyyy-MM-dd'T'HH:mm:ss+09:00");
+    sh.appendRow([
+      kst,
+      clip(device, 30),
+      clip(project, 40),
+      clip(ev, 20),
+      qqMask_(task, 120),
+      clip(via, 40),
+      clip(status, 30),
+      clip(note, 120)
+    ]);
+  } catch (_) {}
 }
 /** 기기 상태 파일 하나를 포털이 쓰는 모양으로 — 없거나 깨졌으면 null */
 function agentBeatRead_(target) {
