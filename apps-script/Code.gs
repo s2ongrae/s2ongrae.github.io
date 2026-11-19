@@ -410,11 +410,23 @@ function queueStatus() {
       res.heartbeat = { state: 'unknown', error: '하트비트 파일을 읽지 못했어요' };
     }
   } else {
-    // 하트비트 파일이 없으면 노트북이 살아 있는지 '알 수 없다'고 정직하게 답한다.
-    // 시트 활동 시각은 참고값(min·at)으로만 실어 보내고 state 는 unknown 으로 둔다.
-    const h = lastQueueAt ? heartAge_(lastQueueAt, 'sheet') : null;
-    res.heartbeat = { state: 'unknown', source: 'sheet', approx: true, reason: 'no_heartbeat' };
-    if (h && isFinite(h.min)) { res.heartbeat.min = h.min; res.heartbeat.at = h.at; }
+    // ① 노트북이 폴링 때 남기는 Agent_Status 1행 — 2026-11-19부터 이게 1순위다.
+    //    파일을 따로 올릴 필요도, 노트북에 드라이브 권한도 필요 없다(폴링 자체가 생존 신호).
+    let nb = null;
+    if (sheetId) { try { nb = notebookBeat_(sheetId); } catch (err) { nb = null; } }
+    if (nb && isFinite(nb.min)) {
+      const st = heartAge_(nb.at, 'agent_status');
+      res.heartbeat = {
+        state: st.state, source: 'agent_status', approx: false, min: nb.min, at: nb.at,
+        agent: nb.agent, busy: nb.busy, order_id: nb.order_id, version: nb.version
+      };
+    } else {
+      // ② 그것도 없으면 '알 수 없다'고 정직하게 답한다.
+      //    시트 활동 시각은 참고값(min·at)으로만 실어 보내고 state 는 unknown 으로 둔다.
+      const h = lastQueueAt ? heartAge_(lastQueueAt, 'sheet') : null;
+      res.heartbeat = { state: 'unknown', source: 'sheet', approx: true, reason: 'no_heartbeat' };
+      if (h && isFinite(h.min)) { res.heartbeat.min = h.min; res.heartbeat.at = h.at; }
+    }
   }
 
   try {
@@ -492,6 +504,27 @@ function heartAge_(iso, source) {
   else if (min <= QS_HB_WARN_MIN) state = 'warn';
   if (source === 'sheet' && state === 'bad') state = 'warn';   // 시트 시각은 '마지막 작업'일 뿐이에요
   return { state: state, at: new Date(t).toISOString(), min: min, source: source, approx: source === 'sheet' };
+}
+
+/**
+ * 노트북 생존 신호 — Command_Queue 와 같은 스프레드시트의 `Agent_Status` 탭 1행.
+ *  (updated_at, agent, state, order_id, script_version) — CommandQueue.gs 가 poll 응답 때 제자리 갱신한다.
+ *  없거나 깨졌으면 null. 읽기만 한다.
+ */
+function notebookBeat_(sheetId) {
+  const ss = SpreadsheetApp.openById(sheetId);
+  const sh = ss.getSheetByName('Agent_Status');
+  if (!sh || sh.getLastRow() < 2) return null;
+  const v = sh.getRange(2, 1, 1, 5).getValues()[0] || [];
+  const at = String(v[0] || '');
+  const t = Date.parse(at);
+  if (!isFinite(t)) return null;
+  return {
+    at: new Date(t).toISOString(),
+    min: Math.max(0, Math.round((Date.now() - t) / 60000)),
+    agent: clip(v[1], 24), state: clip(v[2], 12), busy: String(v[2] || '') === 'busy',
+    order_id: clip(v[3], 40), version: clip(v[4], 40)
+  };
 }
 
 function heartbeatStatus_(fileId) {

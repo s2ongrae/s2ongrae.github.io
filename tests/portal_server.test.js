@@ -118,6 +118,23 @@ console.log('8) 관제 상태등 (queue_status) — 읽기 전용');
   ok(q.heartbeat.state==='unknown' && q.heartbeat.source==='sheet' && q.heartbeat.min===2 && q.heartbeat.approx===true &&
     q.heartbeat.reason==='no_heartbeat', '하트비트 파일이 없으면 살아 있는지 모른다고 답한다(시트 활동은 참고값만·초록 금지)');
 
+  // 2026-11-19 — 노트북이 폴링 때 남기는 Agent_Status 1행이 있으면 그걸로 살아 있음을 판정한다
+  const abHead = ['updated_at','agent','state','order_id','script_version'];
+  const setRowsWithBeat = (rows, beat) => S.addSheet('SHEETidForTest0001',
+    { 'Command_Queue': [head].concat(rows), 'Agent_Status': [abHead].concat([beat]) });
+  setRowsWithBeat([row('c1', iso(30), 'DONE', iso(2))], [iso(1), 'notebook', 'busy', 'Q-1', '2026-11-19-beat']);
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.state==='ok' && q.heartbeat.source==='agent_status', '폴링 1분 전이면 초록(신호 있음)');
+  ok(q.heartbeat.busy===true && q.heartbeat.order_id==='Q-1', '오더 실행 중(busy) 표시');
+  ok(q.heartbeat.approx===false && q.heartbeat.min===1, '시트 활동 추정이 아니라 실제 신호');
+  setRowsWithBeat([row('c1', iso(30), 'DONE', iso(2))], [iso(20), 'notebook', 'idle', '', '2026-11-19-beat']);
+  q = post({action:'queue_status', key:K2});
+  ok(q.heartbeat.state==='warn' && q.heartbeat.busy===false, '20분 전 신호면 노랑·대기 중');
+  setRowsWithBeat([row('c1', iso(30), 'DONE', iso(2))], [iso(600), 'notebook', 'idle', '', '2026-11-19-beat']);
+  ok(post({action:'queue_status', key:K2}).heartbeat.state==='bad', '10시간 전 신호면 빨강(노트북 멈춤)');
+  S.addSheet('SHEETidForTest0001', { 'Command_Queue': [head].concat([row('c1', iso(30), 'DONE', iso(2))]), 'Agent_Status': [abHead] });
+  ok(post({action:'queue_status', key:K2}).heartbeat.reason==='no_heartbeat', 'Agent_Status 가 비면 예전처럼 모른다고 답한다');
+
   setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(8), 'PENDING'), row('c3', iso(12), 'PENDING')]);
   ok(post({action:'queue_status', key:K2}).queue.state==='warn', 'PENDING 2건이면 노랑');
   setRows([row('c1', iso(30), 'DONE', iso(2)), row('c2', iso(20), 'PENDING')]);
