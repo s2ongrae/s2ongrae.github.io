@@ -781,6 +781,10 @@ function goTab(name) {
     if (on && b.scrollIntoView) { try { b.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
   });
   writeLS(LS.tab, name);
+  // 숨겨진 탭은 clientWidth 가 0 이라 차트를 320px 로 그린다 → 보이게 된 뒤 다시 그린다.
+  const v = view();
+  if (name === 'home') renderHome(v);
+  else if (name === 'inflow') renderInflow(v);
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
