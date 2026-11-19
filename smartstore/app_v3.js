@@ -551,7 +551,7 @@ function renderClaims(v) {
     <div class="item">
       <div class="row1"><span class="nm">${esc(TYPE_LABEL[c.type] || c.type)} · ${esc(FAULT_LABEL[c.fault] || c.fault)}</span>
         <span class="pill ${c.sla.level === 'CRIT' ? 'crit' : c.sla.level === 'WARN' ? 'warn' : 'good'}">${c.sla.level === 'CRIT' ? `SLA ${Math.abs(c.sla.hoursLeft)}h 초과` : `SLA ${c.sla.hoursLeft}h`}</span></div>
-      <div class="meta"><span>${esc(c.productOrderId)}</span><span>${esc(GRADE_LABEL[c.grade] || c.grade)}</span><span>차감 <b>${secret(c.deductKrw)}</b></span><span>${c.action === 'RETRIEVE' || c.refundCapKrw === 0 ? '전액 회수' : `환불상한 <b>${secret(c.refundCapKrw, '원')}</b>`}</span><span>순익 <b class="secretv">${secret(c.netProfitDeltaKrw)}</b></span></div>
+      <div class="meta"><span>${esc(c.productOrderId)}</span><span>${esc(GRADE_LABEL[c.grade] || c.grade)}</span><span>차감 <b>${secret(c.deductKrw, '원')}</b></span><span>${c.action === 'RETRIEVE' || c.refundCapKrw === 0 ? '전액 회수' : `환불상한 <b>${secret(c.refundCapKrw, '원')}</b>`}</span><span>순익 <b class="secretv">${secret(c.netProfitDeltaKrw, '원')}</b></span></div>
       <div class="acts">
         <button class="btn ghost tiny" data-copytext="${esc(MSG[c.messageKey] || '')}">안내문구 복사</button>
         <button class="btn primary tiny" data-claim="${esc(c.claimId)}:APPROVE">승인</button>
@@ -584,7 +584,7 @@ function calcClaim() {
   else if (p.grade === 'GLOBAL' && p.type === 'DEFECT') p.options.internationalFreightKrw = extra;
   const r = Core.claimPreview(p);
   $('#clDeduct').textContent = secret(r.deductKrw, '원');
-  $('#clCap').textContent = r.refundCapKrw == null ? '—' : secret(r.refundCapKrw, '원');
+  $('#clCap').textContent = r.action === 'RETRIEVE' ? '전액 회수' : (r.refundCapKrw == null ? '—' : secret(r.refundCapKrw, '원'));
   $('#clDelta').textContent = r.netProfitDeltaKrw == null ? '—' : secret(r.netProfitDeltaKrw, '원');
   $('#clAction').textContent = { RETRIEVE: '회수', SCRAP: '폐기', PARTIAL_REFUND: '부분환불', REJECT: '거절', BLOCKED_ALREADY_ORDERED: '승인 차단' }[r.action] || r.action;
   const vd = $('#clVerdict');

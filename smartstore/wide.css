@@ -18,6 +18,8 @@
   .sheet-in { max-width: 760px; border-radius: 20px; max-height: 88vh; }
   .item .nm { font-size: 13.5px; }
   .pipe .c { font-size: 22px; }
+  /* 계산기 입력은 한 줄이 너무 길어지지 않게 폭을 묶는다 */
+  .card > .field { max-width: 560px; }
 }
 
 @media (min-width: 1180px) {
