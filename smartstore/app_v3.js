@@ -285,7 +285,7 @@ function renderHome(v) {
   $('#kpiRow').innerHTML = `
     <div class="kpi"><i>순방문자(오늘)</i><b>${fmt(today ? today.uv : k.uv)}<small>명</small></b><div class="sub">${v.traffic.daily.length}일 누적 ${fmt(k.uvPeriod)}명</div></div>
     <div class="kpi ${Core.kpiLevel('cvr', todayCvr) === 'GOOD' ? 'good' : Core.kpiLevel('cvr', todayCvr) === 'CRIT' ? 'crit' : 'warn'}"><i>결제(오늘)</i><b>${fmt(todayOrders)}<small>건</small></b><div class="sub">CVR ${pct(todayCvr)}</div></div>
-    <div class="kpi ${k.marginLevel === 'GOOD' ? 'good' : k.marginLevel === 'CRIT' ? 'crit' : 'warn'}"><i>실순익(${DATA_MODE === 'DEMO' ? '누적' : '이번 달'})</i><b class="secretv">${secret(k.netProfitKrw)}</b><div class="sub">이익률 ${pct(k.marginPct)}</div></div>`;
+    <div class="kpi ${Core.kpiLevel('margin', k.marginPct) === 'GOOD' ? 'good' : Core.kpiLevel('margin', k.marginPct) === 'CRIT' ? 'crit' : 'warn'}"><i>실순익(${DATA_MODE === 'DEMO' ? '누적' : '이번 달'})</i><b class="secretv">${secret(k.netProfitKrw)}</b><div class="sub">이익률 ${pct(k.marginPct)}</div></div>`;
 
   const daily = (v.traffic.daily || []).slice(-28);
   const trendEl = $('#trendChart');
