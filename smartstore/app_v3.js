@@ -288,7 +288,8 @@ function renderHome(v) {
     <div class="kpi ${k.marginLevel === 'GOOD' ? 'good' : k.marginLevel === 'CRIT' ? 'crit' : 'warn'}"><i>실순익(${DATA_MODE === 'DEMO' ? '누적' : '이번 달'})</i><b class="secretv">${secret(k.netProfitKrw)}</b><div class="sub">이익률 ${pct(k.marginPct)}</div></div>`;
 
   const daily = (v.traffic.daily || []).slice(-28);
-  $('#trendChart').innerHTML = trendSvg(daily, { barKey: 'revenueKrw', lineKey: 'uv', barLabel: '매출', lineLabel: 'UV' });
+  const trendEl = $('#trendChart');
+  trendEl.innerHTML = trendSvg(daily, { barKey: 'revenueKrw', lineKey: 'uv', barLabel: '매출', lineLabel: 'UV', width: trendEl.clientWidth || 320, height: trendEl.clientWidth > 900 ? 240 : 170, ariaLabel: '매출과 방문 추이' });
   $('#trendHint').textContent = daily.length ? `최근 ${daily.length}일 · ${daily[0].date} ~ ${daily[daily.length - 1].date}` : '데이터 없음';
 
   render45(v);
@@ -338,7 +339,10 @@ function trendSvg(daily, opts) {
   const o = opts || {};
   const rows = daily || [];
   if (!rows.length) return '<div class="muted" style="font-size:12px;padding:18px 0;text-align:center">표시할 데이터가 없습니다</div>';
-  const W = 320, H = 170, L = 30, R = 8, T = 10, B = 22;
+  // 실제 픽셀 폭으로 viewBox 를 잡는다 — 폭이 다른 화면에서 글자가 늘어나지 않게(1:1 스케일).
+  const W = Math.max(260, Math.round(o.width || 320));
+  const H = Math.max(150, Math.round(o.height || 170));
+  const L = 34, R = 10, T = 12, B = 22;
   const bars = rows.map((r) => num(r[o.barKey]) || 0);
   const line = rows.map((r) => num(r[o.lineKey]));
   const maxBar = Math.max(1, ...bars);
@@ -347,7 +351,7 @@ function trendSvg(daily, opts) {
   const bw = Math.max(1.2, iw * 0.62);
   const yBar = (v) => T + (H - T - B) * (1 - v / maxBar);
   const yLine = (v) => T + (H - T - B) * (1 - v / maxLine);
-  let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="매출과 방문 추이">`;
+  let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(o.ariaLabel || '추이 그래프')}">`;
   [0, 0.5, 1].forEach((f) => {
     const y = T + (H - T - B) * f;
     svg += `<line class="gl" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"></line>`;
@@ -397,7 +401,8 @@ function renderInflow(v) {
     <div class="kpi"><i>순방문자(UV)</i><b>${fmt(last ? last.uv : null)}<small>명</small></b><div class="sub">${prev && last ? `전일 ${last.uv - prev.uv >= 0 ? '+' : ''}${fmt(last.uv - prev.uv)}` : '전일 비교 없음'}</div></div>
     <div class="kpi ${Core.kpiLevel('cvr', cvr) === 'GOOD' ? 'good' : Core.kpiLevel('cvr', cvr) === 'CRIT' ? 'crit' : 'warn'}"><i>전환율</i><b>${pct(cvr)}</b><div class="sub">결제 ${fmt(sumOrders)}건 / UV ${fmt(sumUv)}</div></div>
     <div class="kpi"><i>체류·이탈</i><b>${dwell == null ? '—' : `${dwell}s`}</b><div class="sub">이탈률 ${bounce == null ? '—' : `${bounce}%`}</div></div>`;
-  $('#inflowChart').innerHTML = trendSvg(daily.slice(-28), { barKey: 'uv', lineKey: 'cvr', barLabel: 'UV', lineLabel: 'CVR' });
+  const inEl = $('#inflowChart');
+  inEl.innerHTML = trendSvg(daily.slice(-28), { barKey: 'uv', lineKey: 'cvr', barLabel: 'UV', lineLabel: 'CVR', width: inEl.clientWidth || 320, height: inEl.clientWidth > 900 ? 240 : 170, ariaLabel: '방문자와 전환율 추이' });
   $('#inflowTrendHint').textContent = daily.length ? `${daily.length}일 누적 · 최근 28일 표시` : '업로드 필요';
 
   const ch = t.channels || [];
@@ -978,6 +983,18 @@ $('#main').addEventListener('change', (ev) => {
     writeLS(LS.orders45, Math.max(0, Math.min(99, Number(ev.target.value) || 0)));
     render45(view());
   }
+});
+
+/* 창 폭이 바뀌면 차트를 다시 그린다(픽셀 폭 기준 viewBox) */
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  if (!MODEL) return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const v = view();
+    renderHome(v);
+    renderInflow(v);
+  }, 180);
 });
 
 /* 시작 */
