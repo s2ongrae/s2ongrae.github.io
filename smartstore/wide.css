@@ -1,81 +1,49 @@
-/* 묘한살림 운영 대시보드 — PC 와이드 레이아웃 (2026-11-17)
- * 960px 미만(폰)은 index.html 의 기본 스타일 그대로. 이 파일은 넓은 화면만 덧붙인다.
- *  - 960~1279px : 게이지 5 : 성과 7, 상품 카드 2열
- *  - 1280px 이상: 게이지 4 : 성과 8, 상품 카드 3열
+/* 묘한살림 운영 대시보드 v3 — PC 와이드 레이아웃
+ * 960px 미만(폰)은 index.html 기본 스타일 그대로. 이 파일은 넓은 화면만 덧붙인다.
+ *  - 880~1179px : 위젯 3열, 카드 2열
+ *  - 1180px 이상: 위젯 6열(한 줄), 홈은 게이지·준비도 2열, 표는 넓게
  */
 
-@media (min-width: 960px) {
-  .wrap, .hdr-in, .tabbar-in { max-width: 1280px; padding-left: 24px; padding-right: 24px; }
-  body { padding-bottom: 84px; }
-  section[data-tab] { padding-top: 16px; }
-  .kpi b { font-size: 20px; }
-
-  /* 게이지 + 성과요약 : 12칼럼 그리드 */
-  .dash-top { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
-  .dash-top > .card:first-child { grid-column: span 5; margin-bottom: 0; }
-  .perf { grid-column: span 7; margin-bottom: 0; display: flex; flex-direction: column; }
-
-  .list-tools { margin-top: 14px; }
-  #skuList { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-items: start; }
-  #skuList > .sku { margin-bottom: 0; }
-
-  /* 성과 입력 표가 시트 안에서 넓게 보이도록 */
+@media (min-width: 880px) {
+  .hdr-in, main { max-width: 1280px; padding-left: 24px; padding-right: 24px; }
+  main { padding-top: 16px; }
+  .widgets { grid-template-columns: repeat(3, 1fr); }
+  .wg .v { font-size: 24px; }
+  .wg .d { white-space: normal; }
+  .grid2 { grid-template-columns: 1fr 1fr; }
+  .kpis { gap: 12px; }
+  .kpi b { font-size: 26px; }
+  .chart { height: 210px; }
   .sheet { align-items: center; }
-  .sheet-in { max-width: 920px; border-radius: 20px; max-height: 88vh; }
-
-  .perf-act .btn { width: auto; padding: 8px 13px; font-size: 12.5px; }
+  .sheet-in { max-width: 760px; border-radius: 20px; max-height: 88vh; }
+  .item .nm { font-size: 13.5px; }
+  .pipe .c { font-size: 22px; }
 }
 
-@media (min-width: 1280px) {
-  .dash-top > .card:first-child { grid-column: span 4; }
-  .perf { grid-column: span 8; }
-  #skuList { grid-template-columns: repeat(3, 1fr); }
+@media (min-width: 1180px) {
+  .widgets { grid-template-columns: repeat(6, 1fr); }
+  .chart { height: 240px; }
+  section[data-tab="home"] { grid-template-columns: 1fr 1fr; align-items: start; }
+  section[data-tab="home"] > #homeBanner,
+  section[data-tab="home"] > #widgets,
+  section[data-tab="home"] > #kpiRow,
+  section[data-tab="home"] > .card:last-child { grid-column: 1 / -1; }
+  section[data-tab="inflow"] .grid2 { grid-template-columns: 1.1fr 1fr; }
+  table.t th, table.t td { padding: 8px; }
 }
 
-/* 상품 카드 — 4칸 지표 행(조회·구매·전환율·반품) */
-.mrow {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
-  margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--line);
-}
-.mrow i, .pv i { display: block; font-style: normal; font-size: 10.5px; color: var(--ink-3); letter-spacing: -.2px; }
-.mrow b { display: block; font-size: 13.5px; letter-spacing: -.4px; margin-top: 1px; font-variant-numeric: tabular-nums; }
-.mrow b.hot { color: var(--crit); font-weight: 800; }
-
-/* 카드 우상단 마진율 — 이 카드에서 가장 먼저 읽히는 숫자 */
-.mgn { font-size: 20px; font-weight: 800; letter-spacing: -.7px; margin-left: auto; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-.mgn small { font-size: 11px; font-weight: 700; margin-left: 1px; }
-.mgn.warn { color: var(--warn); }
-.mgn.crit { color: var(--crit); }
-.mgn.mute { color: var(--ink-3); }
-
-/* 성과 패널 — 이번 달 조회·구매·취소·반품·전환율 */
-.perf-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 2px 0 10px; }
-.pv { background: var(--line-2); border-radius: 11px; padding: 8px 10px; min-width: 0; }
-.pv b { display: block; font-size: 21px; font-weight: 800; letter-spacing: -.7px; margin-top: 1px; font-variant-numeric: tabular-nums; }
-.pv b.mute { color: var(--ink-3); font-weight: 700; }
-.perf-act { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.perf-month { border: 1px solid var(--line); background: var(--card); border-radius: 9px; padding: 4px 8px; font-size: 12px; font-weight: 600; }
-.perf .note { margin-top: auto; }
-
-/* 성과 입력 시트의 표 */
-.perf-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.perf-table th { text-align: right; font-size: 11px; color: var(--ink-3); font-weight: 600; padding: 5px 6px; border-bottom: 1px solid var(--line); }
-.perf-table th:first-child { text-align: left; }
-.perf-table td { padding: 4px 6px; border-bottom: 1px solid var(--line-2); }
-.perf-table td:first-child { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.perf-table input {
-  width: 72px; text-align: right; border: 1px solid var(--line); border-radius: 8px;
-  padding: 6px; font-size: 13px; font-weight: 600; background: #fdfbf7; font-variant-numeric: tabular-nums;
-}
-.perf-table input:focus { outline: 2px solid var(--accent-soft); border-color: #d9c6ab; }
-.perf-table-wrap { max-height: 52vh; overflow: auto; margin-bottom: 10px; }
-.perf-table thead th { position: sticky; top: 0; background: var(--card); }
-
-/* 폰: 성과 5칸은 3+2로 접고 숫자는 조금 줄인다 */
+/* 폰: 8탭 가로 스크롤 · 위젯 2열(이미 기본) · 표는 가로 스크롤 */
 @media (max-width: 520px) {
-  .perf-row { grid-template-columns: repeat(3, 1fr); }
-  .pv b { font-size: 19px; }
-  .mgn { font-size: 18px; }
-  .perf-act { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .perf-act .btn { padding: 10px 6px; }
+  .hdr-in, main { padding-left: 12px; padding-right: 12px; }
+  .brand .v { display: none; }
+  .tabs button { padding: 9px 9px; font-size: 12px; }
+  .out { gap: 6px; }
+  .out .box b { font-size: 15px; }
+  .field select { width: 118px; }
+  .field input[type=number] { width: 100px; }
+  .copy { font-size: 11px; }
+  .sheet { align-items: flex-end; }
 }
+
+/* 표 안의 금액은 자릿수가 흔들리지 않게 */
+table.t td.num, .kpi b, .gauge .pct, .wg .v { font-variant-numeric: tabular-nums; }
