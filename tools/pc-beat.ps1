@@ -206,7 +206,7 @@ function Invoke-Hook {
     '# 포털 관제 — 커밋할 때 회사 PC 상태를 백그라운드로 알린다(커밋은 기다리지 않음)',
     'PSB="' + ($target -replace '\\', '/') + '"',
     'if [ -f "$PSB" ]; then',
-    '  powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "$PSB" commit >/dev/null 2>&1 &',
+    '  powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "$PSB" commit >/dev/null 2>&1',
     'fi',
     'exit 0'
   )
@@ -248,6 +248,7 @@ switch ($Command.ToLower()) {
   'done'    { Send-Beat -State 'idle' -Source 'manual' | Out-Null }
   'off'     { Send-Beat -State 'idle' -Source 'manual' | Out-Null }
   'commit'  {
+    try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
     $root = ''
     try { $root = (Find-GitRoot) } catch { $root = '' }
     $subject = ''
