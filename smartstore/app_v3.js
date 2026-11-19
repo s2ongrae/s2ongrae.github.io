@@ -391,8 +391,11 @@ function renderInflow(v) {
   const sumPv = daily.reduce((a, r) => a + (num(r.pv) || 0), 0);
   const sumOrders = daily.reduce((a, r) => a + (num(r.orders) || 0), 0);
   const cvr = Core.cvrOf(sumUv, sumOrders);
-  const dwell = daily.length ? Math.round(daily.reduce((a, r) => a + (num(r.dwellSec) || 0), 0) / daily.filter((r) => num(r.dwellSec) != null).length || 0) : null;
-  const bounce = daily.length ? Math.round(daily.reduce((a, r) => a + (num(r.bouncePct) || 0), 0) / (daily.filter((r) => num(r.bouncePct) != null).length || 1)) : null;
+  // 체류·이탈은 파일에 그 열이 없으면 0이 아니라 '미확인'이다(0과 없는 값을 섞지 않는다)
+  const dwellRows = daily.filter((r) => num(r.dwellSec) != null);
+  const bounceRows = daily.filter((r) => num(r.bouncePct) != null);
+  const dwell = dwellRows.length ? Math.round(dwellRows.reduce((a, r) => a + Number(r.dwellSec), 0) / dwellRows.length) : null;
+  const bounce = bounceRows.length ? Math.round(bounceRows.reduce((a, r) => a + Number(r.bouncePct), 0) / bounceRows.length) : null;
 
   $('#inflowSrc').textContent = UPLOAD
     ? `업로드 ${new Date(UPLOAD.savedAt).toLocaleDateString('ko-KR')} · ${UPLOAD.rows.length}일`
