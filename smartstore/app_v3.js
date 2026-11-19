@@ -456,6 +456,7 @@ function renderOrders(v) {
 
   const dlist = v.orders.filter((o) => o.stage === 'DISPATCH_WAIT')
     .map((o) => ({ o, sla: Core.dispatchSla(o.dispatchDue, v.now) }))
+    .filter((x) => x.sla.level === 'WARN' || x.sla.level === 'CRIT') // D-1·D-0 만 — 여유분은 주문 목록에
     .sort((a, b) => a.sla.hoursLeft - b.sla.hoursLeft);
   const fakeIds = new Set(v.fake.map((f) => f.productOrderId));
   $('#dispatchList').innerHTML = (dlist.length || fakeIds.size) ? [
@@ -484,7 +485,7 @@ function renderOrders(v) {
         <td><span class="pill ${o.stage === 'CONFIRMED' ? 'good' : o.stage === 'NEW' ? 'warn' : 'mute'}">${STAGE_LABEL[o.stage]}</span></td>
         <td class="num">${secret(o.amount)}</td>
         <td class="num">${secret(o.profitKrw)}</td>
-        <td>${o.stage === 'CONFIRMED' ? '—' : `<span class="pill ${sla.level === 'CRIT' ? 'crit' : sla.level === 'WARN' ? 'warn' : 'good'}">${esc(sla.label)}</span>`}</td>
+        <td>${o.stage === 'CONFIRMED' ? '<span class="pill good">완료</span>' : o.stage === 'IN_TRANSIT' ? `<span class="pill ${o.collectedAt ? 'good' : 'warn'}">${o.collectedAt ? '배송중' : '집화 대기'}</span>` : `<span class="pill ${sla.level === 'CRIT' ? 'crit' : sla.level === 'WARN' ? 'warn' : 'good'}">${esc(sla.label)}</span>`}</td>
         <td>${esc(o.courier || '—')}${o.trackingNo ? `<br><span class="muted" style="font-size:10px">${esc(o.trackingNo)}</span>` : ''}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="7" class="muted">주문이 없습니다.</td></tr>'}</tbody>`;
@@ -530,14 +531,14 @@ function renderClaims(v) {
   const over = open.filter((c) => c.sla.level === 'CRIT');
   const deduct = open.reduce((a, c) => a + (num(c.deductKrw) || 0), 0);
   $('#claimSummary').innerHTML = v.claims.length
-    ? `<div class="banner ${over.length ? 'demo' : 'live'}"><span>${over.length ? '⏰' : '✅'}</span><div>미처리 <b>${open.length}건</b> · SLA 초과 <b>${over.length}건</b> · 예상 차감액 <b>${secret(deduct)}</b>${over.length ? ' — 24시간이 지난 클레임부터 처리하세요.' : ''}</div></div>`
+    ? `<div class="banner ${over.length ? 'demo' : 'live'}"><span>${over.length ? '⏰' : '✅'}</span><div>미처리 <b>${open.length}건</b> · SLA 초과 <b>${over.length}건</b> · 예상 차감액 <b>${secret(deduct, '원')}</b>${over.length ? ' — 24시간이 지난 클레임부터 처리하세요.' : ''}</div></div>`
     : `<div class="banner prep"><span>✅</span><div>${STORE_MODE === 'PRE_OPEN_PREP' ? '12월 준비 모드 — 미처리 클레임·미답변 문의 0건.' : '미처리 클레임·미답변 문의·저평점 리뷰가 모두 0건입니다.'}</div></div>`;
 
   $('#claimList').innerHTML = open.length ? open.map((c) => `
     <div class="item">
       <div class="row1"><span class="nm">${esc(TYPE_LABEL[c.type] || c.type)} · ${esc(FAULT_LABEL[c.fault] || c.fault)}</span>
         <span class="pill ${c.sla.level === 'CRIT' ? 'crit' : c.sla.level === 'WARN' ? 'warn' : 'good'}">${c.sla.level === 'CRIT' ? `SLA ${Math.abs(c.sla.hoursLeft)}h 초과` : `SLA ${c.sla.hoursLeft}h`}</span></div>
-      <div class="meta"><span>${esc(c.productOrderId)}</span><span>${esc(GRADE_LABEL[c.grade] || c.grade)}</span><span>차감 <b>${secret(c.deductKrw)}</b></span><span>환불상한 <b>${secret(c.refundCapKrw)}</b></span><span>순익 <b class="secretv">${secret(c.netProfitDeltaKrw)}</b></span></div>
+      <div class="meta"><span>${esc(c.productOrderId)}</span><span>${esc(GRADE_LABEL[c.grade] || c.grade)}</span><span>차감 <b>${secret(c.deductKrw)}</b></span><span>${c.action === 'RETRIEVE' || c.refundCapKrw === 0 ? '전액 회수' : `환불상한 <b>${secret(c.refundCapKrw, '원')}</b>`}</span><span>순익 <b class="secretv">${secret(c.netProfitDeltaKrw)}</b></span></div>
       <div class="acts">
         <button class="btn ghost tiny" data-copytext="${esc(MSG[c.messageKey] || '')}">안내문구 복사</button>
         <button class="btn primary tiny" data-claim="${esc(c.claimId)}:APPROVE">승인</button>
@@ -599,7 +600,7 @@ function renderProducts(v) {
         <td class="name">${esc(s.name)}<br><span class="muted" style="font-size:10px">${esc(s.sku)}</span></td>
         <td><span class="pill ${s.track === 'GLOBAL' ? 'demo' : 'mute'}">${s.track === 'GLOBAL' ? '해외' : '국내'}</span></td>
         <td class="num">${secret(s.salePrice)}</td>
-        <td class="num">${s.seoScore == null ? '—' : `${s.seoScore}`} <span class="pill ${s.seoGrade === 'GOOD' ? 'good' : s.seoGrade === 'WARN' ? 'warn' : 'crit'}">${s.seoGrade === 'GOOD' ? '80↑' : s.seoGrade === 'WARN' ? '60↑' : '미달'}</span></td>
+        <td class="num">${s.seoScore == null ? '<span class="pill mute">미측정</span>' : `${s.seoScore} <span class="pill ${s.seoGrade === 'GOOD' ? 'good' : s.seoGrade === 'WARN' ? 'warn' : 'crit'}">${s.seoGrade === 'GOOD' ? '80↑' : s.seoGrade === 'WARN' ? '60↑' : '미달'}</span>`}</td>
         <td>${s.status === 'SUSPENSION' ? '<span class="pill crit">판매중지</span>' : s.status === 'DRAFT' ? '<span class="pill mute">DRAFT</span>' : '<span class="pill good">판매중</span>'}</td>
         <td>${s.optionMissing && s.optionMissing.length ? `<span class="pill warn">누락 ${s.optionMissing.length}</span>` : '<span class="muted">—</span>'}</td>
       </tr>`).join('')}</tbody>`;
@@ -698,7 +699,7 @@ function renderSettle(v) {
     <div style="display:grid;gap:3px;margin-bottom:8px">
       <div style="display:flex;font-size:11.5px"><span>${label}</span><span style="margin-left:auto;font-weight:800" class="${label === '실순익' ? 'secretv' : ''}">${secret(val)}</span></div>
       <div class="track"><i style="width:${Math.min(100, (Math.abs(val) / max) * 100)}%;background:${color}"></i></div>
-    </div>`).join('') + `<p class="note">이익률 ${pct(s.marginPct)} · 객단가 ${secret(s.aovKrw)} · 30일 반품률 ${pct(s.returnRatePct)}${DATA_MODE === 'DEMO' ? ' (DEMO 표본 30건·클레임 6건이라 실제보다 높게 보입니다)' : ''}</p>`;
+    </div>`).join('') + `<p class="note">이익률 ${pct(s.marginPct)} · 객단가 ${secret(s.aovKrw, '원')} · 30일 반품률 ${pct(s.returnRatePct)}${DATA_MODE === 'DEMO' ? ' (DEMO 표본 30건·클레임 6건이라 실제보다 높게 보입니다)' : ''}</p>`;
 
   const rec = v.rec;
   $('#settleHint').textContent = rec.rows.length ? `일치 ${rec.matched} · 차이 ${rec.diffs}` : '정산 데이터 없음';
@@ -748,7 +749,7 @@ function renderSettings(v) {
       <div class="track ${slot.level === 'RED' ? 'crit' : slot.level === 'YELLOW' ? 'warn' : ''}"><i style="width:${Math.min(100, ((slot.ratio_pct || 0) / 3.5) * 100)}%"></i></div>
       <div class="g-note">안전선 3.5% (3.49% 차단 / 3.50% 통과) · 활성 슬롯 ${slot.active_slots || 0} / 상한 ${slot.slot_cap || 40} · 여유 ${slot.headroom_slots || 0}개</div>
     </div>
-    <p class="note">${slot.block_new_listing ? '지금은 신규 등록이 잠깁니다.' : '신규 등록 여유가 있습니다.'} 12월에는 등록을 하지 않고 2027-01-02 이후 재개합니다.</p>`;
+    <p class="note">${(slot.denominator_slots || 0) === 0 ? '등록·판매중 상품이 0 — 판매상품비중 판정 보류(재오픈 후 계산).' : (slot.block_new_listing ? '지금은 신규 등록이 잠깁니다(3.5% 미만).' : '신규 등록 여유가 있습니다.')} 12월에는 등록을 하지 않고 2027-01-02 이후 재개합니다.</p>`;
   $('#systemPanel').innerHTML = `
     <div class="item"><div class="meta"><span>화면 데이터</span><span><b>${MODEL.generatedAt ? new Date(MODEL.generatedAt).toLocaleString('ko-KR') : '—'}</b></span></div><div class="meta"><span>도매의신 스냅샷</span><span>${MODEL.snapshotAt ? new Date(MODEL.snapshotAt).toLocaleString('ko-KR') : '—'} (${MODEL.freshness || '—'})</span></div></div>
     <div class="item"><div class="meta"><span>공인IP</span><span><b>미확인</b> — 노트북 10분 점검</span></div><div class="meta"><span>도매예치금</span><span><b>미확인</b> — 결제 방식 확인 전</span></div></div>
@@ -761,7 +762,11 @@ function renderSettings(v) {
 /* ─────────────── 이벤트 ─────────────── */
 function goTab(name) {
   $$('section[data-tab]').forEach((s) => { s.hidden = s.dataset.tab !== name; });
-  $$('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.go === name)));
+  $$('#tabs button').forEach((b) => {
+    const on = b.dataset.go === name;
+    b.setAttribute('aria-selected', String(on));
+    if (on && b.scrollIntoView) { try { b.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
+  });
   writeLS(LS.tab, name);
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
