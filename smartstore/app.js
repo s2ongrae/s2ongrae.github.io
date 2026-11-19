@@ -214,24 +214,34 @@ function hoursText(h) {
 function renderFreshness() {
   const bar = $('#freshBar');
   const level = MODEL.freshness || 'UNKNOWN';
-  bar.className = `fresh${level === 'WARN' ? ' warn' : level === 'CRIT' ? ' crit' : ''}`;
+  bar.className = `fresh${level === 'WARN' ? ' warn' : level === 'CRIT' ? ' crit' : level === 'PAUSED' ? ' paused' : ''}`;
   const at = MODEL.snapshotAt ? new Date(MODEL.snapshotAt) : null;
   const stamp = at ? at.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
   const ageH = MODEL.snapshotAgeHours;
   let label = `도매의신 확인 ${hoursText(ageH)} · ${stamp}`;
   if (level === 'WARN') label += ' · 확인 필요';
   if (level === 'CRIT') label += ' · 오래됨(직접 확인)';
+  if (level === 'PAUSED') {
+    const m = MODEL.monitor || {};
+    label = `감시 일시중지${m.pausedUntil ? ' · ' + m.pausedUntil + ' 재개' : ''} · ${m.storeState || '스토어 판매중지'} · 마지막 확인 ${stamp}`;
+  }
   $('#freshText').textContent = label;
 }
 
 function renderKpis() {
   const s = MODEL.summary || {};
   const warn = (s.warnCount || 0) + (s.critCount || 0);
+  const suspended = s.suspendedCount || 0;
+  // 판매중지가 하나라도 있으면 판매중 수는 '지금 파는 수'로 줄이고, 마지막 칸을 판매중지로 바꾼다.
+  const active = s.activeCount == null ? (s.skuCount || 0) - suspended : s.activeCount;
+  const last = suspended
+    ? { k: '판매중지', v: suspended, u: '종', cls: 'crit' }
+    : { k: '품절', v: s.soldOutCount || 0, u: '종', cls: (s.soldOutCount || 0) ? 'crit' : '' };
   const items = [
-    { k: '판매중', v: s.skuCount, u: '종', cls: '' },
+    { k: '판매중', v: active, u: '종', cls: '' },
     { k: '평균 마진', v: s.avgMarginPct == null ? '-' : s.avgMarginPct, u: '%', cls: 'good' },
     { k: '마진 경고', v: warn, u: '종', cls: warn ? 'warn' : '' },
-    { k: '품절', v: s.soldOutCount || 0, u: '종', cls: (s.soldOutCount || 0) ? 'crit' : '' },
+    last,
   ];
   $('#kpis').innerHTML = items.map((i) => `
     <div class="kpi ${i.cls}"><i>${i.k}</i><b>${i.v}<small>${i.u}</small></b></div>`).join('');
@@ -281,12 +291,14 @@ function renderList() {
   if (sort === 'name') list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
   if (sort === 'price') list.sort((a, b) => (num(b.salePrice) ?? 0) - (num(a.salePrice) ?? 0));
 
-  const stale = MODEL.freshness && MODEL.freshness !== 'FRESH';
+  const stale = MODEL.freshness && MODEL.freshness !== 'FRESH' && MODEL.freshness !== 'PAUSED';
   $('#listCnt').textContent = `${list.length}종 · ${sort === 'risk' ? '마진 낮은 순' : sort === 'price' ? '판매가 높은 순' : '이름 순'}`;
 
   $('#skuList').innerHTML = list.map((s) => {
     const rec = mRec(PERIOD, s.code);
-    const statusPill = s.soldOut
+    const statusPill = s.saleStatus === '판매중지'
+      ? '<span class="chip off">판매중지</span>'
+      : s.soldOut
       ? '<span class="chip off">품절</span>'
       : s.options && s.options.total && s.options.sellable < s.options.total
         ? `<span class="chip todo">옵션 ${s.options.sellable}/${s.options.total}</span>`
@@ -296,8 +308,9 @@ function renderList() {
     const exposure = s.exposure && s.exposure !== '미확인'
       ? `<span class="chip ${s.exposure === '노출중' ? 'on' : 'off'}">${esc(s.exposure)}</span>`
       : '<span class="chip">노출 미확인</span>';
-    const expired = s.exposureCheckedAt
-      ? `<span style="font-size:10.5px;color:var(--ink-3)">${new Date(s.exposureCheckedAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} 확인</span>` : '';
+    const checkedAt = s.saleStatus === '판매중지' && s.saleStatusCheckedAt ? s.saleStatusCheckedAt : s.exposureCheckedAt;
+    const expired = checkedAt
+      ? `<span style="font-size:10.5px;color:var(--ink-3)">${new Date(checkedAt).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })} 확인</span>` : '';
 
     const caps = [];
     if (s.returnImpact && s.returnImpact.roundTripKrw) {
