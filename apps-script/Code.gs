@@ -1054,6 +1054,28 @@ function queueList(body) {
 }
 
 /** 오더 한 건 접수. 위험(파일 수정)이면 WAITING_APPROVAL 로 세워 승인을 기다린다. */
+/**
+ * 오더 프롬프트에 "셸은 없다"를 코드로 붙인다 (2026-11-19).
+ *  AI 엔진은 Bash 권한이 없어 테스트·빌드 명령을 못 돌린다. 그런데 오더에 "npm test 로 확인해라"가
+ *  들어가면 엔진이 그걸 시도하다 턴을 버리고 "테스트를 못 돌렸다"로 끝난다(11/19 실측: 스마트스토어 12건).
+ *  포털은 시트에 직접 쓰므로 CommandQueue.gs 를 거치지 않는다 — 여기에도 같은 문구를 붙인다.
+ *  · claude_prompt 에만, 이미 있으면 다시 붙이지 않는다(멱등). 해시는 이 문구 뒤 payload 로 계산된다.
+ */
+var QQ_WORKER_NOTE = '\n\n[워커 규칙] 셸(Bash)은 차단되어 있다. 테스트·문법 검증은 네가 저장한 뒤 워커가 직접 돌린다. ' +
+  'npm test·node --test 같은 실행 명령을 시도하지 말고, 바꾼 파일과 완료 조건만 보고해라.';
+function qqWithWorkerNote_(type, payload) {
+  if (type !== 'claude_prompt') return payload;
+  var p;
+  try { p = qqParse_(payload); } catch (err) { return payload; }
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return payload;
+  var prompt = String(p.prompt || '');
+  if (!prompt || prompt.indexOf('[워커 규칙]') !== -1) return payload;
+  if (prompt.length + QQ_WORKER_NOTE.length > QQ_MAX_PAYLOAD) return payload;
+  p.prompt = prompt + QQ_WORKER_NOTE;
+  p.worker_note = 'auto';
+  return JSON.stringify(p);
+}
+
 function queueEnqueue(body) {
   const type = String((body && body.type) || '').trim();
   const spec = QQ_TYPES[type];
@@ -1062,7 +1084,7 @@ function queueEnqueue(body) {
   if (spec.needsWorkspace && !workspace) throw qqErr_('workspace', '작업 위치를 골라주세요.');
   if (workspace) qqCheckWorkspace_(workspace);
   else workspace = '';
-  const payload = qqPayloadOf_(type, body && body.payload);
+  const payload = qqWithWorkerNote_(type, qqPayloadOf_(type, body && body.payload));
   if (payload.length > QQ_MAX_PAYLOAD) throw qqErr_('too_long', '오더 내용이 너무 길어요.');
 
   const risk = (type === 'claude_prompt' && qqModeOf_(payload) === 'edit') ? 'HIGH' : 'LOW';

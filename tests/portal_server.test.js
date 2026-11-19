@@ -280,7 +280,8 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   const editId = ed2.item.id;
   const edRow = qrows().find(x => x[0] === editId);
   ok(col(edRow, 'approval_expires_at') && col(edRow, 'approval_by') === '', '기한은 적고 승인자는 아직 비어 있다');
-  ok(col(edRow, 'approval_hash') === hashOf({prompt: '승인 카드 색 고쳐줘', mode: 'edit'}), '승인 해시가 payload 와 묶인다');
+  // 2026-11-19 — 접수 때 '워커 규칙' 문구가 자동으로 붙으므로, 해시는 저장된 payload 로 맞춰 본다.
+  ok(col(edRow, 'approval_hash') === hashOf(JSON.parse(String(col(edRow, 'payload')))), '승인 해시가 payload 와 묶인다');
   ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '   ', mode: 'edit'}}).code === 'bad_request', '빈 오더 거절');
 
   // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
@@ -288,8 +289,8 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(engQ.ok === true, '엔진을 붙인 오더도 접수');
   const engRow = qrows().find(x => x[0] === engQ.item.id);
   const engPayload = JSON.parse(String(col(engRow, 'payload')));
-  ok(engPayload.engine === 'agy' && engPayload.prompt === '제미나이로 요약' && engPayload.mode === 'ask', 'payload 에 engine 이 실린다(예전엔 버려졌음)', engPayload);
-  ok(col(engRow, 'approval_hash') === hashOf({prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}), '승인 해시가 engine 까지 묶는다');
+  ok(engPayload.engine === 'agy' && engPayload.prompt.indexOf('제미나이로 요약') === 0 && engPayload.mode === 'ask', 'payload 에 engine 이 실린다(예전엔 버려졌음)', engPayload);
+  ok(col(engRow, 'approval_hash') === hashOf(engPayload), '승인 해시가 engine 까지 묶는다');
   ok(String(engQ.item.summary).indexOf('엔진 agy') >= 0, '목록 요약에 엔진이 보인다', engQ.item.summary);
   const engAuto = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '기본으로', mode: 'ask', engine: 'auto'}});
   ok(JSON.parse(String(col(qrows().find(x => x[0] === engAuto.item.id), 'payload'))).engine === undefined, 'auto 는 payload 에 넣지 않는다(워커 기본값)');
@@ -334,7 +335,7 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(col(aRow, 'status') === 'PENDING' && col(aRow, 'approval_by') === 'portal' && !!col(aRow, 'approval_at'), '승인자·시각 기록');
   ok(Array.isArray(audit()) && audit()[0][0] === 'at' && audit().some(a => a[1] === editId && a[5] === 'approve' && a[6] === 'portal' && a[7] === 'portal'), 'Audit_Log 에 approve/portal 기록');
   const aForEdit = (audit() || []).find(a => a[1] === editId) || [];
-  ok(String(aForEdit[9]) === hashOf({prompt: '승인 카드 색 고쳐줘', mode: 'edit'}), '감사 기록에 payload 해시가 남는다');
+  ok(String(aForEdit[9]) === col(aRow, 'approval_hash'), '감사 기록에 payload 해시가 남는다');
   dec = post({action: 'queue_decide', key: K3, id: editId, decision: 'approve'});
   ok(dec.ok === true && dec.changed === false && /이미 승인/.test(dec.note), '이미 승인된 오더를 또 승인하면 changed=false 로 알려준다');
 
@@ -361,7 +362,9 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(mm.ok === false && mm.code === 'hash_mismatch', '승인하려는 내용(해시)이 다르면 거절');
   ok(col(qrows().find(x => x[0] === hx.item.id), 'status') === 'WAITING_APPROVAL', '해시가 다르면 상태도 그대로');
   ok((audit() || []).some(a => a[1] === hx.item.id && a[5] === 'mismatch'), '해시 불일치도 Audit_Log 에 남는다');
-  const mm2 = post({action: 'queue_decide', key: K3, id: hx.item.id, decision: 'approve', payload_hash: hashOf({prompt: '해시 시험', mode: 'edit'})});
+  const hxRow = qrows().find(x => x[0] === hx.item.id);
+  const mm2 = post({action: 'queue_decide', key: K3, id: hx.item.id, decision: 'approve',
+    payload_hash: hashOf(JSON.parse(String(col(hxRow, 'payload'))))});
   ok(mm2.ok === true && mm2.status === 'PENDING', '해시가 맞으면 승인된다');
 
   // ⑫ 없는 id · 이상한 결정 · 잠금
@@ -457,6 +460,30 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   const all = JSON.stringify([post({action: 'queue_list', key: K3}),
     post({action: 'queue_enqueue', key: K3, type: 'toss_sync', payload: {}})]);
   ok(all.indexOf(SHEET) < 0 && all.indexOf(K3) < 0, '오더함 응답에 시트 ID·비밀 키가 없다');
+}
+
+console.log('9-1) 🤖 오더 프롬프트에 "셸은 없다" 자동 주입 (2026-11-19)');
+{
+  const K3 = S.props.SECRET_KEY;
+  const before = S.books['SHEETidForTest0001']['Command_Queue'].length;
+  const r = post({action:'queue_enqueue', key:K3, type:'claude_prompt', workspace:'content-hub',
+    payload:{mode:'edit', prompt:'파일 하나만 고쳐라. 끝나면 npm test 로 확인해라.'}});
+  ok(r.ok === true && r.item && r.item.id, 'claude_prompt 접수', r.error);
+  const bk = S.books[S.props.QUEUE_SHEET_ID] || {};
+  const findRow = id => {
+    let found = null;
+    Object.keys(bk).forEach(t => { const f = (bk[t] || []).find(x => x && x[0] === id); if (f) found = f; });
+    return found;
+  };
+  const row = findRow(r.item.id);
+  const pl = JSON.parse(row[5]);
+  ok(/\[워커 규칙\]/.test(pl.prompt), '워커 규칙이 붙는다', pl.prompt.slice(-60));
+  ok(pl.prompt.indexOf('파일 하나만 고쳐라') === 0, '원래 지시는 보존');
+  ok(pl.worker_note === 'auto', '자동 주입 표식');
+  const again = post({action:'queue_enqueue', key:K3, type:'git_pull', workspace:'gaegyebu', payload:{}});
+  const grow = findRow(again.item.id) || [];
+  ok(String(grow[5]).indexOf('워커 규칙') === -1, '다른 타입에는 안 붙는다');
+  ok(!!grow.length, '두 번째 오더도 접수됐다');
 }
 
 console.log('10) 🤖 피클 상태 파일 (agent_status) — 드라이브 포털_에이전트상태.json');
