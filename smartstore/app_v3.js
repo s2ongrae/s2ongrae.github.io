@@ -289,7 +289,17 @@ function renderHome(v) {
 
   const daily = (v.traffic.daily || []).slice(-28);
   const trendEl = $('#trendChart');
-  trendEl.innerHTML = trendSvg(daily, { barKey: 'revenueKrw', lineKey: 'uv', barLabel: '매출', lineLabel: 'UV', width: trendEl.clientWidth || 320, height: trendEl.clientWidth > 900 ? 240 : 170, ariaLabel: '매출과 방문 추이' });
+  // 업로드 파일에 매출 열이 없으면 결제건수로 막대를 그린다(0으로 비워 두지 않는다)
+  const hasRevenue = daily.some((r) => num(r.revenueKrw) != null);
+  trendEl.innerHTML = trendSvg(daily, {
+    barKey: hasRevenue ? 'revenueKrw' : 'orders',
+    lineKey: 'uv',
+    barLabel: hasRevenue ? '매출' : '결제',
+    lineLabel: 'UV',
+    width: trendEl.clientWidth || 320,
+    height: trendEl.clientWidth > 900 ? 240 : 170,
+    ariaLabel: hasRevenue ? '매출과 방문 추이' : '결제와 방문 추이',
+  });
   $('#trendHint').textContent = daily.length ? `최근 ${daily.length}일 · ${daily[0].date} ~ ${daily[daily.length - 1].date}` : '데이터 없음';
 
   render45(v);
@@ -936,7 +946,8 @@ function applyUpload(res, label) {
   }
   UPLOAD = { rows: res.rows, channels: res.channels, keywords: res.keywords, funnel: res.funnel, savedAt: new Date().toISOString(), source: label || '업로드' };
   writeLS(LS.traffic, UPLOAD);
-  renderInflow(view());
+  renderAll(); // 홈 KPI·추이도 같은 데이터를 쓴다
+  goTab('inflow');
   toast(`${res.rows.length}일 치를 읽었습니다`);
 }
 
@@ -952,7 +963,8 @@ $('#inflowParse').addEventListener('click', async () => {
 $('#inflowUseDemo').addEventListener('click', () => {
   UPLOAD = null;
   localStorage.removeItem(LS.traffic);
-  renderInflow(view());
+  renderAll(); // 다른 탭(홈 KPI)도 데모로 돌아가야 한다
+  goTab('inflow');
   toast('데모 유입 데이터로 되돌렸습니다');
 });
 
