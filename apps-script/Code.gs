@@ -996,7 +996,41 @@ function qqRenderPayloadOf_(p) {
     if (!isFinite(cx) || cx < 0 || cx > 1) throw qqErr_('bad_request', 'crop_x 는 0~1 사이 숫자여야 해요.');
     out.crop_x = cx;
   }
+  // 잘라낼 구간(초) — 2026-11-20. 이 함수가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 컷이 조용히 사라진다.
+  const cuts = qqRenderCutsOf_(o.cuts, inputs.length);
+  if (cuts.length) out.cuts = cuts;
   return JSON.stringify(out);
+}
+/**
+ * 영상 렌더 컷 목록 검증 — 노트북 lib/render.js normalizeCuts 와 같은 규칙.
+ * 모양은 [from,to] 또는 [from,to,파일번호](초, 150개까지 — 큐 payload 4000자 한도). 영상이 둘 이상이면 파일번호가 꼭 필요하다.
+ */
+const QQ_RENDER_MAX_CUTS = 150;
+const QQ_RENDER_MAX_CUT_SPAN_S = 3600;
+function qqRenderCutsOf_(raw, inputCount) {
+  if (raw === undefined || raw === null || raw === '') return [];
+  if (!Array.isArray(raw)) throw qqErr_('bad_request', 'cuts 는 구간 목록이어야 해요.');
+  if (raw.length > QQ_RENDER_MAX_CUTS) throw qqErr_('bad_request', '컷은 ' + QQ_RENDER_MAX_CUTS + '곳까지예요(지금 ' + raw.length + '곳).');
+  const r2 = function (n) { return Math.round(n * 100) / 100; };
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (!Array.isArray(c) || c.length < 2 || c.length > 3) throw qqErr_('bad_request', '컷 ' + (i + 1) + '번 모양이 올바르지 않아요.');
+    const from = Number(c[0]), to = Number(c[1]);
+    if (!isFinite(from) || !isFinite(to) || from < 0 || to <= from) throw qqErr_('bad_request', '컷 ' + (i + 1) + '번은 0 이상이고 끝이 시작보다 커야 해요(초).');
+    if (to - from > QQ_RENDER_MAX_CUT_SPAN_S) throw qqErr_('bad_request', '컷 ' + (i + 1) + '번 구간이 너무 길어요(최대 1시간).');
+    let file = null;
+    if (c.length === 3 && c[2] !== null && c[2] !== undefined) {
+      file = Number(c[2]);
+      if (Math.floor(file) !== file || file < 0 || file >= inputCount) throw qqErr_('bad_request', '컷 ' + (i + 1) + '번 파일 번호가 범위를 벗어났어요.');
+    } else if (inputCount !== 1) {
+      throw qqErr_('bad_request', '컷 ' + (i + 1) + '번에 어느 영상인지(파일 번호)가 필요해요. 영상이 여러 개예요.');
+    }
+    const a = r2(from), b = r2(to);
+    if (b <= a) throw qqErr_('bad_request', '컷 ' + (i + 1) + '번 구간이 반올림 뒤 0초가 돼요.');
+    out.push(file === null ? [a, b] : [a, b, file]);
+  }
+  return out;
 }
 /** payload.engine 를 허용 목록으로 검증한다. 모르는 값이면 거절(조용히 auto 로 바꾸지 않는다). */
 function qqEngineOf_(p) {

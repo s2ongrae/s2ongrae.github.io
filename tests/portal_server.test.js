@@ -301,6 +301,26 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(badRender({profile: 'x'}).code === 'bad_request' && badRender({crop_x: 2}).code === 'bad_request', 'profile·crop_x 범위');
   ok(post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'nope-ws', payload: rp}).code === 'workspace', '모르는 작업 위치는 거절');
 
+  // ⑤-2b 컷(잘라낼 구간) — 2026-11-20: 큐가 payload 를 고정 키로 다시 만들어서 cuts 가 조용히 사라지던 문제
+  const one = {content_id: 'C-002', brand: 'ppiyak_kimmary', inputs: ['a.mp4'], profile: 'captions'};
+  const cutPost = (p, cuts) => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({}, p, {cuts: cuts})});
+  const rc = cutPost(one, [[1.234, 2.5], [4, 5]]);
+  const rcRow = qrows().find(x => x[0] === (rc.item && rc.item.id));
+  const rcPayload = rcRow ? JSON.parse(String(col(rcRow, 'payload'))) : {};
+  ok(rc.ok === true && JSON.stringify(rcPayload.cuts) === JSON.stringify([[1.23, 2.5], [4, 5]]), '컷이 큐에 저장된 payload 까지 살아서 간다(소수 2자리)', rcPayload);
+  ok(col(rcRow, 'approval_hash') === hashOf(rcPayload), '승인 해시가 컷까지 묶는다');
+  const noCut = post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({}, one, {content_id: 'C-003'})});
+  const noCutRow = qrows().find(x => x[0] === (noCut.item && noCut.item.id));
+  ok(noCut.ok === true && !('cuts' in JSON.parse(String(col(noCutRow, 'payload')))), '컷이 없으면 payload 에 cuts 키를 만들지 않는다');
+  const two = Object.assign({}, one, {content_id: 'C-004', inputs: ['a.mp4', 'b.mp4']});
+  const rc2 = cutPost(two, [[1, 2, 1]]);
+  ok(rc2.ok === true && JSON.stringify(JSON.parse(String(col(qrows().find(x => x[0] === rc2.item.id), 'payload'))).cuts) === JSON.stringify([[1, 2, 1]]), '영상이 둘이면 [from,to,파일번호]');
+  ok(cutPost(two, [[1, 2]]).code === 'bad_request' && cutPost(two, [[1, 2, 5]]).code === 'bad_request', '영상이 둘인데 파일 번호가 없거나 범위 밖이면 거절');
+  ok(cutPost(one, [[2, 1]]).code === 'bad_request' && cutPost(one, [[-1, 1]]).code === 'bad_request' && cutPost(one, [['a', 3]]).code === 'bad_request' && cutPost(one, 'x').code === 'bad_request' && cutPost(one, [[0, 4000]]).code === 'bad_request' && cutPost(one, [[1.001, 1.004]]).code === 'bad_request', '컷 값 검사: 역순·음수·숫자 아님·배열 아님·1시간 초과·반올림 0초');
+  ok(cutPost(one, Array.from({length: 151}, (_, i) => [i * 2, i * 2 + 1])).code === 'bad_request', '컷 151개는 거절');
+  const many = cutPost(Object.assign({}, two, {content_id: 'C'.repeat(40)}), Array.from({length: 150}, (_, i) => [1000 + i * 2.5, 1001.5 + i * 2.5, 1]));
+  ok(many.ok === true, '컷 150개(최악 길이)도 큐 payload 한도 안에서 접수된다', many);
+
   // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
   const engQ = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}});
   ok(engQ.ok === true, '엔진을 붙인 오더도 접수');
