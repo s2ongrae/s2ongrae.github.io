@@ -977,6 +977,10 @@ function qqRenderPayloadOf_(p) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(contentId)) throw qqErr_('bad_request', 'content_id 는 영숫자·_·- 만, 40자 이내여야 해요.');
   const brand = String(o.brand == null ? '' : o.brand).trim();
   if (QQ_RENDER_BRANDS.indexOf(brand) < 0) throw qqErr_('bad_request', '트랙(brand)이 올바르지 않아요.');
+  // 2·3단계(2026-11-20): 자막 초안(transcribe) · 마무리(finish)는 클린 마스터를 이어받으므로 원본 이름이 없다.
+  // 이 함수가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 옵션이 조용히 사라진다(컷이 그랬다).
+  const stage = o.stage == null || o.stage === '' ? '' : String(o.stage);
+  if (stage) return qqRenderStagePayloadOf_(o, contentId, brand, stage);
   const inputs = Array.isArray(o.inputs) ? o.inputs.map(function (s) { return String(s); }) : [];
   if (inputs.length < 1 || inputs.length > 8) throw qqErr_('bad_request', '원본 영상 파일 이름은 1~8개여야 해요.');
   const seen = {};
@@ -999,6 +1003,94 @@ function qqRenderPayloadOf_(p) {
   // 잘라낼 구간(초) — 2026-11-20. 이 함수가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 컷이 조용히 사라진다.
   const cuts = qqRenderCutsOf_(o.cuts, inputs.length);
   if (cuts.length) out.cuts = cuts;
+  qqRenderFinalOptionsOf_(o, out);
+  return JSON.stringify(out);
+}
+/**
+ * 완제품 옵션(2026-11-20) — fit(프레이밍) · captions(자막 큐) · narration(내레이션 큐) · narrate · burn_subtitles · sub_style · payload_source · voice.
+ * 이 큐가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 허브가 보낸 옵션이 조용히 사라진다(컷이 그랬다).
+ * 허브(GAS)가 이미 한 번 검사하고 큐를 [start,end,text(,tone)] 로 줄여 보낸다 — 여기서도 같은 규칙으로 한 번 더 막는다(노트북 lib/render.js 가 마지막으로 검사).
+ */
+const QQ_RENDER_FITS = ['crop', 'blur', 'pad'];
+const QQ_RENDER_SUB_STYLES = ['auto', 'shorts', 'long'];
+const QQ_RENDER_VOICE_RE = /^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$/;
+const QQ_RENDER_MAX_CUES = 80;
+function qqRenderCuesOf_(raw, label, withTone) {
+  if (raw === undefined || raw === null || raw === '') return [];
+  if (!Array.isArray(raw)) throw qqErr_('bad_request', label + ' 는 큐 목록이어야 해요.');
+  if (raw.length > QQ_RENDER_MAX_CUES) throw qqErr_('bad_request', label + ' 는 ' + QQ_RENDER_MAX_CUES + '큐까지예요(긴 영상은 카드에서 읽게 payload_source 를 drive 로).');
+  const r2 = function (n) { return Math.round(n * 100) / 100; };
+  const out = [];
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    let start, end, text, tone = null;
+    if (Array.isArray(c)) { start = Number(c[0]); end = Number(c[1]); text = String(c[2] == null ? '' : c[2]); tone = c[3] == null ? null : String(c[3]); }
+    else if (isObj(c)) { start = Number(c.start); end = Number(c.end); text = String(c.text == null ? '' : c.text); tone = c.tone == null ? null : String(c.tone); }
+    else throw qqErr_('bad_request', label + ' ' + (i + 1) + '번 모양이 올바르지 않아요.');
+    if (!isFinite(start) || !isFinite(end) || start < 0 || end <= start) throw qqErr_('bad_request', label + ' ' + (i + 1) + '번 시작·끝(초)이 올바르지 않아요.');
+    const t = text.replace(/\s+/g, ' ').trim();
+    if (!t) throw qqErr_('bad_request', label + ' ' + (i + 1) + '번 문장이 비어 있어요.');
+    if (t.length > 200) throw qqErr_('bad_request', label + ' ' + (i + 1) + '번 문장이 너무 길어요(200자까지).');
+    if (withTone) {
+      if (tone !== null && tone !== '' && ['hype', 'calm'].indexOf(tone) === -1) throw qqErr_('bad_request', label + ' ' + (i + 1) + '번 톤은 hype · calm 중 하나예요.');
+      out.push([r2(start), r2(end), t].concat(tone ? [tone] : []));
+    } else out.push([r2(start), r2(end), t]);
+  }
+  return out;
+}
+function qqRenderFinalOptionsOf_(o, out) {
+  if (o.fit !== undefined && o.fit !== null && o.fit !== '') {
+    const fit = String(o.fit).trim().toLowerCase();
+    if (QQ_RENDER_FITS.indexOf(fit) < 0) throw qqErr_('bad_request', 'fit 은 crop · blur · pad 중 하나여야 해요.');
+    out.fit = fit;
+  }
+  const captions = qqRenderCuesOf_(o.captions, '자막', false);
+  const narration = qqRenderCuesOf_(o.narration, '내레이션', true);
+  if (captions.length) out.captions = captions;
+  if (narration.length) out.narration = narration;
+  if (o.narrate !== undefined && o.narrate !== null && o.narrate !== '' && typeof o.narrate !== 'boolean') throw qqErr_('bad_request', 'narrate 는 true·false 여야 해요.');
+  if (o.narrate === true) out.narrate = true;
+  if (o.burn_subtitles !== undefined && o.burn_subtitles !== null && o.burn_subtitles !== '' && typeof o.burn_subtitles !== 'boolean') throw qqErr_('bad_request', 'burn_subtitles 는 true·false 여야 해요.');
+  if (o.burn_subtitles === false) out.burn_subtitles = false;
+  if (o.sub_style !== undefined && o.sub_style !== null && o.sub_style !== '') {
+    const ss = String(o.sub_style).trim().toLowerCase();
+    if (QQ_RENDER_SUB_STYLES.indexOf(ss) < 0) throw qqErr_('bad_request', 'sub_style 은 ' + QQ_RENDER_SUB_STYLES.join(' · ') + ' 중 하나여야 해요.');
+    if (ss !== 'auto') out.sub_style = ss;
+  }
+  if (o.payload_source !== undefined && o.payload_source !== null && o.payload_source !== '') {
+    const ps = String(o.payload_source).trim().toLowerCase();
+    if (['inline', 'drive'].indexOf(ps) < 0) throw qqErr_('bad_request', 'payload_source 는 inline · drive 중 하나여야 해요.');
+    if (ps === 'drive') out.payload_source = 'drive';
+  }
+  if (o.voice !== undefined && o.voice !== null && o.voice !== '') {
+    if (!QQ_RENDER_VOICE_RE.test(String(o.voice))) throw qqErr_('bad_request', 'voice 는 edge-tts 보이스 이름(예: ko-KR-SunHiNeural)이어야 해요.');
+    out.voice = String(o.voice);
+  }
+}
+const QQ_RENDER_BGM_RE = /^[A-Za-z0-9가-힣][A-Za-z0-9가-힣._ -]{0,79}\.(mp3|wav|m4a|aac)$/i;
+/** 영상 렌더 2·3단계 payload — 노트북 lib/render_stages.js validateStage 와 같은 규칙(옵션만 통과, 모르는 필드는 버린다). */
+function qqRenderStagePayloadOf_(o, contentId, brand, stage) {
+  if (stage !== 'transcribe' && stage !== 'finish') throw qqErr_('bad_request', 'stage 는 transcribe 또는 finish 여야 해요.');
+  const out = { content_id: contentId, brand: brand, stage: stage };
+  if (stage === 'transcribe') return JSON.stringify(out);
+  out.burn = o.burn === undefined ? true : o.burn === true;
+  out.ai_notice = o.ai_notice === true;
+  if (o.bgm !== undefined && o.bgm !== null && o.bgm !== '') {
+    const b = isObj(o.bgm) ? o.bgm : {};
+    const name = String(b.name == null ? '' : b.name);
+    if (!QQ_RENDER_BGM_RE.test(name) || name.indexOf('..') >= 0) throw qqErr_('bad_request', 'BGM 파일 이름(mp3·wav·m4a·aac, 폴더·경로 금지)만 넣을 수 있어요.');
+    out.bgm = { name: name };
+    if (b.volume_db !== undefined && b.volume_db !== null && b.volume_db !== '') {
+      const v = Number(b.volume_db);
+      if (!isFinite(v) || v < -40 || v > 0) throw qqErr_('bad_request', 'BGM 볼륨(volume_db)은 -40~0 사이 숫자여야 해요.');
+      out.bgm.volume_db = v;
+    }
+  }
+  if (o.cover !== undefined && o.cover !== null && o.cover !== '') {
+    const t = Number(isObj(o.cover) ? o.cover.t : NaN);
+    if (!isFinite(t) || t < 0 || t > 3600) throw qqErr_('bad_request', '커버 시각(cover.t)은 0~3600 사이 초여야 해요.');
+    out.cover = { t: Math.round(t * 100) / 100 };
+  }
   return JSON.stringify(out);
 }
 /**

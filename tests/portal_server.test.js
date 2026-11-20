@@ -321,6 +321,30 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   const many = cutPost(Object.assign({}, two, {content_id: 'C'.repeat(40)}), Array.from({length: 150}, (_, i) => [1000 + i * 2.5, 1001.5 + i * 2.5, 1]));
   ok(many.ok === true, '컷 150개(최악 길이)도 큐 payload 한도 안에서 접수된다', many);
 
+  // ⑤-2c 영상 렌더 2·3단계(stage) — 2026-11-20: 자막 초안·마무리는 원본 이름이 없고 옵션만 통과한다
+  const stPost = patch => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({content_id: 'C-010', brand: 'ppiyak_kimmary'}, patch)});
+  const payloadOf = r => JSON.parse(String(col(qrows().find(x => x[0] === (r.item && r.item.id)), 'payload')));
+  const tr = stPost({stage: 'transcribe', inputs: ['a.mp4'], junk: 1});
+  ok(tr.ok === true && tr.item.status === 'WAITING_APPROVAL' && tr.item.risk_level === 'HIGH', '자막 초안 오더도 항상 승인 대기(HIGH)', tr);
+  ok(JSON.stringify(payloadOf(tr)) === JSON.stringify({content_id: 'C-010', brand: 'ppiyak_kimmary', stage: 'transcribe'}), '자막 초안 payload 는 content_id·brand·stage 뿐(원본 이름·모르는 필드는 버린다)', payloadOf(tr));
+  const fn = stPost({stage: 'finish', burn: true, ai_notice: true, bgm: {name: '잔잔한 곡.mp3', volume_db: -22}, cover: {t: 2.345}, evil: 'x'});
+  ok(fn.ok === true && JSON.stringify(payloadOf(fn)) === JSON.stringify({content_id: 'C-010', brand: 'ppiyak_kimmary', stage: 'finish', burn: true, ai_notice: true, bgm: {name: '잔잔한 곡.mp3', volume_db: -22}, cover: {t: 2.35}}), '마무리 payload: 옵션이 큐 payload 까지 살아서 간다', payloadOf(fn));
+  ok(JSON.stringify(payloadOf(stPost({stage: 'finish'}))) === JSON.stringify({content_id: 'C-010', brand: 'ppiyak_kimmary', stage: 'finish', burn: true, ai_notice: false}), '마무리 기본값: 자막 굽기 켬 · AI 안내 끔');
+  const fnRow = qrows().find(x => x[0] === fn.item.id);
+  ok(col(fnRow, 'approval_hash') === hashOf(payloadOf(fn)), '승인 해시가 단계 옵션까지 묶는다');
+  ok(stPost({stage: 'hack'}).code === 'bad_request' && stPost({stage: 'finish', bgm: {name: '../x.mp3'}}).code === 'bad_request' && stPost({stage: 'finish', bgm: {name: 'x.exe'}}).code === 'bad_request' && stPost({stage: 'finish', bgm: {name: 'x.mp3', volume_db: 3}}).code === 'bad_request' && stPost({stage: 'finish', cover: {t: 5000}}).code === 'bad_request' && stPost({stage: 'finish', cover: {t: 'a'}}).code === 'bad_request' && stPost({stage: 'transcribe', content_id: '../x'}).code === 'bad_request' && stPost({stage: 'transcribe', brand: 'x'}).code === 'bad_request', '단계 값 검사: 모르는 stage·BGM 경로·확장자·볼륨·커버 시각·content_id·brand');
+  ok(post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: {content_id: 'C-011', brand: 'ppiyak_kimmary'}}).code === 'bad_request', 'stage 도 inputs 도 없으면 거절(옛 모양 그대로)');
+
+  // ⑤-2d 완제품 옵션 — 2026-11-20: 허브가 보낸 fit·자막·내레이션이 큐 payload 까지 살아서 간다(이 큐가 고정 키로 다시 만들어서 조용히 사라지던 문제)
+  const fp = patch => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({content_id: 'C-020', brand: 'daejeon_youth', inputs: ['a.mp4'], profile: 'captions'}, patch)});
+  const fpay = r => JSON.parse(String(col(qrows().find(x => x[0] === (r.item && r.item.id)), 'payload')));
+  const fullOpt = fp({fit: 'BLUR', captions: [[1, 2.5, '와 오토바이 대박'], {start: 3, end: 4, text: '세 대가 돌아가요'}], narration: [[1, 2.5, '와 대박이에요!!', 'hype']], narrate: true, burn_subtitles: false, sub_style: 'shorts', payload_source: 'inline', voice: 'ko-KR-SunHiNeural', junk: 1});
+  const fpd = fpay(fullOpt);
+  ok(fullOpt.ok === true && fpd.fit === 'blur' && JSON.stringify(fpd.captions) === JSON.stringify([[1, 2.5, '와 오토바이 대박'], [3, 4, '세 대가 돌아가요']]) && JSON.stringify(fpd.narration) === JSON.stringify([[1, 2.5, '와 대박이에요!!', 'hype']]) && fpd.narrate === true && fpd.burn_subtitles === false && fpd.sub_style === 'shorts' && fpd.voice === 'ko-KR-SunHiNeural' && fpd.junk === undefined, '완제품 옵션이 큐 payload 까지 살아서 간다', fpd);
+  ok(fpay(fp({payload_source: 'drive'})).payload_source === 'drive' && fpay(fp({})).payload_source === undefined && fpay(fp({sub_style: 'auto'})).sub_style === undefined && fpay(fp({})).fit === undefined, 'drive 는 싣고, 기본값(inline·auto·fit 없음)은 키를 만들지 않는다');
+  ok(fp({fit: 'zoom'}).code === 'bad_request' && fp({sub_style: 'big'}).code === 'bad_request' && fp({payload_source: 'ftp'}).code === 'bad_request' && fp({voice: 'x'}).code === 'bad_request' && fp({narrate: 'yes'}).code === 'bad_request' && fp({burn_subtitles: 'no'}).code === 'bad_request', '옵션 값 검사: fit·sub_style·payload_source·voice·narrate·burn_subtitles');
+  ok(fp({captions: 'x'}).code === 'bad_request' && fp({captions: [[2, 1, '역순']]}).code === 'bad_request' && fp({captions: [[1, 2, '  ']]}).code === 'bad_request' && fp({captions: [[1, 2, 'a'.repeat(201)]]}).code === 'bad_request' && fp({narration: [[1, 2, '문장', 'angry']]}).code === 'bad_request' && fp({captions: Array.from({length: 81}, (_, i) => [i, i + 0.5, '큐'])}).code === 'bad_request', '큐 값 검사: 모양·시간·빈 문장·200자·톤·80큐');
+
   // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
   const engQ = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}});
   ok(engQ.ok === true, '엔진을 붙인 오더도 접수');
