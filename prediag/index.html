@@ -177,7 +177,7 @@ function Step1({form,setForm,onNext}){
   const{name,gender,rrnFront,rrnBack,occ,occCustom,occDetail,phone,carrier,sido,addrDetail}=form;
   const set=(k,v)=>setForm(p=>({...p,[k]:v}));
   const insAge=useMemo(()=>insAgeFromRrn(rrnFront,rrnBack),[rrnFront,rrnBack]);
-  const parsed=rrnFront.length===6&&rrnBack.length===7?parseBirth(rrnFront,rrnBack):null;
+  const parsed=rrnFront.length===6&&rrnBack.length===1?parseBirth(rrnFront,rrnBack):null;
   const checks = {
     이름: !!name,
     성별: !!gender,
@@ -223,22 +223,22 @@ function Step1({form,setForm,onNext}){
           <div style={{flex:1,position:"relative"}}>
             <input
               type="password"
-              placeholder="뒤 7자리"
+              placeholder="뒤 첫 1자리"
               value={rrnBack}
-              maxLength={7}
+              maxLength={1}
               inputMode="numeric"
               onChange={e=>set("rrnBack",e.target.value.replace(/\D/g,""))}
               style={{width:"100%",padding:"12px 14px",border:`1.5px solid ${rrnBack?"#3B82F6":BORDER}`,borderRadius:12,fontSize:17,letterSpacing:4,color:"#0F172A",background:WHITE,outline:"none",textAlign:"center"}}/>
           </div>
         </div>
-        <p style={{fontSize:12,color:"#94A3B8",marginTop:5}}>※ 주민등록증 기준으로 입력해 주세요 · 보험나이와 가입 심사 확인에 쓰여요</p>
-        {rrnFront.length===6&&rrnBack.length===7&&!parsed&&(
+        <p style={{fontSize:12,color:"#94A3B8",marginTop:5}}>※ 앞 6자리와 뒷자리 첫 숫자만 받아요 · 보험나이 계산에 쓰여요 (전체 번호는 가입 신청 때만)</p>
+        {rrnFront.length===6&&rrnBack.length===1&&!parsed&&(
           <p style={{fontSize:12,color:RED,marginTop:5,fontWeight:600}}>생년월일이 올바르지 않아요. 앞 6자리와 뒷자리 첫 숫자를 확인해 주세요</p>
         )}
         {parsed&&gender&&parsed.gender!==gender&&(
           <p style={{fontSize:12,color:AMBER,marginTop:5,fontWeight:600}}>주민번호로는 {parsed.gender}이에요. 성별 선택을 확인해 주세요</p>
         )}
-        {insAge!==null&&rrnFront.length===6&&rrnBack.length===7&&(
+        {insAge!==null&&rrnFront.length===6&&rrnBack.length===1&&(
           <div className="scale-in" style={{marginTop:10,padding:"12px 14px",background:`linear-gradient(135deg,${BLUEL},#DBEAFE)`,borderRadius:12,border:`1px solid #BFDBFE`}}>
             <div style={{fontSize:14,fontWeight:700,color:NAVY}}>
               🎯 {name||"고객"}님의 현재 보험 나이는 <span style={{fontSize:18,color:BLUE}}>{insAge}세</span>입니다
@@ -341,7 +341,6 @@ function Step2({disc,setDisc,onNext,onPrev,form}){
   const toggleD=(k,v)=>setDisc(p=>{const arr=p[k+"d"];return{...p,[k+"d"]:arr.includes(v)?arr.filter(x=>x!==v):[...arr,v]};});
   const setMemo=(k,v)=>setDisc(p=>({...p,[k+"memo"]:v}));
   const canNext=Q_DEFS.every(q=>disc[q.k]!==null);
-  const hasYes=Q_DEFS.some(q=>disc[q.k]===true);
   const hasDisease=Q_DEFS.some(q=>disc[q.k+"d"]&&disc[q.k+"d"].length>0);
 
   return(
@@ -462,7 +461,6 @@ function Step3({form,disc,onNext,onPrev}){
   const insAge = useMemo(()=>insAgeFromRrn(form.rrnFront,form.rrnBack),[form.rrnFront,form.rrnBack]);
 
   const risk=getRisk(form.gender,insAge);
-  const hasYes=Q_DEFS.some(q=>disc[q.k]===true);
   const hasDisease=Q_DEFS.some(q=>disc[q.k+"d"]&&disc[q.k+"d"].length>0);
 
   return(
@@ -584,7 +582,7 @@ function Step4({form,disc,onPrev}){
     const payload={
       이름: form.name,
       성별: form.gender,
-      주민번호: form.rrnFront&&form.rrnBack?`${form.rrnFront}-${form.rrnBack}`:"미입력",
+      주민번호: form.rrnFront&&form.rrnBack?`${form.rrnFront}-${form.rrnBack[0]}******`:"미입력",
       보험나이: insAge?`${insAge}세`:"미입력",
       핸드폰: form.phone||"미입력",
       통신사: form.carrier||"미입력",
