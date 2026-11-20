@@ -230,7 +230,7 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   q = post({action: 'queue_list', key: K3});
   ok(q.ok === true && q.items.length === 0 && q.count === 0, '빈 큐는 빈 목록');
   ok(Array.isArray(q.workspaces) && q.workspaces.indexOf('gaegyebu') >= 0 && q.workspaces.indexOf('content-hub') >= 0, '고를 수 있는 작업 위치 목록을 준다');
-  ok(JSON.stringify(q.types) === JSON.stringify(['git_pull','toss_sync','claude_prompt']), '접수 가능한 오더는 git_pull · toss_sync · claude_prompt');
+  ok(JSON.stringify(q.types) === JSON.stringify(['git_pull','toss_sync','claude_prompt','content_render']), '접수 가능한 오더는 git_pull · toss_sync · claude_prompt · content_render(영상 렌더, 항상 승인)');
   ok(q.approval_ttl_min === 15, '승인 기한 15분');
   ok(!JSON.stringify(q).includes(SHEET) && !JSON.stringify(q).includes('SHEETid'), '목록 응답에 시트 ID 가 없다');
 
@@ -283,6 +283,23 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   // 2026-11-19 — 접수 때 '워커 규칙' 문구가 자동으로 붙으므로, 해시는 저장된 payload 로 맞춰 본다.
   ok(col(edRow, 'approval_hash') === hashOf(JSON.parse(String(col(edRow, 'payload')))), '승인 해시가 payload 와 묶인다');
   ok(post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'content-hub', payload: {prompt: '   ', mode: 'edit'}}).code === 'bad_request', '빈 오더 거절');
+
+  // ⑤-2 영상 렌더(content_render) — 2026-11-20: 항상 승인 대기(HIGH), 입력은 파일 '이름'만
+  const rp = {content_id: 'C-001', brand: 'daejeon_youth', inputs: ['외관 01.mp4', 'b.mov'], profile: 'captions'};
+  const rn = post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: rp});
+  ok(rn.ok === true && rn.item.status === 'WAITING_APPROVAL' && rn.item.risk_level === 'HIGH' && rn.item.needs_decision === true, '영상 렌더는 항상 승인 대기(HIGH) — 자동 승인 없음', rn);
+  ok(rn.item.auto_approved !== true && /영상 렌더/.test(String(rn.note)), '자동 승인이 아니고 안내가 영상 렌더라고 말한다', rn.note);
+  const rnRow = qrows().find(x => x[0] === rn.item.id);
+  ok(col(rnRow, 'type') === 'content_render' && col(rnRow, 'approval_by') === '' && col(rnRow, 'approval_expires_at'), '시트에 content_render · 승인자 비어 있음 · 15분 기한');
+  ok(JSON.parse(String(col(rnRow, 'payload'))).inputs.length === 2 && col(rnRow, 'approval_hash') === hashOf(JSON.parse(String(col(rnRow, 'payload')))), 'payload 에 파일 이름만 담기고 승인 해시가 묶인다');
+  ok(post({action: 'queue_enqueue', key: K3, type: 'content_render', payload: rp}).ok === true, '작업 위치 없이도 접수된다(워크스페이스 불필요)');
+  const badRender = patch => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({}, rp, patch)});
+  ok(badRender({content_id: '../x'}).code === 'bad_request' && badRender({content_id: 'a b'}).code === 'bad_request', 'content_id 에 경로·공백 금지');
+  ok(badRender({brand: 'x'}).code === 'bad_request', 'brand 는 두 트랙만');
+  ok(badRender({inputs: []}).code === 'bad_request' && badRender({inputs: ['a.txt']}).code === 'bad_request' && badRender({inputs: ['../a.mp4']}).code === 'bad_request' && badRender({inputs: ['x/a.mp4']}).code === 'bad_request' && badRender({inputs: ['-rf.mp4']}).code === 'bad_request', 'inputs: 빈 목록·비영상·경로·선행 - 거절');
+  ok(badRender({inputs: ['a.mp4', 'A.MP4']}).code === 'bad_request' && badRender({inputs: Array(9).fill(0).map((_, i) => 'f' + i + '.mp4')}).code === 'bad_request', 'inputs: 중복·9개 거절');
+  ok(badRender({profile: 'x'}).code === 'bad_request' && badRender({crop_x: 2}).code === 'bad_request', 'profile·crop_x 범위');
+  ok(post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'nope-ws', payload: rp}).code === 'workspace', '모르는 작업 위치는 거절');
 
   // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
   const engQ = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}});

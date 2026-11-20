@@ -676,7 +676,9 @@ const QQ_NEED_COLS = [
 const QQ_TYPES = {
   git_pull:      { label: '코드 최신화', needsWorkspace: true,  idempotent: true },
   toss_sync:     { label: '토스 동기화', needsWorkspace: false, idempotent: false },
-  claude_prompt: { label: '클로드 지시', needsWorkspace: true,  idempotent: false }
+  claude_prompt: { label: '클로드 지시', needsWorkspace: true,  idempotent: false },
+  // 2026-11-20 — 콘텐츠 허브 제작 스텝퍼의 영상 렌더. 항상 승인 필요(HIGH). hub-agent CQ_TYPES·lib/render.js 와 같은 규칙.
+  content_render: { label: '영상 렌더', needsWorkspace: false, idempotent: true }
 };
 const QQ_PROP_WS = 'QUEUE_WORKSPACES';            // (선택) 허용 워크스페이스 덮어쓰기
 // AI 엔진 — 노트북 lib/engines.js 의 ENGINE_IDS 와 같아야 한다.
@@ -950,6 +952,7 @@ function qqCheckWorkspace_(name) {
 // ── 오더 접수 payload ────────────────────────────────
 /** 워커가 읽는 payload 모양으로 만든다(JSON 문자열). git_pull·toss_sync 는 빈 객체. */
 function qqPayloadOf_(type, p) {
+  if (type === 'content_render') return qqRenderPayloadOf_(p);
   if (type !== 'claude_prompt') return '{}';
   const raw = isObj(p) ? String(p.prompt == null ? '' : p.prompt) : String(p == null ? '' : p);
   if (raw.length > QQ_MAX_PROMPT) throw qqErr_('too_long', '오더가 너무 길어요(' + QQ_MAX_PROMPT + '자 이내로 적어주세요).');
@@ -960,6 +963,39 @@ function qqPayloadOf_(type, p) {
   // AI 엔진(auto · claude · agy · freellmapi) — auto 는 굳이 싣지 않는다(워커 기본값과 같은 뜻).
   const engine = qqEngineOf_(p);
   if (engine !== 'auto') out.engine = engine;
+  return JSON.stringify(out);
+}
+/**
+ * 영상 렌더(content_render) payload 검증 — 노트북 lib/render.js validate() 와 같은 규칙.
+ * 경로는 받지 않는다: content_id 와 파일 '이름'만(위치는 노트북 .env 가 정한다).
+ */
+const QQ_RENDER_BRANDS = ['daejeon_youth', 'ppiyak_kimmary'];
+const QQ_RENDER_PROFILES = ['captions', 'bgm'];
+function qqRenderPayloadOf_(p) {
+  const o = isObj(p) ? p : {};
+  const contentId = String(o.content_id == null ? '' : o.content_id).trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(contentId)) throw qqErr_('bad_request', 'content_id 는 영숫자·_·- 만, 40자 이내여야 해요.');
+  const brand = String(o.brand == null ? '' : o.brand).trim();
+  if (QQ_RENDER_BRANDS.indexOf(brand) < 0) throw qqErr_('bad_request', '트랙(brand)이 올바르지 않아요.');
+  const inputs = Array.isArray(o.inputs) ? o.inputs.map(function (s) { return String(s); }) : [];
+  if (inputs.length < 1 || inputs.length > 8) throw qqErr_('bad_request', '원본 영상 파일 이름은 1~8개여야 해요.');
+  const seen = {};
+  inputs.forEach(function (n) {
+    if (!/^[A-Za-z0-9가-힣][A-Za-z0-9가-힣._ -]{0,79}\.(mp4|mov|m4v)$/i.test(n) || n.indexOf('..') >= 0) {
+      throw qqErr_('bad_request', '쓸 수 없는 파일 이름이 있어요(영상 mp4·mov·m4v 이름만, 폴더·경로 금지).');
+    }
+    const k = n.toLowerCase();
+    if (seen[k]) throw qqErr_('bad_request', '같은 파일이 두 번 들어 있어요.');
+    seen[k] = true;
+  });
+  const profile = o.profile == null || o.profile === '' ? 'captions' : String(o.profile);
+  if (QQ_RENDER_PROFILES.indexOf(profile) < 0) throw qqErr_('bad_request', '음량 종류(profile)가 올바르지 않아요.');
+  const out = { content_id: contentId, brand: brand, inputs: inputs, profile: profile };
+  if (o.crop_x !== undefined && o.crop_x !== null && o.crop_x !== '') {
+    const cx = Number(o.crop_x);
+    if (!isFinite(cx) || cx < 0 || cx > 1) throw qqErr_('bad_request', 'crop_x 는 0~1 사이 숫자여야 해요.');
+    out.crop_x = cx;
+  }
   return JSON.stringify(out);
 }
 /** payload.engine 를 허용 목록으로 검증한다. 모르는 값이면 거절(조용히 auto 로 바꾸지 않는다). */
@@ -1089,7 +1125,7 @@ function queueEnqueue(body) {
   const payload = qqWithWorkerNote_(type, qqPayloadOf_(type, body && body.payload));
   if (payload.length > QQ_MAX_PAYLOAD) throw qqErr_('too_long', '오더 내용이 너무 길어요.');
 
-  const risk = (type === 'claude_prompt' && qqModeOf_(payload) === 'edit') ? 'HIGH' : 'LOW';
+  const risk = (type === 'content_render' || (type === 'claude_prompt' && qqModeOf_(payload) === 'edit')) ? 'HIGH' : 'LOW';
   const verdict = risk === 'HIGH' ? qqAutoDelegation_(type, qqParse_(payload), workspace) : { auto: false, reason: '' };
   const autoBy = risk === 'HIGH' && verdict.auto ? 'auto' : '';
   const needsApproval = risk === 'HIGH' && !verdict.auto;
@@ -1119,7 +1155,7 @@ function queueEnqueue(body) {
     return {
       ok: true, duplicate: false, item: qqItem_(row),
       note: needsApproval
-        ? '파일을 고치는 오더예요 — ' + ttlMin + '분 안에 승인해야 노트북이 실행해요.'
+        ? (type === 'content_render' ? '영상 렌더 오더예요 — ' : '파일을 고치는 오더예요 — ') + ttlMin + '분 안에 승인해야 노트북이 실행해요.'
         : (autoBy
           ? '자동 승인(위임) — 승인 없이 바로 실행 대기열에 들어갔어요.'
           : '접수했어요. 노트북이 다음 확인 때 실행해요.')

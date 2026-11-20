@@ -872,8 +872,8 @@ async function refreshQueueStatus(force){
 //  · 설정 전·예전 배포·시트 미연결이면 빨간 에러 대신 무엇을 하면 되는지 안내만 보여요.
 // ══════════════════════════════════════════
 const ORD_WS_LABEL = {'gaegyebu':'가계부','content-hub':'콘텐츠 허브','insurance-manager':'보험관리툴','smartstore-hub':'스마트스토어'};
-const ORD_TYPE_LABEL = {'git_pull':'코드 최신화','toss_sync':'토스 동기화','claude_prompt':'클로드 지시','git_push':'깃 푸시','smartstore_api_relay':'스마트스토어'};
-const ORD_TYPE_ICON = {'git_pull':'🔄','toss_sync':'📈','claude_prompt':'💬','git_push':'🚀','smartstore_api_relay':'🛍️'};
+const ORD_TYPE_LABEL = {'git_pull':'코드 최신화','toss_sync':'토스 동기화','claude_prompt':'클로드 지시','git_push':'깃 푸시','smartstore_api_relay':'스마트스토어','content_render':'영상 렌더'};
+const ORD_TYPE_ICON = {'git_pull':'🔄','toss_sync':'📈','claude_prompt':'💬','git_push':'🚀','smartstore_api_relay':'🛍️','content_render':'🎞️'};
 const ORD_STATUS = {
   PENDING:{t:'대기',c:'c-pend',s:''},
   WAITING_APPROVAL:{t:'승인 대기',c:'c-wait',s:'st-wait'},
