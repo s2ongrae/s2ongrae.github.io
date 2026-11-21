@@ -1004,7 +1004,41 @@ function qqRenderPayloadOf_(p) {
   const cuts = qqRenderCutsOf_(o.cuts, inputs.length);
   if (cuts.length) out.cuts = cuts;
   qqRenderFinalOptionsOf_(o, out);
+  qqRenderTemplateOptionsOf_(o, out);
   return JSON.stringify(out);
+}
+/**
+ * 채널 템플릿 옵션(2026-11-21) — template · title · badge · hook · hook_pos · hook_hold.
+ * 이 큐가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 허브가 보낸 템플릿이 조용히 사라진다(컷이 그랬다).
+ * 규칙은 허브 gas/Orders.gs 의 RENDER_TEMPLATES·RENDER_TEMPLATE_TEXT, 노트북 lib/render.js validate() 와 같은 값이다.
+ * 훅이 없는 템플릿(none · ppiyak_kimmary)이면 hook_pos·hook_hold 는 버린다 — 노트북도 그 경우 무시한다.
+ */
+const QQ_RENDER_TEMPLATES = ['auto', 'none', 'daejeon_youth', 'ppiyak_kimmary'];
+const QQ_RENDER_TEMPLATE_TEXT = { title: 40, badge: 14, hook: 16 };
+function qqRenderTemplateOptionsOf_(o, out) {
+  if (o.template !== undefined && o.template !== null && o.template !== '') {
+    const tm = String(o.template).trim().toLowerCase();
+    if (QQ_RENDER_TEMPLATES.indexOf(tm) < 0) throw qqErr_('bad_request', 'template 은 ' + QQ_RENDER_TEMPLATES.join(' · ') + ' 중 하나여야 해요.');
+    out.template = tm;
+  }
+  const hookOff = out.template === 'none' || out.template === 'ppiyak_kimmary';
+  Object.keys(QQ_RENDER_TEMPLATE_TEXT).forEach(function (k) {
+    const v = o[k];
+    if (v === undefined || v === null || v === '') return;
+    if (typeof v !== 'string') throw qqErr_('bad_request', k + ' 는 문자열이어야 해요.');
+    const t = v.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, QQ_RENDER_TEMPLATE_TEXT[k]);
+    if (t) out[k] = t;
+  });
+  if (o.hook_pos !== undefined && o.hook_pos !== null && o.hook_pos !== '') {
+    const hp = String(o.hook_pos).trim().toLowerCase();
+    if (hp !== 'center' && hp !== 'top') throw qqErr_('bad_request', 'hook_pos 는 center · top 중 하나여야 해요.');
+    if (!hookOff) out.hook_pos = hp;
+  }
+  if (o.hook_hold !== undefined && o.hook_hold !== null && o.hook_hold !== '') {
+    const hh = Number(o.hook_hold);
+    if (!isFinite(hh) || hh < 1.0 || hh > 4.0) throw qqErr_('bad_request', 'hook_hold 는 1.0~4.0초 사이 숫자여야 해요.');
+    if (!hookOff) out.hook_hold = Math.round(hh * 10) / 10;
+  }
 }
 /**
  * 완제품 옵션(2026-11-20) — fit(프레이밍) · captions(자막 큐) · narration(내레이션 큐) · narrate · burn_subtitles · sub_style · payload_source · voice.

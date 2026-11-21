@@ -321,6 +321,33 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   const many = cutPost(Object.assign({}, two, {content_id: 'C'.repeat(40)}), Array.from({length: 150}, (_, i) => [1000 + i * 2.5, 1001.5 + i * 2.5, 1]));
   ok(many.ok === true, '컷 150개(최악 길이)도 큐 payload 한도 안에서 접수된다', many);
 
+  // ⑤-2c 채널 템플릿 — 2026-11-21: 큐가 payload 를 고정 키로 다시 만들어 template·title·badge·hook·hook_pos·hook_hold 가 조용히 사라지던 문제
+  const tplPost = (extra) => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({}, one, {content_id: 'C-010'}, extra)});
+  const tplRow = (r) => qrows().find(x => x[0] === (r.item && r.item.id));
+  const tplPayload = (r) => JSON.parse(String(col(tplRow(r), 'payload')));
+  const t1 = tplPost({template: 'daejeon_youth', title: '  제목  두 줄  ', badge: '지역 · 카테고리', hook: '핵심 키워드', hook_pos: 'center', hook_hold: 2.4});
+  const p1 = t1.ok ? tplPayload(t1) : {};
+  ok(t1.ok === true && p1.template === 'daejeon_youth' && p1.title === '제목 두 줄' && p1.badge === '지역 · 카테고리' && p1.hook === '핵심 키워드', '템플릿 6개 키가 큐에 저장된 payload 까지 살아서 간다(공백 정리)', p1);
+  ok(p1.hook_pos === 'center' && p1.hook_hold === 2.4, '훅 위치·유지시간도 payload 까지 간다', p1);
+  ok(col(tplRow(t1), 'approval_hash') === hashOf(p1), '승인 해시가 템플릿까지 묶는다');
+  const t2 = tplPost({template: 'DAEJEON_YOUTH', hook_pos: 'TOP', hook_hold: 2.46});
+  const p2 = t2.ok ? tplPayload(t2) : {};
+  ok(t2.ok === true && p2.template === 'daejeon_youth' && p2.hook_pos === 'top' && p2.hook_hold === 2.5, '템플릿·훅 위치는 소문자로, 유지시간은 0.1초 단위 반올림');
+  const t3 = tplPost({title: '가'.repeat(60), badge: '나'.repeat(30), hook: '다'.repeat(30)});
+  const p3 = t3.ok ? tplPayload(t3) : {};
+  ok(t3.ok === true && p3.title.length === 40 && p3.badge.length === 14 && p3.hook.length === 16 && !('template' in p3), '제목 40 · 뱃지 14 · 훅 16자로 자르고, template 이 없으면 키를 만들지 않는다');
+  const n1 = tplPost({content_id: 'C-011'});
+  ok(n1.ok === true && !('template' in tplPayload(n1)) && !('hook_pos' in tplPayload(n1)), '템플릿을 안 보내면 payload 에 템플릿 키를 만들지 않는다');
+  const t4 = tplPost({content_id: 'C-012', template: 'none', title: '제목', hook: '훅', hook_pos: 'center', hook_hold: 3});
+  const p4 = t4.ok ? tplPayload(t4) : {};
+  ok(t4.ok === true && p4.template === 'none' && p4.title === '제목' && p4.hook === '훅' && !('hook_pos' in p4) && !('hook_hold' in p4), "template 'none' 이면 훅 위치·유지시간은 버리고 나머지는 싣는다", p4);
+  const t5 = tplPost({content_id: 'C-013', template: 'ppiyak_kimmary', hook_pos: 'top', hook_hold: 2});
+  ok(t5.ok === true && !('hook_pos' in tplPayload(t5)) && !('hook_hold' in tplPayload(t5)), 'ppiyak_kimmary 도 훅 없는 템플릿이라 위치·유지시간을 버린다');
+  ok(tplPost({content_id: 'C-014', template: 'x'}).code === 'bad_request', '모르는 template 은 거절');
+  ok(tplPost({content_id: 'C-015', hook_pos: 'left'}).code === 'bad_request', 'hook_pos 는 center·top 만');
+  ok(tplPost({content_id: 'C-016', hook_hold: 0.9}).code === 'bad_request' && tplPost({content_id: 'C-017', hook_hold: 4.1}).code === 'bad_request' && tplPost({content_id: 'C-018', hook_hold: 'x'}).code === 'bad_request', 'hook_hold 는 1.0~4.0초 숫자만');
+  ok(tplPost({content_id: 'C-019', title: 5}).code === 'bad_request' && tplPost({content_id: 'C-020', hook: ['x']}).code === 'bad_request', '제목·뱃지·훅이 문자열이 아니면 거절');
+
   // ⑤-2c 영상 렌더 2·3단계(stage) — 2026-11-20: 자막 초안·마무리는 원본 이름이 없고 옵션만 통과한다
   const stPost = patch => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({content_id: 'C-010', brand: 'ppiyak_kimmary'}, patch)});
   const payloadOf = r => JSON.parse(String(col(qrows().find(x => x[0] === (r.item && r.item.id)), 'payload')));
