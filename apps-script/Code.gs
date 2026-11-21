@@ -1005,16 +1005,18 @@ function qqRenderPayloadOf_(p) {
   if (cuts.length) out.cuts = cuts;
   qqRenderFinalOptionsOf_(o, out);
   qqRenderTemplateOptionsOf_(o, out);
+  qqRenderFrameLockOf_(o, out);
   return JSON.stringify(out);
 }
 /**
- * 채널 템플릿 옵션(2026-11-21) — template · title · badge · hook · hook_pos · hook_hold.
+ * 채널 템플릿 옵션(2026-11-21) — template · title · badge · hook · hook_sub · outro · hook_pos · hook_hold.
  * 이 큐가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 허브가 보낸 템플릿이 조용히 사라진다(컷이 그랬다).
  * 규칙은 허브 gas/Orders.gs 의 RENDER_TEMPLATES·RENDER_TEMPLATE_TEXT, 노트북 lib/render.js validate() 와 같은 값이다.
  * 훅이 없는 템플릿(none · ppiyak_kimmary)이면 hook_pos·hook_hold 는 버린다 — 노트북도 그 경우 무시한다.
+ * hook_sub(무음 보조 글자 6자)·outro(아웃트로 24자)는 템플릿과 무관하게 그대로 싣는다(허브 계약 그대로).
  */
 const QQ_RENDER_TEMPLATES = ['auto', 'none', 'daejeon_youth', 'ppiyak_kimmary'];
-const QQ_RENDER_TEMPLATE_TEXT = { title: 40, badge: 14, hook: 16 };
+const QQ_RENDER_TEMPLATE_TEXT = { title: 40, badge: 14, hook: 16, hook_sub: 6, outro: 24 };
 function qqRenderTemplateOptionsOf_(o, out) {
   if (o.template !== undefined && o.template !== null && o.template !== '') {
     const tm = String(o.template).trim().toLowerCase();
@@ -1038,6 +1040,32 @@ function qqRenderTemplateOptionsOf_(o, out) {
     const hh = Number(o.hook_hold);
     if (!isFinite(hh) || hh < 1.0 || hh > 4.0) throw qqErr_('bad_request', 'hook_hold 는 1.0~4.0초 사이 숫자여야 해요.');
     if (!hookOff) out.hook_hold = Math.round(hh * 10) / 10;
+  }
+}
+/**
+ * 첫 프레임 잠금(2026-11-21) — frame_lock · frame_lock_image · frame_lock_seconds.
+ * 기준 사진을 0.0초 첫 프레임으로, 앞 클립 마지막 프레임을 다음 클립 첫 프레임으로 맞춘다.
+ * 이 큐가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 허브가 보낸 잠금 설정이 조용히 사라진다(컷이 그랬다).
+ * 규칙은 허브 gas/Orders.gs·노트북 lib/framelock.js 와 같은 값이다 — 끔(false)이면 사진·길이를 조용히 버린다(숨은 동작 없음).
+ */
+const QQ_RENDER_FRAME_LOCK_IMAGE_RE = /\.(jpe?g|png|webp)$/i;
+function qqRenderFrameLockOf_(o, out) {
+  const fl = o.frame_lock;
+  if (fl === undefined || fl === null || fl === '') return;
+  if (typeof fl !== 'boolean') throw qqErr_('bad_request', 'frame_lock 은 true·false 여야 해요.');
+  if (fl !== true) return;
+  out.frame_lock = true;
+  if (o.frame_lock_image !== undefined && o.frame_lock_image !== null && o.frame_lock_image !== '') {
+    const n = String(o.frame_lock_image);
+    if (!QQ_RENDER_FRAME_LOCK_IMAGE_RE.test(n) || n.indexOf('..') !== -1 || n.indexOf('/') !== -1 || n.indexOf('\\') !== -1) {
+      throw qqErr_('bad_request', 'frame_lock_image 는 사진 파일 이름이어야 해요(jpg·jpeg·png·webp, 폴더·경로 금지).');
+    }
+    out.frame_lock_image = n;
+  }
+  if (o.frame_lock_seconds !== undefined && o.frame_lock_seconds !== null && o.frame_lock_seconds !== '') {
+    const v = Number(o.frame_lock_seconds);
+    if (!isFinite(v) || v < 0.02 || v > 0.5) throw qqErr_('bad_request', 'frame_lock_seconds 는 0.02~0.5초 사이 숫자여야 해요.');
+    out.frame_lock_seconds = Math.round(v * 100) / 100;
   }
 }
 /**

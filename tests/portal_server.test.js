@@ -348,6 +348,28 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(tplPost({content_id: 'C-016', hook_hold: 0.9}).code === 'bad_request' && tplPost({content_id: 'C-017', hook_hold: 4.1}).code === 'bad_request' && tplPost({content_id: 'C-018', hook_hold: 'x'}).code === 'bad_request', 'hook_hold 는 1.0~4.0초 숫자만');
   ok(tplPost({content_id: 'C-019', title: 5}).code === 'bad_request' && tplPost({content_id: 'C-020', hook: ['x']}).code === 'bad_request', '제목·뱃지·훅이 문자열이 아니면 거절');
 
+  // ⑤-2d 무음 보조 글자·아웃트로·첫 프레임 잠금 — 2026-11-21: 같은 이유로 hook_sub·outro·frame_lock 3키가 포털 큐에서 잘리던 문제
+  const t6 = tplPost({content_id: 'C-021', template: 'daejeon_youth', hook: '이 가격 실화냐?', hook_sub: '  끝까지 보세요 진짜로  ', outro: '다음 코스는? 구독' + 'O'.repeat(30)});
+  const p6 = t6.ok ? tplPayload(t6) : {};
+  ok(t6.ok === true && p6.hook_sub === '끝까지 보세' && p6.outro.length === 24, '무음 보조 글자 6자·아웃트로 24자로 다듬어 payload 까지 싣는다', p6);
+  const t7 = tplPost({content_id: 'C-022', template: 'none', hook_sub: '끝까지', outro: '다음 코스는?'});
+  const p7 = t7.ok ? tplPayload(t7) : {};
+  ok(t7.ok === true && p7.hook_sub === '끝까지' && p7.outro === '다음 코스는?', '훅 없는 템플릿(none)이어도 보조 글자·아웃트로는 버리지 않는다(허브 계약 그대로)');
+  ok(tplPost({content_id: 'C-023', hook_sub: 5}).code === 'bad_request' && tplPost({content_id: 'C-024', outro: ['x']}).code === 'bad_request', '보조 글자·아웃트로가 문자열이 아니면 거절');
+  const f1 = tplPost({content_id: 'C-030', frame_lock: true, frame_lock_image: 'mary_front.jpg', frame_lock_seconds: 0.045});
+  const f1p = f1.ok ? tplPayload(f1) : {};
+  ok(f1.ok === true && f1p.frame_lock === true && f1p.frame_lock_image === 'mary_front.jpg' && f1p.frame_lock_seconds === 0.05, '첫 프레임 잠금 3키가 payload 까지 간다(길이는 소수 2자리)', f1p);
+  ok(col(tplRow(f1), 'approval_hash') === hashOf(f1p), '승인 해시가 첫 프레임 잠금까지 묶는다');
+  const f2 = tplPost({content_id: 'C-031', frame_lock: false, frame_lock_image: 'mary.jpg', frame_lock_seconds: 0.2});
+  const f2p = f2.ok ? tplPayload(f2) : {};
+  ok(f2.ok === true && !('frame_lock' in f2p) && !('frame_lock_image' in f2p) && !('frame_lock_seconds' in f2p), '잠금을 끄면 사진·길이를 조용히 버린다(숨은 동작 없음)', f2p);
+  const f3 = tplPost({content_id: 'C-032', frame_lock: true});
+  const f3p = f3.ok ? tplPayload(f3) : {};
+  ok(f3.ok === true && f3p.frame_lock === true && !('frame_lock_image' in f3p) && !('frame_lock_seconds' in f3p), '잠금만 켜고 사진을 안 보내면 잇기만 한다(사진·길이 키 없음)', f3p);
+  ok(tplPost({content_id: 'C-033', frame_lock: 'true'}).code === 'bad_request' && tplPost({content_id: 'C-034', frame_lock: 1}).code === 'bad_request', 'frame_lock 은 true·false 만');
+  ok(tplPost({content_id: 'C-035', frame_lock: true, frame_lock_image: '../m.jpg'}).code === 'bad_request' && tplPost({content_id: 'C-036', frame_lock: true, frame_lock_image: 'inbox/m.jpg'}).code === 'bad_request' && tplPost({content_id: 'C-037', frame_lock: true, frame_lock_image: 'm.gif'}).code === 'bad_request' && tplPost({content_id: 'C-038', frame_lock: true, frame_lock_image: 'm.mp4'}).code === 'bad_request', '기준 사진은 jpg·png·webp 파일 이름만(경로·다른 확장자 거절)');
+  ok(tplPost({content_id: 'C-039', frame_lock: true, frame_lock_seconds: 0.01}).code === 'bad_request' && tplPost({content_id: 'C-040', frame_lock: true, frame_lock_seconds: 0.6}).code === 'bad_request' && tplPost({content_id: 'C-041', frame_lock: true, frame_lock_seconds: 'x'}).code === 'bad_request', '잠금 길이는 0.02~0.5초 숫자만');
+
   // ⑤-2c 영상 렌더 2·3단계(stage) — 2026-11-20: 자막 초안·마무리는 원본 이름이 없고 옵션만 통과한다
   const stPost = patch => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({content_id: 'C-010', brand: 'ppiyak_kimmary'}, patch)});
   const payloadOf = r => JSON.parse(String(col(qrows().find(x => x[0] === (r.item && r.item.id)), 'payload')));
