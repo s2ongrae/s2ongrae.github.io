@@ -1006,6 +1006,7 @@ function qqRenderPayloadOf_(p) {
   qqRenderFinalOptionsOf_(o, out);
   qqRenderTemplateOptionsOf_(o, out);
   qqRenderFrameLockOf_(o, out);
+  qqRenderMotionOf_(o, out);
   return JSON.stringify(out);
 }
 /**
@@ -1015,8 +1016,7 @@ function qqRenderPayloadOf_(p) {
  * 훅이 없는 템플릿(none · ppiyak_kimmary)이면 hook_pos·hook_hold 는 버린다 — 노트북도 그 경우 무시한다.
  * hook_sub(무음 보조 글자 6자)·outro(아웃트로 24자)는 템플릿과 무관하게 그대로 싣는다(허브 계약 그대로).
  */
-const QQ_RENDER_TEMPLATES = ['auto', 'none', 'daejeon_youth', 'ppiyak_kimmary'];
-const QQ_RENDER_TEMPLATE_TEXT = { title: 40, badge: 14, hook: 16, hook_sub: 6, outro: 24 };
+const QQ_RENDER_TEMPLATES = ['auto', 'none', 'daejeon_youth', 'ppiyak_kimmary'];const QQ_RENDER_TEMPLATE_TEXT = { title: 40, badge: 14, hook: 16, hook_sub: 6, outro: 24 };
 function qqRenderTemplateOptionsOf_(o, out) {
   if (o.template !== undefined && o.template !== null && o.template !== '') {
     const tm = String(o.template).trim().toLowerCase();
@@ -1066,6 +1066,26 @@ function qqRenderFrameLockOf_(o, out) {
     const v = Number(o.frame_lock_seconds);
     if (!isFinite(v) || v < 0.02 || v > 0.5) throw qqErr_('bad_request', 'frame_lock_seconds 는 0.02~0.5초 사이 숫자여야 해요.');
     out.frame_lock_seconds = Math.round(v * 100) / 100;
+  }
+}
+/**
+ * 자동 줌·모션(2026-11-21) — motion · motion_quality.
+ * 이 큐가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 허브가 보낸 모션 설정이 조용히 사라진다(컷이 그랬다).
+ * 규칙은 허브 gas/Orders.gs 의 RENDER_MOTIONS·RENDER_MOTION_QUALITY, 노트북 lib/motion.js 와 같은 값이다.
+ * motion 은 'auto'(기본) · dynamic · calm · none — none 이면 노트북이 예전과 똑같이 자르기만 한다.
+ */
+const QQ_RENDER_MOTIONS = ['auto', 'dynamic', 'calm', 'none'];
+const QQ_RENDER_MOTION_QUALITY = ['standard', 'high'];
+function qqRenderMotionOf_(o, out) {
+  if (o.motion !== undefined && o.motion !== null && o.motion !== '') {
+    const mo = String(o.motion).trim().toLowerCase();
+    if (QQ_RENDER_MOTIONS.indexOf(mo) < 0) throw qqErr_('bad_request', 'motion 은 ' + QQ_RENDER_MOTIONS.join(' · ') + ' 중 하나여야 해요.');
+    out.motion = mo;
+  }
+  if (o.motion_quality !== undefined && o.motion_quality !== null && o.motion_quality !== '') {
+    const mq = String(o.motion_quality).trim().toLowerCase();
+    if (QQ_RENDER_MOTION_QUALITY.indexOf(mq) < 0) throw qqErr_('bad_request', 'motion_quality 는 ' + QQ_RENDER_MOTION_QUALITY.join(' · ') + ' 중 하나여야 해요.');
+    out.motion_quality = mq;
   }
 }
 /**

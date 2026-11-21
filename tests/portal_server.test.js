@@ -370,6 +370,16 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(tplPost({content_id: 'C-035', frame_lock: true, frame_lock_image: '../m.jpg'}).code === 'bad_request' && tplPost({content_id: 'C-036', frame_lock: true, frame_lock_image: 'inbox/m.jpg'}).code === 'bad_request' && tplPost({content_id: 'C-037', frame_lock: true, frame_lock_image: 'm.gif'}).code === 'bad_request' && tplPost({content_id: 'C-038', frame_lock: true, frame_lock_image: 'm.mp4'}).code === 'bad_request', '기준 사진은 jpg·png·webp 파일 이름만(경로·다른 확장자 거절)');
   ok(tplPost({content_id: 'C-039', frame_lock: true, frame_lock_seconds: 0.01}).code === 'bad_request' && tplPost({content_id: 'C-040', frame_lock: true, frame_lock_seconds: 0.6}).code === 'bad_request' && tplPost({content_id: 'C-041', frame_lock: true, frame_lock_seconds: 'x'}).code === 'bad_request', '잠금 길이는 0.02~0.5초 숫자만');
 
+  // ⑤-2e 자동 줄·모션 — 2026-11-21: motion·motion_quality 2키가 포털 큐에서 잘리던 문제
+  const m1 = tplPost({content_id: 'C-042', motion: 'none', motion_quality: 'high'});
+  const m1p = m1.ok ? tplPayload(m1) : {};
+  ok(m1.ok === true && m1p.motion === 'none' && m1p.motion_quality === 'high', 'motion·motion_quality 2키가 payload 까지 간다', m1p);
+  ok(col(tplRow(m1), 'approval_hash') === hashOf(m1p), '승인 해시가 모션까지 묶는다');
+  ok(['auto', 'dynamic', 'calm'].every(m => { const r = tplPost({content_id: 'C-043', motion: m}); return r.ok === true && tplPayload(r).motion === m; }), 'auto·dynamic·calm 도 그대로');
+  const mn = tplPost({content_id: 'C-044'});
+  ok(mn.ok === true && !('motion' in tplPayload(mn)) && !('motion_quality' in tplPayload(mn)), '안보내면 키를 만들지 않는다(노트북이 auto 로 돈다)');
+  ok(tplPost({content_id: 'C-045', motion: 'wobble'}).code === 'bad_request' && tplPost({content_id: 'C-046', motion_quality: '4k'}).code === 'bad_request', '모르는 motion·화질은 거절');
+
   // ⑤-2c 영상 렌더 2·3단계(stage) — 2026-11-20: 자막 초안·마무리는 원본 이름이 없고 옵션만 통과한다
   const stPost = patch => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({content_id: 'C-010', brand: 'ppiyak_kimmary'}, patch)});
   const payloadOf = r => JSON.parse(String(col(qrows().find(x => x[0] === (r.item && r.item.id)), 'payload')));
