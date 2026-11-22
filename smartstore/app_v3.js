@@ -4,7 +4,8 @@
  *
  * 원칙
  *  - 12월(매출 0원)에는 storeMode=PRE_OPEN_PREP 로 홈을 '오픈 준비도'로 바꾼다.
- *    dataMode=DEMO 는 합성 픽스처로 그래프·경보를 그대로 검증하는 스위치다(상단 주황 배지).
+ *    dataMode 기본값은 LIVE(2026-11-22 변경) — 실데이터가 없으면 0건 그대로 보여 준다.
+ *    DEMO 는 합성 픽스처로 그래프·경보를 검증하는 스위치이고 [설정·시스템]에서 직접 켠다(상단 주황 배지).
  *  - 쓰기는 이 화면에서 스토어로 나가지 않는다(2027-01-02 이전 WRITE_ENABLED=false).
  *    버튼은 확인창 → 복사용 JSON 까지만 한다.
  */
@@ -16,6 +17,7 @@ const LS = {
   tab: 'myohan.tab.v3',
   storeMode: 'myohan.v3.storeMode',
   dataMode: 'myohan.v3.dataMode',
+  dataModeVer: 'myohan.v3.dataModeVer',
   orders45: 'myohan.orders',
   closing: 'myohan.closing',
   runbook: 'myohan.runbook',
@@ -33,12 +35,24 @@ let MODEL = null;
 let V3 = null;
 let MASK = true;
 let STORE_MODE = 'PRE_OPEN_PREP';
-let DATA_MODE = 'DEMO';
+let DATA_MODE = 'LIVE';
 let ORDER_FILTER = null;
 let UPLOAD = null; // 업로드한 유입 데이터 {rows, channels, keywords, funnel, savedAt, source}
 
 const readLS = (k, f) => { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } };
 const writeLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 저장 공간 없음 */ } };
+
+/* 2026-11-22 — dataMode 기본값을 DEMO → LIVE 로 바꿨다.
+ * 예전 기본값(DEMO)이 이 기기에 저장돼 있어도 사용자가 고른 값이 아니라 초기값이었으므로
+ * 한 번만 지워 LIVE 로 올린다. 이후 [설정·시스템]에서 직접 고른 DEMO 는 버전 표식 덕에 그대로 남는다. */
+const DATA_MODE_BASELINE = '2026-11-22-live';
+function migrateDataModeBaseline() {
+  try {
+    if (localStorage.getItem(LS.dataModeVer) === DATA_MODE_BASELINE) return;
+    if (localStorage.getItem(LS.dataMode) === JSON.stringify('DEMO')) localStorage.removeItem(LS.dataMode);
+    localStorage.setItem(LS.dataModeVer, DATA_MODE_BASELINE);
+  } catch (e) { /* 저장 공간 없음 */ }
+}
 
 const num = (v) => (Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : null);
 const fmt = (v) => (num(v) == null ? '—' : num(v).toLocaleString('ko-KR'));
@@ -106,8 +120,9 @@ function showApp() {
   $('#lockErr').textContent = '';
   $('#hdr').hidden = false;
   $('#main').hidden = false;
+  migrateDataModeBaseline();
   STORE_MODE = readLS(LS.storeMode, (V3.settings || {}).storeMode || 'PRE_OPEN_PREP');
-  DATA_MODE = readLS(LS.dataMode, (V3.settings || {}).dataMode || 'DEMO');
+  DATA_MODE = readLS(LS.dataMode, (V3.settings || {}).dataMode || 'LIVE');
   UPLOAD = readLS(LS.traffic, null);
   renderAll();
 }
@@ -173,8 +188,9 @@ function view() {
   const bundle = V3.bundle || { orders: [], claims: [], settlements: [], traffic: [] };
   const demo = Core.materializeDemo(bundle, now);
   const live = DATA_MODE === 'LIVE';
-  const traffic = live ? { daily: [], channels: [], keywords: [], funnel: null }
-    : (UPLOAD ? { daily: UPLOAD.rows, channels: UPLOAD.channels, keywords: UPLOAD.keywords, funnel: UPLOAD.funnel }
+  // 업로드한 판매자센터 유입 데이터는 실데이터다 — 모드와 상관없이 먼저 쓴다.
+  const traffic = UPLOAD ? { daily: UPLOAD.rows, channels: UPLOAD.channels, keywords: UPLOAD.keywords, funnel: UPLOAD.funnel }
+    : (live ? { daily: [], channels: [], keywords: [], funnel: null }
       : { daily: demo.traffic, channels: bundle.channels || [], keywords: bundle.keywords || [], funnel: bundle.funnel || null });
   const orders = live ? [] : demo.orders;
   const claims = (live ? [] : demo.claims).map((c) => Object.assign({}, c, { sla: Core.claimSla(c, now) }));
@@ -938,7 +954,7 @@ function renderClosing() {
 function renderSettings(v) {
   $('#storeMode').value = STORE_MODE;
   $('#dataMode').value = DATA_MODE;
-  $('#modeNote').textContent = 'PRE_OPEN_PREP은 매출 0원 구간에서 오탐 경보를 숨기고 홈을 오픈 준비도로 바꿉니다. DEMO는 합성 픽스처로 그래프·경보를 검증하는 스위치입니다(상단 주황 배지 고정).';
+  $('#modeNote').textContent = 'PRE_OPEN_PREP은 매출 0원 구간에서 오탐 경보를 숨기고 홈을 오픈 준비도로 바꿉니다. dataMode 기본값은 LIVE(실데이터, 없으면 0건)이고, DEMO는 합성 픽스처로 그래프·경보를 검증할 때만 직접 켜는 스위치입니다(상단 주황 배지 고정).';
   const slot = (V3.ledger && V3.ledger.slot) || {};
   $('#slotPanel').innerHTML = `
     <div class="gauge ${slot.level === 'RED' ? 'crit' : slot.level === 'YELLOW' ? 'warn' : ''}">
