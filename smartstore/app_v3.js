@@ -286,7 +286,7 @@ function renderHome(v) {
       <div class="g-top"><b>${esc(g.label)}</b><span class="amt">${esc(g.note)}</span><span class="pct">${esc(g.valueText)}</span></div>
       <div class="track ${g.level.toLowerCase()}"><i style="width:${g.pct == null ? 0 : Math.min(100, g.pct)}%"></i></div>
     </div>`).join('');
-  $('#prepHint').textContent = STORE_MODE === 'PRE_OPEN_PREP' ? '개업 준비 4항목' : '실운영 중 점검';
+  $('#prepHint').textContent = STORE_MODE === 'PRE_OPEN_PREP' ? '개업 준비 5항목' : '실운영 중 점검';
 
   const k = v.summary;
   const today = (v.traffic.daily || []).slice(-1)[0] || null;
@@ -330,6 +330,7 @@ function prepRows(v) {
     { label: 'SEO 80점 달성률', valueText: seoPct == null ? '—' : `${seoPct}%`, pct: seoPct, level: seoPct == null ? 'UNKNOWN' : seoPct >= 80 ? 'GOOD' : seoPct >= 60 ? 'WARN' : 'CRIT', note: `${seoGood}/${seoKnown.length}종` },
     { label: '품절·역마진', valueText: `${flags.soldOutCount || 0}종`, pct: null, level: (flags.soldOutCount || 0) ? 'CRIT' : 'GOOD', note: (flags.soldOutCount || 0) ? '판매 전 점검' : '이상 없음' },
     { label: '해외 DRAFT 준비율', valueText: draftPct == null ? '—' : `${draftPct}%`, pct: draftPct, level: draftPct == null ? 'UNKNOWN' : draftPct >= 100 ? 'GOOD' : draftPct >= 80 ? 'WARN' : 'CRIT', note: `${draftOk}/${draft.length}종` },
+    { label: '채널 사업 물량', valueText: v.gate.locked ? '0건' : '추적', pct: null, level: 'GOOD', note: v.gate.locked ? `당근·번개 · ${v.gate.lockUntil}까지` : '번개 프로상점 원장' },
   ];
 }
 
