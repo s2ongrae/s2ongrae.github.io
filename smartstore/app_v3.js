@@ -437,6 +437,10 @@ function renderInflow(v) {
   $('#inflowSrc').textContent = UPLOAD
     ? `업로드 ${new Date(UPLOAD.savedAt).toLocaleDateString('ko-KR')} · ${UPLOAD.rows.length}일`
     : (DATA_MODE === 'DEMO' ? 'DEMO 데이터' : '데이터 없음');
+  // LIVE 기본값에서는 되돌릴 데모가 없다 — 지울 업로드가 있을 때만 '업로드 지우기'로 둔다.
+  const resetBtn = $('#inflowUseDemo');
+  resetBtn.textContent = DATA_MODE === 'DEMO' ? '데모 데이터로 되돌리기' : '업로드 지우기';
+  resetBtn.hidden = !UPLOAD && DATA_MODE !== 'DEMO';
   $('#inflowKpis').innerHTML = `
     <div class="kpi"><i>순방문자(UV)</i><b>${fmt(last ? last.uv : null)}<small>명</small></b><div class="sub">${prev && last ? `전일 ${last.uv - prev.uv >= 0 ? '+' : ''}${fmt(last.uv - prev.uv)}` : '전일 비교 없음'}</div></div>
     <div class="kpi ${Core.kpiLevel('cvr', cvr) === 'GOOD' ? 'good' : Core.kpiLevel('cvr', cvr) === 'CRIT' ? 'crit' : 'warn'}"><i>전환율</i><b>${pct(cvr)}</b><div class="sub">결제 ${fmt(sumOrders)}건 / UV ${fmt(sumUv)}</div></div>
