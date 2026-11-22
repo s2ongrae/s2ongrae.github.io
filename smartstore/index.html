@@ -107,6 +107,8 @@ section[data-tab]{display:grid;gap:12px}
 
 /* KPI */
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.kpis.kpis-4{grid-template-columns:repeat(2,1fr)}
+@media (min-width:560px){.kpis.kpis-4{grid-template-columns:repeat(4,1fr)}}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px;box-shadow:var(--shadow);min-width:0}
 .kpi i{display:block;font-style:normal;font-size:10.5px;color:var(--ink-3);letter-spacing:-.2px;white-space:nowrap}
 .kpi b{display:block;font-size:22px;letter-spacing:-1px;margin-top:3px;font-variant-numeric:tabular-nums}
@@ -222,7 +224,7 @@ table.t td.name{white-space:normal;min-width:120px}
 .toast.on{opacity:1}
 .masked .secretv{filter:blur(4px)}
 </style>
-<link rel="stylesheet" href="wide.css?v=202611192122">
+<link rel="stylesheet" href="wide.css?v=202611221105">
 </head>
 <body>
 
@@ -387,6 +389,32 @@ table.t td.name{white-space:normal;min-width:120px}
     <div class="card"><div class="card-t"><h2>월 손익 (PnL)</h2><span class="hint" id="pnlHint"></span></div><div id="pnl"></div></div>
     <div class="card"><div class="card-t"><h2>정산 대사</h2><span class="hint" id="settleHint">우리 계산 vs 실제 정산</span></div><div id="settleTable"></div></div>
     <div class="card"><div class="card-t"><h2>세무 게이지 상세</h2><span class="hint">1,653만 / 2,101만 / 1억 400만</span></div><div id="taxDetail"></div></div>
+    <div class="card">
+      <div class="card-t"><h2>채널 정리 · 번개 정산</h2><span class="hint" id="resaleHint">사입·잔여재고 · 2027-01-02 이후</span></div>
+      <div id="resaleGuard"></div>
+      <div class="kpis kpis-4" id="resaleKpis" style="margin-top:10px"></div>
+      <div id="resaleList" style="margin-top:6px"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">
+        <button class="btn primary tiny" id="resaleAdd">자산 추가</button>
+        <span class="muted" style="font-size:11px;margin-left:auto" id="resaleSrc"></span>
+      </div>
+      <details style="margin-top:11px">
+        <summary style="font-size:12px;font-weight:700;color:var(--ink-2);cursor:pointer">번개 순익·손익분기 계산기</summary>
+        <div class="field" style="margin-top:6px"><label for="rsPrice">판매가</label><input id="rsPrice" type="number" inputmode="numeric" value="15000"></div>
+        <div class="field"><label for="rsCogs">매입원가</label><input id="rsCogs" type="number" inputmode="numeric" value="7500"></div>
+        <div class="field"><label for="rsCat">카테고리</label><select id="rsCat"><option value="0.10">그 외 10% (생활잡화·주방·펫)</option><option value="0.08">패션·가죽·스포츠 8%</option><option value="0.06">디지털·가전·차량 6%</option></select></div>
+        <div class="field"><label for="rsShip">배송 조건</label><select id="rsShip"><option value="FREE_SELLER">판매자 무료배송 (택배 3,200)</option><option value="PAID_BUYER">구매자 별도 결제 (3,200)</option><option value="HALF">반값택배 (1,800)</option></select></div>
+        <div class="out">
+          <div class="box"><i>번개 순이익</i><b id="rsNet">-</b></div>
+          <div class="box"><i>순마진</i><b id="rsMargin">-</b></div>
+          <div class="box"><i>손익분기 판매가</i><b id="rsBep">-</b></div>
+          <div class="box"><i>목표마진 20% 가격</i><b id="rsTarget">-</b></div>
+        </div>
+        <div class="verdict" id="rsVerdict">값을 넣으면 판정이 나옵니다.</div>
+        <p class="note">같은 가격을 스토어에서 팔면 <b id="rsStore">—</b> — 번개가 <b id="rsGap">—</b> 불리합니다(수수료 4.95%·배송비 내재 3,000 기준). 객단가 15,000원 미만은 번개로 정리하지 않고 스토어 묶음으로 흡수합니다.</p>
+      </details>
+      <p class="note"><b>당근 70도는 개인 전용</b>입니다. 사업 재고·사입품은 올리지 않으며, 그래서 원장에 당근 게시 상태값을 두지 않았습니다(정본: <code>docs/CHANNEL_RESALE_POLICY.md</code>).</p>
+    </div>
     <div class="card"><div class="card-t"><h2>일일 마감</h2><span class="hint" id="closeHint">저장하면 이 기기에만 남습니다</span></div>
       <div class="field"><label for="dDate">날짜</label><input id="dDate" type="date" style="width:150px"></div>
       <div class="field"><label for="dOrders">결제 건수</label><input id="dOrders" type="number" min="0" inputmode="numeric" placeholder="0"></div>
@@ -414,8 +442,8 @@ table.t td.name{white-space:normal;min-width:120px}
 <div class="sheet" id="sheet" hidden><div class="sheet-in" id="sheetIn"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="v3_core.js?v=202611192122"></script>
-<script src="v3_upload.js?v=202611192122"></script>
-<script src="app_v3.js?v=202611192122"></script>
+<script src="v3_core.js?v=202611221105"></script>
+<script src="v3_upload.js?v=202611221105"></script>
+<script src="app_v3.js?v=202611221105"></script>
 </body>
 </html>

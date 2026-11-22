@@ -21,6 +21,7 @@ const LS = {
   runbook: 'myohan.runbook',
   traffic: 'myohan.v3.traffic',
   candidates: 'myohan.v3.candidates',
+  resale: 'myohan.v3.resale',
 };
 
 const $ = (s, r) => (r || document).querySelector(s);
@@ -183,6 +184,11 @@ function view() {
   const widgets = Core.widgets({ orders, claims, inquiries, products, now });
   const summary = Core.summarize({ orders, claims, traffic: traffic.daily, now });
   const annual = live ? null : (bundle.annualNetProfitKrw || summary.netProfitKrw);
+  // 채널 정리 — 잠금(2026-12-31)·개업(2027-01-02) 판정과 원장. 원장은 이 기기 localStorage,
+  // DEMO에서 저장된 줄이 없으면 합성 표본 4줄로 화면·경보를 검증한다.
+  const savedResale = readLS(LS.resale, []);
+  const resaleDemo = !savedResale.length && DATA_MODE === 'DEMO';
+  const resaleRows = resaleDemo ? Core.resaleDemoRows(now) : savedResale;
   return {
     now, bundle, orders, claims, settlements, traffic, products, inquiries, widgets, summary,
     gauges: Core.gauges(annual || 0),
@@ -190,6 +196,10 @@ function view() {
     pipeline: Core.pipeline(orders),
     fake: Core.fakeTracking(orders, now),
     rec: Core.reconcile(settlements),
+    channels: (V3.settings && V3.settings.channels) || null,
+    gate: Core.resaleGate({ now, openingDate: (V3.settings && V3.settings.openingDate) || '2027-01-02' }),
+    resale: Core.resaleSummary(resaleRows, now),
+    resaleDemo: resaleDemo,
     dDay: V3.settings && V3.settings.openingDate ? Math.round((Date.parse(`${V3.settings.openingDate}T00:00:00+09:00`) - Date.parse(`${new Date(now + 9 * 3600000).toISOString().slice(0, 10)}T00:00:00+09:00`)) / 86400000) : null,
   };
 }
@@ -208,7 +218,7 @@ function bannerHtml(v) {
     return `<div class="banner demo"><span>🧪</span><div><b>[DEMO 시뮬레이션]</b> 합성 주문 30·클레임 6·정산 12·유입 56일로 화면을 검증하는 중입니다. 실제 주문·고객정보가 아닙니다.${STORE_MODE === 'PRE_OPEN_PREP' ? ' storeMode는 <b>오픈 준비 모드</b>(2026년 매출 0원)입니다.' : ''} <b>설정·시스템</b>에서 LIVE로 바꿀 수 있습니다.</div></div>`;
   }
   if (STORE_MODE === 'PRE_OPEN_PREP') {
-    return `<div class="banner prep"><span>📦</span><div><b>오픈 준비 모드</b> — 2026년 매출 0원 유지(청년창업 감면 방어), ${V3.settings && V3.settings.openingDate ? esc(V3.settings.openingDate) : '2027-01-02'} 간이과세 개업${v.dDay != null ? ` · <b>D-${v.dDay}</b>` : ''}. 실데이터는 GAS·커머스API 연결 후 표시됩니다.</div></div>`;
+    return `<div class="banner prep"><span>📦</span><div><b>오픈 준비 모드</b> — 2026년 매출 0원 유지(청년창업 감면 방어), 당근 70도·번개 <b>사업 물량 0건</b>(${esc(v.gate.lockUntil)}까지), ${V3.settings && V3.settings.openingDate ? esc(V3.settings.openingDate) : '2027-01-02'} 간이과세 개업${v.dDay != null ? ` · <b>D-${v.dDay}</b>` : ''}. 실데이터는 GAS·커머스API 연결 후 표시됩니다.</div></div>`;
   }
   return `<div class="banner live"><span>✅</span><div><b>실운영 모드</b> — ${esc(V3.settings && V3.settings.openingDate ? V3.settings.openingDate : '2027-01-02')} 개업. 쓰기는 WRITE_ENABLED 스위치가 켜지기 전까지 잠겨 있습니다.</div></div>`;
 }
@@ -735,7 +745,180 @@ function renderSettle(v) {
       <div class="g-note">${esc(g.note)} · 남은 여유 ${secret(g.remainKrw)}</div>
     </div>`).join('') + `<p class="note">기준은 <b>연 순익</b>입니다. 12월은 매출 0원이라 게이지도 0이며, DEMO에서는 시뮬레이션 값(${secret(v.annualKrw)})으로 경보 색을 확인합니다.</p>`;
 
+  renderResale(v);
   renderClosing();
+}
+
+/* ─────────────── 채널 정리 · 번개 정산 ─────────────── */
+const RESALE_ACTIONS = {
+  INSPECTED_GRADE: [['LIST', '번개 게시']],
+  LISTED_BUNJANG_PRO: [['DROP', '감가 적용'], ['SELL', '판매 완료']],
+  PRICE_DROPPED: [['SELL', '판매 완료']],
+  SOLD_PENDING: [['SETTLE', '정산 반영']],
+  SETTLED_LEDGERED: [],
+  WRITTEN_OFF: [],
+};
+
+function renderResale(v) {
+  const g = v.gate;
+  const ch = v.channels || {};
+  const daangn = ch.daangn || {};
+  const bunjang = ch.bunjang || {};
+  const minPrice = num(bunjang.minListPriceKrw) || Core.RESALE.MIN_LIST_PRICE_KRW;
+  const s = v.resale;
+
+  $('#resaleHint').textContent = g.locked ? `${g.lockUntil}까지 잠금 · 개업 ${g.openingDate}` : '번개 프로상점 실현 손익';
+  $('#resaleGuard').innerHTML = g.locked
+    ? `<div class="banner prep"><span>🔒</span><div><b>${esc(g.lockUntil)}까지 사입·재판매 0건</b> — 청년창업 세액감면 방어 기간입니다. 당근 70도는 <b>개인 전용</b>(사업 물량 0건), 번개도 전환 전입니다. ${esc(g.openingDate)} 개업 후 번개 프로상점 정산을 여기에 적습니다${g.dDay != null ? ` · <b>D-${g.dDay}</b>` : ''}.</div></div>`
+    : `<div class="banner live"><span>✅</span><div><b>추적 중</b> — 2026년 재판매 0건 유지 확인. 번개 프로상점('그 외' ${Core.trunc2((bunjang.catRates && bunjang.catRates.ETC || 0.10) * 100)}% + 배송비 3.5%) 정산을 원장에 적으면 실현 손익이 잡힙니다. 당근 70도는 계속 <b>개인 전용</b>입니다.</div></div>`;
+
+  $('#resaleKpis').innerHTML = `
+    <div class="kpi"><i>게시중</i><b>${s.listed}<small>건</small></b><div class="sub">원장 ${s.total}건</div></div>
+    <div class="kpi"><i>판매</i><b>${s.sold}<small>건</small></b><div class="sub">정산 대기 ${s.pending}건</div></div>
+    <div class="kpi ${s.realizedNetKrw > 0 ? 'good' : s.realizedNetKrw < 0 ? 'crit' : ''}"><i>실현 순익</i><b class="secretv">${secret(s.realizedNetKrw)}</b><div class="sub">정산 반영 ${s.settled}건 · 마진 ${pct(s.realizedMarginPct)}</div></div>
+    <div class="kpi ${s.alertCount ? 'warn' : ''}"><i>경보</i><b>${s.alertCount}<small>건</small></b><div class="sub">감가·손절·역마진</div></div>`;
+
+  $('#resaleSrc').textContent = v.resaleDemo ? 'DEMO 표본 — 합성 값' : (s.total ? '이 기기에 저장' : '원장 비어 있음');
+  // 개업 전에는 원장에 줄을 만들지 않는다(DEMO에서도 같다 — 같은 기기 저장소를 쓰므로 가짜 줄이 남는다).
+  $('#resaleAdd').disabled = g.locked;
+  $('#resaleAdd').title = g.locked ? `${g.lockUntil}까지 사입·재판매 0건 — 개업 후 입력` : '';
+
+  $('#resaleList').innerHTML = s.rows.length ? s.rows.map((r) => {
+    const acts = v.resaleDemo ? ''
+      : (RESALE_ACTIONS[r.status] || []).map(([code, label]) => `<button class="btn ${code === 'SELL' || code === 'SETTLE' ? 'primary' : 'ghost'} tiny" data-rs="${esc(r.assetId)}:${code}">${label}</button>`).join('')
+        + `<button class="btn danger tiny" data-rs="${esc(r.assetId)}:DEL">삭제</button>`;
+    return `<div class="item">
+      <div class="row1"><span class="nm">${esc(r.productName || r.assetId)}</span>
+        <span class="pill ${r.status === 'SETTLED_LEDGERED' ? 'good' : r.status === 'WRITTEN_OFF' ? 'mute' : r.status === 'SOLD_PENDING' ? 'warn' : 'demo'}">${esc(r.statusLabel)}</span></div>
+      <div class="meta"><span>${esc(r.assetId)}</span><span>${esc(r.originLabel)}</span><span>등급 ${esc(r.grade || '—')}</span><span>${r.sold ? '판매가' : '게시가'} <b>${secret(r.priceKrw, '원')}</b></span><span>원가 ${secret(r.cogsKrw, '원')}</span><span>${r.sold ? '실현' : r.status === 'WRITTEN_OFF' ? '처분' : '예상'} 순익 <b>${secret(r.netProfitKrw, '원')}</b></span><span>${pct(r.marginPct)}</span>${r.daysListed != null ? `<span>${r.daysListed}일</span>` : ''}${r.dropDay ? `<span>감가 ${esc(r.dropDay.slice(5))}</span>` : ''}</div>
+      ${r.alerts.map((a) => `<div class="chk"${a.level === 'CRIT' ? ' style="background:var(--crit-soft);color:#8a2620"' : ''}><span>${a.level === 'CRIT' ? '❗' : '⚠️'}</span><span>${esc(a.text)}</span></div>`).join('')}
+      ${acts ? `<div class="acts">${acts}</div>` : ''}
+    </div>`;
+  }).join('') : `<div class="muted" style="font-size:12px">${g.locked ? `원장은 ${esc(g.openingDate)} 개업 후 사용합니다. 지금은 번개도 당근도 사업 물량을 두지 않습니다.` : '원장이 비어 있습니다 — [자산 추가]로 번개 게시·정산을 적으세요.'}</div>`;
+
+  resaleCalc();
+}
+
+function resaleCalc() {
+  const price = num($('#rsPrice').value);
+  const cogs = num($('#rsCogs').value) || 0;
+  const catRate = Number($('#rsCat').value) || Core.RESALE.CAT_RATES.ETC;
+  const mode = $('#rsShip').value;
+  const sellerShip = mode === 'FREE_SELLER' ? 3200 : 0;
+  const buyerShip = mode === 'PAID_BUYER' ? 3200 : mode === 'HALF' ? 1800 : 0;
+  const net = Core.bunjangNetProfit({ price, cogsKrw: cogs, catRate, buyerShipKrw: buyerShip, sellerShipKrw: sellerShip });
+  const margin = price ? Core.trunc2((net / price) * 100) : null;
+  const bep = Core.bunjangBepPrice({ cogsKrw: cogs, sellerShipKrw: sellerShip, catRate });
+  const target = Core.bunjangTargetPrice({ cogsKrw: cogs, sellerShipKrw: sellerShip, catRate, marginPct: 20 });
+  const store = Core.storeNetProfit({ price, cogsKrw: cogs });
+  $('#rsNet').textContent = won(net);
+  $('#rsMargin').textContent = pct(margin);
+  $('#rsBep').textContent = won(bep);
+  $('#rsTarget').textContent = won(target);
+  $('#rsStore').textContent = won(store);
+  $('#rsGap').textContent = net == null || store == null ? '—' : won(store - net);
+  const vd = $('#rsVerdict');
+  if (!price) { vd.className = 'verdict'; vd.textContent = '판매가를 넣으면 판정이 나옵니다.'; }
+  else if (net < 0) { vd.className = 'verdict crit'; vd.textContent = `역마진 ${won(Math.abs(net))} — 이 가격으로 번개 정리 금지. 손익분기 ${won(bep)} 이상으로 올리거나 스토어 묶음으로 흡수하세요.`; }
+  else if (mode === 'FREE_SELLER' && price < Core.RESALE.MIN_LIST_PRICE_KRW) { vd.className = 'verdict warn'; vd.textContent = `${won(Core.RESALE.MIN_LIST_PRICE_KRW)} 미만 — 번개 정리 부적합. 스토어 묶음·세트로 처리하세요.`; }
+  else if (margin != null && margin < 20) { vd.className = 'verdict warn'; vd.textContent = `순마진 ${margin}% — 목표(20%) 미만. 목표 가격은 ${won(target)}입니다.`; }
+  else { vd.className = 'verdict'; vd.textContent = `순마진 ${margin}% — 목표(20%) 이상. 번개로 소진해도 남습니다.`; }
+}
+
+function resaleSave(rows) {
+  writeLS(LS.resale, rows);
+  renderSettle(view());
+}
+
+function resaleAddSheet() {
+  const g = view().gate;
+  if (g.locked) { toast(`${g.lockUntil}까지 사입·재판매 0건 — 개업 후 입력`); return; }
+  const today = Core.kstToday(Date.now());
+  openSheet(`<h3>자산 추가 — 사입·잔여재고·반품 회수</h3>
+    <p class="note">당근에는 올리지 않습니다(사업 물량 0건). 채널은 <b>번개 프로상점</b> 하나입니다.</p>
+    <div class="field"><label for="raName">상품명</label><input id="raName" type="text" style="flex:1;width:auto" placeholder="예: 골판지 스크래쳐 3개입"></div>
+    <div class="field"><label for="raOrigin">유입</label><select id="raOrigin">${Object.keys(Core.RESALE.ORIGIN).map((k) => `<option value="${k}">${esc(Core.RESALE.ORIGIN[k])}</option>`).join('')}</select></div>
+    <div class="field"><label for="raGrade">등급</label><select id="raGrade"><option value="S">S 미개봉</option><option value="A" selected>A 단순개봉</option><option value="B">B 박스손상</option></select></div>
+    <div class="field"><label for="raCogs">매입원가</label><input id="raCogs" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="field"><label for="raRetail">스토어 정가</label><input id="raRetail" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="field"><label for="raCat">카테고리</label><select id="raCat"><option value="0.10">그 외 10%</option><option value="0.08">패션·가죽 8%</option><option value="0.06">디지털·가전·차량 6%</option></select></div>
+    <div class="field"><label for="raMode">배송</label><select id="raMode"><option value="FREE_SELLER">판매자 무료(3,200)</option><option value="PAID_BUYER">구매자 결제</option><option value="HALF">반값택배(1,800)</option></select></div>
+    <div class="field"><label for="raList">게시가</label><input id="raList" type="number" inputmode="numeric" placeholder="비우면 검수 대기"></div>
+    <div class="field"><label for="raQty">수량</label><input id="raQty" type="number" inputmode="numeric" value="1"></div>
+    <button class="btn primary block" id="raSave" style="margin-top:9px">원장에 추가</button>`);
+  $('#raSave').onclick = () => {
+    const name = $('#raName').value.trim();
+    const cogs = num($('#raCogs').value);
+    if (!name) { toast('상품명을 넣어 주세요'); return; }
+    if (cogs == null) { toast('매입원가를 넣어 주세요'); return; }
+    const all = readLS(LS.resale, []);
+    const listPrice = num($('#raList').value);
+    const mode = $('#raMode').value;
+    const seq = all.filter((r) => String(r.assetId).indexOf(`R-${today.replace(/-/g, '')}`) === 0).length + 1;
+    all.push({
+      assetId: `R-${today.replace(/-/g, '')}-${String(seq).padStart(3, '0')}`,
+      originType: $('#raOrigin').value, productName: name, grade: $('#raGrade').value,
+      cogsKrw: cogs, retailPriceKrw: num($('#raRetail').value), catRate: Number($('#raCat').value),
+      shippingMode: mode, listedAt: listPrice != null ? today : null, qty: num($('#raQty').value) || 1,
+      listPriceKrw: listPrice, buyerShipFeeKrw: mode === 'PAID_BUYER' ? 3200 : mode === 'HALF' ? 1800 : 0,
+      sellerShipCostKrw: mode === 'FREE_SELLER' ? 3200 : 0,
+      receiptType: 'NONE', status: listPrice != null ? 'LISTED_BUNJANG_PRO' : 'INSPECTED_GRADE', note: '',
+    });
+    resaleSave(all);
+    $('#sheet').hidden = true;
+    toast('원장에 추가했습니다');
+  };
+}
+
+function resaleSellSheet(assetId) {
+  const r = view().resale.rows.find((x) => x.assetId === assetId);
+  if (!r) return;
+  const today = Core.kstToday(Date.now());
+  openSheet(`<h3>판매 완료 기록</h3>
+    <p>${esc(r.productName)} · 게시가 ${secret(r.listPriceKrw, '원')} · 원가 ${secret(r.cogsKrw, '원')}</p>
+    <div class="field"><label for="rsSellPrice">실판매가</label><input id="rsSellPrice" type="number" inputmode="numeric" value="${num(r.listPriceKrw) ?? ''}"></div>
+    <div class="field"><label for="rsSellReceipt">증빙</label><select id="rsSellReceipt"><option value="PG_AUTO">PG 자동(카드·번개페이)</option><option value="CASH_RECEIPT">현금영수증 자진발급</option><option value="NONE">미기재 — 주간 마감에서 처리</option></select></div>
+    <div class="out"><div class="box"><i>실현 순익</i><b id="rsSellNet">—</b></div><div class="box"><i>순마진</i><b id="rsSellMargin">—</b></div></div>
+    <p class="note">판매로 적고, 입금·구매확정 뒤 [정산 반영]을 눌러 실현 손익에 넣습니다. 번개페이 카드결제분은 PG가 매출자료를 넘기므로 현금영수증을 중복 발급하지 않습니다.</p>
+    <button class="btn primary block" id="rsSellSave" style="margin-top:9px">판매로 기록</button>`);
+  const calc = () => {
+    const price = num($('#rsSellPrice').value);
+    const net = Core.bunjangNetProfit({ price, cogsKrw: r.cogsKrw, catRate: r.catRate, buyerShipKrw: r.buyerShipFeeKrw, sellerShipKrw: r.sellerShipCostKrw });
+    $('#rsSellNet').textContent = won(net);
+    $('#rsSellMargin').textContent = pct(price ? Core.trunc2((net / price) * 100) : null);
+  };
+  $('#rsSellPrice').addEventListener('input', calc);
+  calc();
+  $('#rsSellSave').onclick = () => {
+    const price = num($('#rsSellPrice').value);
+    if (!price) { toast('실판매가를 넣어 주세요'); return; }
+    const all = readLS(LS.resale, []).map((x) => (x.assetId === assetId
+      ? Object.assign({}, x, { status: 'SOLD_PENDING', soldAt: today, soldPriceKrw: price, receiptType: $('#rsSellReceipt').value })
+      : x));
+    resaleSave(all);
+    $('#sheet').hidden = true;
+    toast('판매로 기록 — 정산 반영 대기');
+  };
+}
+
+function resaleAction(assetId, action) {
+  const all = readLS(LS.resale, []);
+  const row = all.find((x) => x.assetId === assetId);
+  if (!row) return;
+  if (action === 'SELL') { resaleSellSheet(assetId); return; }
+  if (action === 'DEL') {
+    if (!confirm(`${row.productName || assetId} 줄을 원장에서 지울까요? (증빙·정산 이력도 함께 사라집니다)`)) return;
+    resaleSave(all.filter((x) => x.assetId !== assetId));
+    toast('삭제했습니다');
+    return;
+  }
+  const today = Core.kstToday(Date.now());
+  const patch = action === 'LIST' ? { status: 'LISTED_BUNJANG_PRO', listedAt: row.listedAt || today }
+    : action === 'DROP' ? { status: 'PRICE_DROPPED', lastDropAt: today }
+      : action === 'SETTLE' ? { status: 'SETTLED_LEDGERED' } : null;
+  if (!patch) return;
+  resaleSave(all.map((x) => (x.assetId === assetId ? Object.assign({}, x, patch) : x)));
+  toast({ LIST: '번개 게시로 기록', DROP: '감가 적용으로 기록', SETTLE: '정산 반영 — 실현 손익에 넣었습니다' }[action]);
 }
 
 function renderClosing() {
@@ -769,6 +952,7 @@ function renderSettings(v) {
     <div class="item"><div class="meta"><span>GAS</span><span>${DATA_MODE === 'DEMO' ? '데모 데이터' : '웹앱 URL·기기키 미설정'}</span></div><div class="meta"><span>커머스API</span><span>미연결(P1)</span></div></div>`;
   $('#writePanel').innerHTML = `
     <div class="banner prep"><span>🔒</span><div><b>WRITE_ENABLED = false</b> — 2027-01-02 이전에는 어떤 경로로도 스토어로 쓰지 않습니다. 발주·송장·판매상태 변경 버튼은 확인창과 복사용 JSON 까지만 동작합니다.</div></div>
+    <div class="banner prep" style="margin-top:8px"><span>🥕</span><div><b>채널도 같은 날짜까지 0건</b> — 당근 70도는 개인 전용, 번개는 프로상점 전환(1/6~1/7) 전입니다. 사입·재판매 목적 매입·판매가 2026년에 1건이라도 있으면 세액감면 시계가 앞당겨집니다.</div></div>
     <p class="note">안전장치: 1회 30건 상한 · 호출 간격 1,200ms 직렬 · 무변경 호출 차단 · 변경 후 재조회 대조 · 감사 로그(Audit).</p>`;
 }
 
@@ -870,6 +1054,8 @@ document.addEventListener('click', (ev) => {
   }
   const ms = ev.target.closest('[data-measure]');
   if (ms) { measureSheet(ms.dataset.measure); return; }
+  const rs = ev.target.closest('[data-rs]');
+  if (rs) { const [id, action] = rs.dataset.rs.split(':'); resaleAction(id, action); return; }
 });
 
 function confirmDomaesin(productOrderId) {
@@ -992,6 +1178,11 @@ $('#cPick').addEventListener('change', (e) => {
 ['cSale', 'cSupply', 'cShip', 'cReturn'].forEach((id) => {
   $('#' + id).addEventListener('input', calcMargin);
 });
+
+/* 채널 정리 · 번개 계산기 */
+$('#resaleAdd').addEventListener('click', resaleAddSheet);
+['rsPrice', 'rsCogs'].forEach((id) => $('#' + id).addEventListener('input', resaleCalc));
+['rsCat', 'rsShip'].forEach((id) => $('#' + id).addEventListener('change', resaleCalc));
 
 /* 일일 마감 */
 $('#dSave').addEventListener('click', () => {
