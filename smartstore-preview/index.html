@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f7f3ec">
+<meta name="robots" content="noindex, nofollow">
+<title>묘한살림 운영 대시보드 v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f7f3ec; --card:#fffdf9; --ink:#211d19; --ink-2:#5d554b; --ink-3:#8d8579;
+  --line:#e7dfd2; --line-2:#f0e9dd;
+  --accent:#6f4f31; --accent-soft:#f0e5d6;
+  --good:#2f7a4f; --good-soft:#e5f2e9;
+  --warn:#a9701c; --warn-soft:#fbf0dc;
+  --crit:#b2372f; --crit-soft:#fbe6e3;
+  --demo:#c2410c; --demo-soft:#ffedd5;
+  --shadow:0 1px 2px rgba(43,32,20,.05), 0 6px 18px rgba(43,32,20,.05);
+  --r:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  background:var(--paper); color:var(--ink); font-size:15px; line-height:1.45;
+  -webkit-text-size-adjust:100%;
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:var(--accent);text-decoration:none}
+input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:600px;margin:0 auto;padding:0 14px}
+[hidden]{display:none!important}
+
+/* 헤더 */
+.hdr{position:sticky;top:0;z-index:20;background:rgba(247,243,236,.96);backdrop-filter:blur(10px);border-bottom:1px solid var(--line-2)}
+.hdr-in{max-width:1280px;margin:0 auto;padding:9px 14px 0}
+.hdr-top{display:flex;align-items:center;gap:9px}
+.logo{width:30px;height:30px;flex:0 0 30px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px}
+.brand{display:flex;align-items:baseline;gap:7px;min-width:0}
+.brand b{font-size:16px;letter-spacing:-.3px;white-space:nowrap}
+.brand .v{font-size:11px;color:var(--ink-3);font-weight:700}
+.badges{display:flex;gap:4px;margin-left:2px;flex-wrap:wrap}
+.badge{font-size:10.5px;font-weight:800;letter-spacing:-.2px;padding:2px 7px;border-radius:999px;background:var(--line-2);color:var(--ink-2);white-space:nowrap}
+.badge.demo{background:var(--demo-soft);color:var(--demo)}
+.badge.live{background:var(--good-soft);color:var(--good)}
+.badge.prep{background:var(--warn-soft);color:var(--warn)}
+.hdr-actions{margin-left:auto;display:flex;gap:3px}
+.icon-btn{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:15px;border:1px solid transparent}
+.icon-btn:active{background:var(--line-2)}
+.icon-btn[aria-pressed="true"]{background:var(--accent-soft);border-color:#e3d3bd}
+.sysbar{display:flex;align-items:center;gap:10px;margin-top:5px;font-size:11.5px;color:var(--ink-2);flex-wrap:wrap}
+.sysbar .dot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:0 0 7px}
+.sysbar.warn .dot{background:var(--warn)} .sysbar.crit .dot{background:var(--crit)} .sysbar.paused .dot{background:var(--ink-3)}
+.sysbar .sp{margin-left:auto;color:var(--ink-3);text-decoration:underline;text-underline-offset:2px;font-size:11px}
+.tabs{display:flex;gap:2px;overflow-x:auto;margin-top:6px;padding-bottom:0;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{padding:9px 11px;font-size:12.5px;font-weight:700;color:var(--ink-3);white-space:nowrap;border-bottom:2px solid transparent;letter-spacing:-.2px}
+.tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs button .n{display:inline-block;min-width:16px;padding:0 4px;margin-left:4px;border-radius:999px;background:var(--crit);color:#fff;font-size:10px;line-height:15px;text-align:center}
+
+main{max-width:1280px;margin:0 auto;padding:12px 14px 40px}
+section[data-tab]{display:grid;gap:12px}
+.grid2{display:grid;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;min-width:0}
+.card-t{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.card-t h2{font-size:13.5px;font-weight:700;margin:0;letter-spacing:-.2px}
+.card-t .hint{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-weight:500}
+.muted{color:var(--ink-3)}
+.note{font-size:11.5px;color:var(--ink-3);margin:8px 0 0;line-height:1.5}
+.note b{color:var(--ink-2)}
+
+/* 배너 */
+.banner{border-radius:14px;padding:11px 13px;font-size:12.5px;line-height:1.5;display:flex;gap:9px;align-items:flex-start}
+.banner.prep{background:var(--warn-soft);color:#7c5110;border:1px solid #f0dcb6}
+.banner.demo{background:var(--demo-soft);color:#9a3412;border:1px solid #fed7aa}
+.banner.live{background:var(--good-soft);color:#1f5c3b;border:1px solid #cfe6d8}
+.banner b{font-weight:800}
+
+/* 위젯 */
+.widgets{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+.wg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 11px;box-shadow:var(--shadow);text-align:left;display:grid;gap:2px;min-width:0}
+.wg .k{font-size:11px;color:var(--ink-3);font-weight:600;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wg .v{font-size:20px;font-weight:800;letter-spacing:-.8px;line-height:1.15}
+.wg .v small{font-size:11px;font-weight:700;color:var(--ink-3);margin-left:2px}
+.wg .d{font-size:10.5px;color:var(--ink-3);line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wg.crit{border-color:#f0c9c4;background:linear-gradient(180deg,#fff8f7,#fffdf9)}
+.wg.crit .v{color:var(--crit)}
+.wg.warn .v{color:var(--warn)}
+.wg.good .v{color:var(--good)}
+.wg.zero .v{color:var(--good)}
+
+/* Gauge */
+.gauge{display:grid;gap:4px;padding:7px 0;border-bottom:1px solid var(--line-2)}
+.gauge:last-child{border-bottom:0}
+.gauge .g-top{display:flex;align-items:baseline;gap:6px;font-size:12px}
+.gauge .g-top b{font-weight:700}
+.gauge .g-top .pct{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:800;font-size:12.5px}
+.gauge .g-top .amt{font-size:10.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.track{position:relative;height:9px;border-radius:999px;background:var(--line-2);overflow:hidden}
+.track>i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--good);transition:width .4s ease}
+.track.warn>i{background:var(--warn)} .track.crit>i{background:var(--crit)}
+.gauge.warn .pct{color:var(--warn)} .gauge.crit .pct{color:var(--crit)}
+.gauge .g-note{font-size:10.5px;color:var(--ink-3)}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px;box-shadow:var(--shadow);min-width:0}
+.kpi i{display:block;font-style:normal;font-size:10.5px;color:var(--ink-3);letter-spacing:-.2px;white-space:nowrap}
+.kpi b{display:block;font-size:22px;letter-spacing:-1px;margin-top:3px;font-variant-numeric:tabular-nums}
+.kpi b small{font-size:11px;font-weight:700;color:var(--ink-3);margin-left:2px}
+.kpi .sub{font-size:10.5px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi.good b{color:var(--good)} .kpi.warn b{color:var(--warn)} .kpi.crit b{color:var(--crit)}
+
+/* 차트 */
+.chart{width:100%;height:170px;display:block;overflow:visible}
+.chart .axis{stroke:var(--line);stroke-width:1}
+.chart .gl{stroke:var(--line-2);stroke-width:1;stroke-dasharray:3 3}
+.chart .lbl{fill:var(--ink-3);font-size:9px}
+.chart .bar{fill:#cbb695}
+.chart .bar.hot{fill:#b0895f}
+.chart .line{fill:none;stroke:#2f7a4f;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart .area{fill:rgba(47,122,79,.10);stroke:none}
+.chart .dot{fill:#2f7a4f}
+.legend{display:flex;gap:12px;font-size:11px;color:var(--ink-2);margin-top:6px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px}
+
+/* 표 */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t th,table.t td{padding:7px 6px;border-bottom:1px solid var(--line-2);text-align:left;white-space:nowrap}
+table.t th{font-size:10.5px;color:var(--ink-3);font-weight:700;position:sticky;top:0;background:var(--card)}
+table.t td.num{text-align:right;font-variant-numeric:tabular-nums}
+table.t tr:last-child td{border-bottom:0}
+table.t td.name{white-space:normal;min-width:120px}
+.pill{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--line-2);color:var(--ink-2);white-space:nowrap}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}
+.pill.demo{background:var(--demo-soft);color:var(--demo)}
+.pill.mute{background:var(--line-2);color:var(--ink-3)}
+
+/* 파이프라인 */
+.pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.pipe button{border:1px solid var(--line);border-radius:12px;padding:8px 4px;background:var(--card);text-align:center;display:grid;gap:1px}
+.pipe button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.pipe .s{font-size:10.5px;color:var(--ink-3);font-weight:700;white-space:nowrap}
+.pipe .c{font-size:18px;font-weight:800;letter-spacing:-.5px}
+
+/* 리스트 아이템 */
+.item{display:grid;gap:5px;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.item:last-child{border-bottom:0}
+.item .row1{display:flex;align-items:center;gap:7px;min-width:0}
+.item .nm{font-weight:700;font-size:13px;letter-spacing:-.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .row1 .pill{margin-left:auto;flex:0 0 auto}
+.item .meta{font-size:11.5px;color:var(--ink-3);display:flex;gap:9px;flex-wrap:wrap}
+.item .meta b{color:var(--ink-2);font-weight:700}
+.item .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+
+/* 버튼 */
+.btn{display:inline-block;border-radius:10px;padding:8px 12px;font-weight:700;font-size:12.5px;text-align:center;border:1px solid transparent}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.ghost{background:var(--line-2);color:var(--ink-2)}
+.btn.danger{background:var(--crit-soft);color:#8a2620}
+.btn.tiny{padding:5px 9px;font-size:11.5px;border-radius:8px}
+.btn:active{filter:brightness(.96)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn.block{display:block;width:100%}
+
+/* 폼 */
+.field{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--line-2)}
+.field:last-of-type{border-bottom:0}
+.field label{font-size:12.5px;color:var(--ink-2);flex:1;min-width:80px}
+.field input,.field select{border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:13px;font-weight:600;background:#fdfbf7;min-width:0}
+.field input[type=number]{width:118px;text-align:right;font-variant-numeric:tabular-nums}
+.field select{width:132px}
+.field input[type=file]{width:100%;font-size:11.5px}
+.out{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+.out .box{background:var(--line-2);border-radius:11px;padding:9px 10px;min-width:0}
+.out .box i{display:block;font-style:normal;font-size:10.5px;color:var(--ink-3)}
+.out .box b{display:block;font-size:17px;letter-spacing:-.6px;margin-top:2px;font-variant-numeric:tabular-nums}
+.verdict{margin-top:9px;font-size:12px;padding:9px 11px;border-radius:10px;background:var(--good-soft);color:#1f5c3b;line-height:1.5}
+.verdict.warn{background:var(--warn-soft);color:#7c5110}
+.verdict.crit{background:var(--crit-soft);color:#8a2620}
+.copy{width:100%;text-align:left;border:1px dashed var(--line);border-radius:10px;padding:8px 44px 8px 9px;font-size:11.5px;line-height:1.5;color:var(--ink-2);background:#fcfaf6;position:relative}
+.copy::after{content:"복사";position:absolute;right:8px;top:6px;font-size:10px;color:var(--accent);font-weight:800}
+.copy:active{background:var(--accent-soft)}
+
+/* RUNBOOK */
+.step{border:1px solid var(--line);border-radius:13px;margin-bottom:8px;overflow:hidden;background:var(--card)}
+.step-top{display:flex;align-items:center;gap:9px;padding:10px 12px;width:100%;text-align:left}
+.step-no{width:22px;height:22px;flex:0 0 22px;border-radius:7px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:11px;font-weight:800}
+.step.done .step-no{background:var(--good);color:#fff}
+.step-t{font-weight:700;font-size:12.5px}
+.step.min{font-size:10.5px;color:var(--ink-3);margin-left:auto}
+.step-body{padding:0 12px 11px;font-size:12px;color:var(--ink-2);display:grid;gap:7px}
+.chk{display:flex;gap:7px;background:var(--warn-soft);border-radius:9px;padding:7px 9px;color:#7c5110;font-size:11.5px}
+
+/* 잠금 */
+.lock{position:fixed;inset:0;z-index:50;background:var(--paper);display:flex;align-items:center;justify-content:center;padding:24px}
+.lock-in{width:100%;max-width:340px;text-align:center}
+.lock .mark{width:52px;height:52px;border-radius:16px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:24px;margin:0 auto 16px}
+.lock h1{font-size:19px;margin:0 0 4px;letter-spacing:-.5px}
+.lock p{font-size:12.5px;color:var(--ink-3);margin:0 0 18px;line-height:1.55}
+.lock input{width:100%;border:1px solid var(--line);border-radius:12px;padding:13px;font-size:15px;text-align:center;letter-spacing:1px;background:var(--card)}
+.lock .row{display:flex;align-items:center;gap:7px;justify-content:center;margin:11px 0 13px;font-size:12px;color:var(--ink-2)}
+.lock .err{color:var(--crit);font-size:12px;min-height:17px;margin-top:9px}
+.lock .small{font-size:11px;color:var(--ink-3);margin-top:16px;line-height:1.6}
+.btn.lock-open{width:100%;border-radius:12px;padding:12px;background:var(--accent);color:#fff;font-size:14px;font-weight:800;margin-top:10px}
+
+/* 시트·토스트 */
+.sheet{position:fixed;inset:0;z-index:40;background:rgba(33,29,25,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet-in{background:var(--card);width:100%;max-width:600px;border-radius:20px 20px 0 0;padding:18px 18px calc(20px + env(safe-area-inset-bottom));max-height:84vh;overflow:auto}
+.sheet-in h3{margin:0 0 8px;font-size:15px}
+.sheet-in p{font-size:12.5px;color:var(--ink-2);margin:0 0 8px;line-height:1.55}
+.sheet-in code{background:var(--line-2);border-radius:5px;padding:1px 5px;font-size:11.5px}
+.sheet-in pre{background:var(--line-2);border-radius:9px;padding:9px;font-size:10.5px;overflow:auto;max-height:200px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2b2521;color:#fff;font-size:12px;padding:9px 14px;border-radius:999px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+.toast.on{opacity:1}
+.masked .secretv{filter:blur(4px)}
+</style>
+<link rel="stylesheet" href="wide.css?v=202611221105">
+</head>
+<body>
+
+<div id="lockScreen" class="lock" hidden>
+  <div class="lock-in">
+    <div class="mark">묘</div>
+    <h1>묘한살림 운영 대시보드 v3</h1>
+    <p>공급가·마진·정산 값은 암호화되어 있습니다.<br>암호를 넣으면 이 기기에서만 열립니다.</p>
+    <form id="lockForm" autocomplete="off">
+      <input id="pass" type="password" autocomplete="current-password" placeholder="암호" aria-label="암호">
+      <div class="row"><input id="remember" type="checkbox" checked> <label for="remember">이 기기에 기억</label></div>
+      <button class="btn lock-open" type="submit" id="unlockBtn">열기</button>
+      <div class="err" id="lockErr" role="alert"></div>
+    </form>
+    <div class="small">잊어버렸다면 데이터를 다시 만들면 됩니다.<br>피클에게 “묘한살림 대시보드 갱신”이라고 하면 새 암호로 재생성됩니다.</div>
+  </div>
+</div>
+
+<header class="hdr" id="hdr" hidden>
+  <div class="hdr-in">
+    <div class="hdr-top">
+      <div class="logo">묘</div>
+      <div class="brand"><b>묘한살림</b><span class="v">v3</span></div>
+      <div class="badges" id="modeBadges"></div>
+      <div class="hdr-actions">
+        <button class="icon-btn" id="maskBtn" aria-pressed="true" title="금액 가리기" aria-label="금액 가리기 토글">👁</button>
+        <button class="icon-btn" id="lockBtn" title="잠그기" aria-label="잠그기">🔒</button>
+      </div>
+    </div>
+    <div class="sysbar" id="sysBar"><span class="dot"></span><span id="sysText">데이터 확인 중…</span><button class="sp" id="refreshInfo">갱신 안내</button></div>
+    <nav class="tabs" id="tabs" role="tablist">
+      <button data-go="home" aria-selected="true">홈</button>
+      <button data-go="inflow" aria-selected="false">유입</button>
+      <button data-go="orders" aria-selected="false">주문<span class="n" id="tabOrders" hidden></span></button>
+      <button data-go="claims" aria-selected="false">클레임·CS<span class="n" id="tabClaims" hidden></span></button>
+      <button data-go="products" aria-selected="false">상품·SEO</button>
+      <button data-go="sourcing" aria-selected="false">추천·소싱</button>
+      <button data-go="settle" aria-selected="false">정산·세무</button>
+      <button data-go="settings" aria-selected="false">설정·시스템</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main" hidden>
+  <!-- 홈 -->
+  <section data-tab="home">
+    <div id="homeBanner"></div>
+    <div class="widgets" id="widgets"></div>
+    <div class="grid2">
+      <div class="card"><div class="card-t"><h2>세무·건보 게이지</h2><span class="hint">연 순익 기준</span></div><div id="taxGauges"></div></div>
+      <div class="card"><div class="card-t"><h2>오픈 준비도</h2><span class="hint" id="prepHint"></span></div><div id="prepGauges"></div></div>
+    </div>
+    <div class="kpis" id="kpiRow"></div>
+    <div class="card chart-card">
+      <div class="card-t"><h2>매출·방문 추이</h2><span class="hint" id="trendHint">최근 28일</span></div>
+      <div id="trendChart"></div>
+      <div class="legend"><span><i style="background:#cbb695"></i>결제 매출</span><span><i style="background:#2f7a4f"></i>순방문자(UV)</span></div>
+    </div>
+    <div class="card">
+      <div class="card-t"><h2>개인판매자 45건 상한</h2><span class="hint">구매확정 50건 기준</span></div>
+      <div id="gauge45"></div>
+    </div>
+  </section>
+
+  <!-- 유입 -->
+  <section data-tab="inflow" hidden>
+    <div class="card">
+      <div class="card-t"><h2>판매자센터 데이터분석 업로드</h2><span class="hint">엑셀(.xlsx)·CSV · 이 기기에서만 읽습니다</span></div>
+      <div class="field"><label for="inflowFile">파일 선택</label><input type="file" id="inflowFile" accept=".xlsx,.csv,.tsv,.txt"></div>
+      <div class="field"><label for="inflowPaste">또는 표 붙여넣기</label><textarea id="inflowPaste" rows="3" placeholder="날짜,순방문자,결제건수 …" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:12px;background:#fdfbf7"></textarea></div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn primary tiny" id="inflowParse">표 읽기</button>
+        <button class="btn ghost tiny" id="inflowUseDemo">데모 데이터로 되돌리기</button>
+        <span class="muted" style="font-size:11px;margin-left:auto" id="inflowSrc"></span>
+      </div>
+      <p class="note" id="inflowNote">주 1회(일요일) 판매자센터 → 데이터분석 → 유입분석에서 내려받아 올리면 일별 추이가 쌓입니다. 커머스API에는 방문·검색어 API가 없어서 이 경로가 유일합니다.</p>
+    </div>
+    <div class="kpis" id="inflowKpis"></div>
+    <div class="card">
+      <div class="card-t"><h2>방문자·전환율 추이</h2><span class="hint" id="inflowTrendHint"></span></div>
+      <div id="inflowChart"></div>
+      <div class="legend"><span><i style="background:#cbb695"></i>순방문자(UV)</span><span><i style="background:#2f7a4f"></i>전환율(%)</span></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><div class="card-t"><h2>유입경로</h2><span class="hint">UV·CVR</span></div><div class="tbl-wrap"><table class="t" id="channelTable"></table></div></div>
+      <div class="card"><div class="card-t"><h2>검색어 TOP</h2><span class="hint" id="kwHint"></span></div><div class="tbl-wrap"><table class="t" id="keywordTable"></table></div></div>
+    </div>
+    <div class="card"><div class="card-t"><h2>전환 퍼널</h2><span class="hint">상품조회 → 장바구니 → 결제</span></div><div id="funnel"></div></div>
+  </section>
+
+  <!-- 주문 -->
+  <section data-tab="orders" hidden>
+    <div id="orderSummary"></div>
+    <div class="card">
+      <div class="card-t"><h2>주문 파이프라인</h2><span class="hint">단계를 누르면 아래 목록이 걸러집니다</span></div>
+      <div class="pipe" id="pipeline"></div>
+    </div>
+    <div class="card"><div class="card-t"><h2>발송기한 임박·가송장</h2><span class="hint">D-1/D-0 · 24h 미집화</span></div><div id="dispatchList"></div></div>
+    <div class="card"><div class="card-t"><h2>주문 목록</h2><span class="hint" id="orderCount"></span></div><div class="tbl-wrap"><table class="t" id="orderTable"></table></div></div>
+    <div class="card"><div class="card-t"><h2>첫 주문 RUNBOOK</h2><span class="hint" id="rbProg"></span></div><div id="runbook"></div></div>
+  </section>
+
+  <!-- 클레임·CS -->
+  <section data-tab="claims" hidden>
+    <div id="claimSummary"></div>
+    <div class="card"><div class="card-t"><h2>미처리 클레임</h2><span class="hint">SLA 24h</span></div><div id="claimList"></div></div>
+    <div class="card">
+      <div class="card-t"><h2>반품·교환 계산기</h2><span class="hint">귀책·등급 → 차감액·환불상한·문구</span></div>
+      <div class="field"><label for="clType">유형</label><select id="clType"><option value="CHANGE_OF_MIND">단순변심</option><option value="DEFECT">파손·불량·오배송</option><option value="CUSTOMS_HOLD">통관보류(PCCC)</option></select></div>
+      <div class="field"><label for="clFault">귀책</label><select id="clFault"><option value="BUYER">구매자</option><option value="SELLER">판매자</option><option value="WHOLESALER">도매처</option></select></div>
+      <div class="field"><label for="clGrade">등급</label><select id="clGrade"><option value="DOMESTIC_STD">국내 일반</option><option value="DOMESTIC_LARGE">국내 대형</option><option value="GLOBAL">해외</option></select></div>
+      <div class="field"><label for="clSale">판매가</label><input id="clSale" type="number" inputmode="numeric" value="19900"></div>
+      <div class="field"><label for="clSupply">공급원가</label><input id="clSupply" type="number" inputmode="numeric" value="8000"></div>
+      <div class="field"><label for="clProfit">원순익</label><input id="clProfit" type="number" inputmode="numeric" value="5000"></div>
+      <div class="field"><label for="clFee">실비(해외·폐기)</label><input id="clFee" type="number" inputmode="numeric" value="0"></div>
+      <div class="out">
+        <div class="box"><i>구매자 차감액</i><b id="clDeduct">-</b></div>
+        <div class="box"><i>부분환불 상한</i><b id="clCap">-</b></div>
+        <div class="box"><i>실순익 변동</i><b id="clDelta">-</b></div>
+        <div class="box"><i>처리</i><b id="clAction" style="font-size:14px">-</b></div>
+      </div>
+      <div class="verdict" id="clVerdict">값을 넣으면 판정이 나옵니다.</div>
+      <div style="margin-top:9px" id="clMsgWrap"></div>
+      <p class="note">왕복 반품비는 국내 일반 6,000원 · 대형 10,000원, 해외는 실비 15,000~30,000원 범위에서 계산합니다. 기발주 건 취소는 도매 취소완료 확인 전 승인 금지입니다.</p>
+    </div>
+    <div class="card"><div class="card-t"><h2>미답변 문의</h2><span class="hint">24h 응답률</span></div><div id="inquiryList"></div></div>
+  </section>
+
+  <!-- 상품·SEO -->
+  <section data-tab="products" hidden>
+    <div class="card">
+      <div class="card-t"><h2>상품 원장</h2><span class="hint" id="productHint"></span></div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px" id="trackChips"></div>
+      <div class="tbl-wrap"><table class="t" id="productTable"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-t"><h2>마진·손익분기 계산기</h2><span class="hint">수수료 4.95% · 반품충당 4%</span></div>
+      <div class="field"><label for="cPick">상품</label><select id="cPick" style="width:180px"></select></div>
+      <div class="field"><label for="cSale">판매가</label><input id="cSale" type="number" inputmode="numeric"></div>
+      <div class="field"><label for="cSupply">공급가</label><input id="cSupply" type="number" inputmode="numeric"></div>
+      <div class="field"><label for="cShip">배송비(우리 부담)</label><input id="cShip" type="number" inputmode="numeric"></div>
+      <div class="field"><label for="cReturn">반품 편도</label><input id="cReturn" type="number" inputmode="numeric"></div>
+      <div class="out">
+        <div class="box"><i>한 건 순익</i><b id="oProfit" class="secretv">-</b></div>
+        <div class="box"><i>마진율</i><b id="oMargin">-</b></div>
+        <div class="box"><i>15% 최소 판매가</i><b id="oBreakeven" class="secretv">-</b></div>
+        <div class="box"><i>반품 1건 손실</i><b id="oReturn" class="secretv">-</b></div>
+      </div>
+      <div class="verdict" id="oVerdict">값을 넣으면 판정이 나옵니다.</div>
+    </div>
+  </section>
+
+  <!-- 추천·소싱 -->
+  <section data-tab="sourcing" hidden>
+    <div id="sourcingBanner"></div>
+    <div class="card"><div class="card-t"><h2>추천 후보</h2><span class="hint">75점↑ 승격 후보</span></div><div id="candidateList"></div></div>
+    <div class="card"><div class="card-t"><h2>승격 게이트</h2><span class="hint">실측 → 검수 → 등록</span></div><div id="gatePanel"></div></div>
+  </section>
+
+  <!-- 정산·세무 -->
+  <section data-tab="settle" hidden>
+    <div class="card"><div class="card-t"><h2>월 손익 (PnL)</h2><span class="hint" id="pnlHint"></span></div><div id="pnl"></div></div>
+    <div class="card"><div class="card-t"><h2>정산 대사</h2><span class="hint" id="settleHint">우리 계산 vs 실제 정산</span></div><div id="settleTable"></div></div>
+    <div class="card"><div class="card-t"><h2>세무 게이지 상세</h2><span class="hint">1,653만 / 2,101만 / 1억 400만</span></div><div id="taxDetail"></div></div>
+    <div class="card">
+      <div class="card-t"><h2>채널 정리 · 번개 정산</h2><span class="hint" id="resaleHint">사입·잔여재고 · 2027-01-02 이후</span></div>
+      <div id="resaleGuard"></div>
+      <div class="kpis" id="resaleKpis" style="margin-top:10px"></div>
+      <div id="resaleList" style="margin-top:6px"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">
+        <button class="btn primary tiny" id="resaleAdd">자산 추가</button>
+        <span class="muted" style="font-size:11px;margin-left:auto" id="resaleSrc"></span>
+      </div>
+      <details style="margin-top:11px">
+        <summary style="font-size:12px;font-weight:700;color:var(--ink-2);cursor:pointer">번개 순익·손익분기 계산기</summary>
+        <div class="field" style="margin-top:6px"><label for="rsPrice">판매가</label><input id="rsPrice" type="number" inputmode="numeric" value="15000"></div>
+        <div class="field"><label for="rsCogs">매입원가</label><input id="rsCogs" type="number" inputmode="numeric" value="7500"></div>
+        <div class="field"><label for="rsCat">카테고리</label><select id="rsCat"><option value="0.10">그 외 10% (생활잡화·주방·펫)</option><option value="0.08">패션·가죽·스포츠 8%</option><option value="0.06">디지털·가전·차량 6%</option></select></div>
+        <div class="field"><label for="rsShip">배송 조건</label><select id="rsShip"><option value="FREE_SELLER">판매자 무료배송 (택배 3,200)</option><option value="PAID_BUYER">구매자 별도 결제 (3,200)</option><option value="HALF">반값택배 (1,800)</option></select></div>
+        <div class="out">
+          <div class="box"><i>번개 순이익</i><b id="rsNet">-</b></div>
+          <div class="box"><i>순마진</i><b id="rsMargin">-</b></div>
+          <div class="box"><i>손익분기 판매가</i><b id="rsBep">-</b></div>
+          <div class="box"><i>목표마진 20% 가격</i><b id="rsTarget">-</b></div>
+        </div>
+        <div class="verdict" id="rsVerdict">값을 넣으면 판정이 나옵니다.</div>
+        <p class="note">같은 가격을 스토어에서 팔면 <b id="rsStore">—</b> — 번개가 <b id="rsGap">—</b> 불리합니다(수수료 4.95%·배송비 내재 3,000 기준). 객단가 15,000원 미만은 번개로 정리하지 않고 스토어 묶음으로 흡수합니다.</p>
+      </details>
+      <p class="note"><b>당근 70도는 개인 전용</b>입니다. 사업 재고·사입품은 올리지 않으며, 그래서 원장에 당근 게시 상태값을 두지 않았습니다(정본: <code>docs/CHANNEL_RESALE_POLICY.md</code>).</p>
+    </div>
+    <div class="card"><div class="card-t"><h2>일일 마감</h2><span class="hint" id="closeHint">저장하면 이 기기에만 남습니다</span></div>
+      <div class="field"><label for="dDate">날짜</label><input id="dDate" type="date" style="width:150px"></div>
+      <div class="field"><label for="dOrders">결제 건수</label><input id="dOrders" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+      <div class="field"><label for="dSales">매출(원)</label><input id="dSales" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+      <div class="field"><label for="dReturns">반품 건수</label><input id="dReturns" type="number" min="0" inputmode="numeric" placeholder="0"></div>
+      <button class="btn primary tiny" id="dSave" style="margin-top:9px">저장</button>
+      <div id="closeEntries" style="margin-top:9px"></div>
+    </div>
+  </section>
+
+  <!-- 설정·시스템 -->
+  <section data-tab="settings" hidden>
+    <div class="card">
+      <div class="card-t"><h2>모드 스위치</h2><span class="hint">이 기기에 저장</span></div>
+      <div class="field"><label for="storeMode">storeMode</label><select id="storeMode"><option value="PRE_OPEN_PREP">PRE_OPEN_PREP (오픈 준비)</option><option value="LIVE_OPERATION">LIVE_OPERATION (실운영)</option></select></div>
+      <div class="field"><label for="dataMode">dataMode</label><select id="dataMode"><option value="DEMO">DEMO (합성 데이터)</option><option value="LIVE">LIVE (실데이터)</option></select></div>
+      <p class="note" id="modeNote"></p>
+    </div>
+    <div class="card"><div class="card-t"><h2>슬롯·판매상품비중</h2><span class="hint">3.5% 안전선</span></div><div id="slotPanel"></div></div>
+    <div class="card"><div class="card-t"><h2>시스템</h2><span class="hint">신선도·IP·도매잔액</span></div><div id="systemPanel"></div></div>
+    <div class="card"><div class="card-t"><h2>쓰기 잠금</h2><span class="hint">2027-01-02 이전</span></div><div id="writePanel"></div></div>
+  </section>
+</main>
+
+<div class="sheet" id="sheet" hidden><div class="sheet-in" id="sheetIn"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="v3_core.js?v=202611221105"></script>
+<script src="v3_upload.js?v=202611221105"></script>
+<script src="app_v3.js?v=202611221105"></script>
+</body>
+</html>
