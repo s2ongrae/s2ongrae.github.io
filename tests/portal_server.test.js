@@ -418,6 +418,15 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(fp({fit: 'zoom'}).code === 'bad_request' && fp({sub_style: 'big'}).code === 'bad_request' && fp({payload_source: 'ftp'}).code === 'bad_request' && fp({voice: 'x'}).code === 'bad_request' && fp({narrate: 'yes'}).code === 'bad_request' && fp({burn_subtitles: 'no'}).code === 'bad_request', '옵션 값 검사: fit·sub_style·payload_source·voice·narrate·burn_subtitles');
   ok(fp({captions: 'x'}).code === 'bad_request' && fp({captions: [[2, 1, '역순']]}).code === 'bad_request' && fp({captions: [[1, 2, '  ']]}).code === 'bad_request' && fp({captions: [[1, 2, 'a'.repeat(201)]]}).code === 'bad_request' && fp({narration: [[1, 2, '문장', 'angry']]}).code === 'bad_request' && fp({captions: Array.from({length: 81}, (_, i) => [i, i + 0.5, '큐'])}).code === 'bad_request', '큐 값 검사: 모양·시간·빈 문장·200자·톤·80큐');
 
+  // ⑤-2e 템포(pace)·자막 비트 — 2026-11-23: 이 큐가 payload 를 고정 키로 다시 만들어 pace·beat 가 조용히 사라지던 문제
+  const pfast = fp({pace: ' FAST ', blur_darken: -0.06, blur_radius: 12, captions: [[0, 2, '훅', 'hook'], [2, 4, '결론', 'payoff']]});
+  const pfd = fpay(pfast);
+  ok(pfast.ok === true && pfd.pace === 'fast' && pfd.blur_darken === -0.06 && pfd.blur_radius === 12, '템포·블러 여백이 큐 payload 까지 살아서 간다', pfd);
+  ok(JSON.stringify(pfd.captions) === JSON.stringify([[0, 2, '훅', 'hook'], [2, 4, '결론', 'payoff']]), '자막 4번째 스토리 비트가 살아서 간다', pfd.captions);
+  ok(!('pace' in fpay(fp({pace: 'standard'}))) && !('blur_darken' in fpay(fp({}))), 'standard·빈 값은 키를 만들지 않는다(기본값)');
+  ok(fp({pace: 'turbo'}).code === 'bad_request' && fp({blur_darken: -0.9}).code === 'bad_request' && fp({blur_darken: 0.2}).code === 'bad_request' && fp({blur_radius: 99}).code === 'bad_request', '템포·블러 범위 검사');
+  ok(JSON.stringify(fpay(fp({captions: [[0, 2, '장면', 'scene']]})).captions) === JSON.stringify([[0, 2, '장면']]), '모르는 비트는 버리고 문장만 보낸다(구버전 허브 호환)');
+
   // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
   const engQ = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}});
   ok(engQ.ok === true, '엔진을 붙인 오더도 접수');

@@ -1008,6 +1008,7 @@ function qqRenderPayloadOf_(p) {
   qqRenderTemplateOptionsOf_(o, out);
   qqRenderFrameLockOf_(o, out);
   qqRenderMotionOf_(o, out);
+  qqRenderPaceOf_(o, out);
   return JSON.stringify(out);
 }
 /**
@@ -1090,6 +1091,24 @@ function qqRenderMotionOf_(o, out) {
     out.motion_quality = mq;
   }
 }
+/** 템포(2026-11-23) — pace·blur_darken·blur_radius. standard 는 기본값이라 싣지 않는다. */
+function qqRenderPaceOf_(o, out) {
+  if (o.pace !== undefined && o.pace !== null && o.pace !== '') {
+    const pc = String(o.pace).trim().toLowerCase();
+    if (QQ_RENDER_PACES.indexOf(pc) < 0) throw qqErr_('bad_request', 'pace 는 ' + QQ_RENDER_PACES.join(' · ') + ' 중 하나여야 해요.');
+    if (pc !== 'standard') out.pace = pc;
+  }
+  if (o.blur_darken !== undefined && o.blur_darken !== null && o.blur_darken !== '') {
+    const v = Number(o.blur_darken);
+    if (!isFinite(v) || v < -0.4 || v > 0) throw qqErr_('bad_request', 'blur_darken 은 -0.4~0 사이 숫자여야 해요.');
+    out.blur_darken = Math.round(v * 100) / 100;
+  }
+  if (o.blur_radius !== undefined && o.blur_radius !== null && o.blur_radius !== '') {
+    const v = Number(o.blur_radius);
+    if (!isFinite(v) || v < 2 || v > 40) throw qqErr_('bad_request', 'blur_radius 는 2~40 사이 숫자여야 해요.');
+    out.blur_radius = Math.round(v);
+  }
+}
 /**
  * 완제품 옵션(2026-11-20) — fit(프레이밍) · captions(자막 큐) · narration(내레이션 큐) · narrate · burn_subtitles · sub_style · payload_source · voice.
  * 이 큐가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 허브가 보낸 옵션이 조용히 사라진다(컷이 그랬다).
@@ -1097,6 +1116,11 @@ function qqRenderMotionOf_(o, out) {
  */
 const QQ_RENDER_FITS = ['crop', 'blur', 'pad'];
 const QQ_RENDER_SUB_STYLES = ['auto', 'shorts', 'long'];
+/* 템포 프리셋(2026-11-23) — 노트북 lib/pace.js · 허브 js/produceLogic.js PACE_IDS 와 같은 값.
+   fast: 컷 1~1.8초 · 자막 0.6초부터 · 모션 dynamic · 가로 원본 blur 여백 덜 어둡게. */
+const QQ_RENDER_PACES = ['calm', 'standard', 'fast'];
+/* 자막 배열 4번째 = 스토리 비트(2026-11-23) — 노트북 lib/story.js 와 같은 값. */
+const QQ_RENDER_BEATS = ['hook', 'info', 'build', 'climax', 'payoff'];
 const QQ_RENDER_VOICE_RE = /^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$/;
 const QQ_RENDER_MAX_CUES = 80;
 function qqRenderCuesOf_(raw, label, withTone) {
@@ -1118,7 +1142,11 @@ function qqRenderCuesOf_(raw, label, withTone) {
     if (withTone) {
       if (tone !== null && tone !== '' && ['hype', 'calm'].indexOf(tone) === -1) throw qqErr_('bad_request', label + ' ' + (i + 1) + '번 톤은 hype · calm 중 하나예요.');
       out.push([r2(start), r2(end), t].concat(tone ? [tone] : []));
-    } else out.push([r2(start), r2(end), t]);
+    } else {
+      // 자막 4번째는 스토리 비트 — 모르는 값은 버리고 문장만 보낸다(구버전 허브 호환).
+      const beat = tone !== null && tone !== '' && QQ_RENDER_BEATS.indexOf(String(tone)) >= 0 ? String(tone) : '';
+      out.push([r2(start), r2(end), t].concat(beat ? [beat] : []));
+    }
   }
   return out;
 }
