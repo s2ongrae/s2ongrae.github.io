@@ -1004,6 +1004,7 @@ function qqRenderPayloadOf_(p) {
   const cuts = qqRenderCutsOf_(o.cuts, inputs.length);
   if (cuts.length) out.cuts = cuts;
   qqRenderFinalOptionsOf_(o, out);
+  qqRenderVoiceOf_(o, out);
   qqRenderTemplateOptionsOf_(o, out);
   qqRenderFrameLockOf_(o, out);
   qqRenderMotionOf_(o, out);
@@ -1151,6 +1152,39 @@ function qqRenderFinalOptionsOf_(o, out) {
   }
 }
 const QQ_RENDER_BGM_RE = /^[A-Za-z0-9가-힣][A-Za-z0-9가-힣._ -]{0,79}\.(mp3|wav|m4a|aac)$/i;
+/**
+ * 내 육성 녹음(2026-11-23) — voice_mode · voice_file · voice_offset_ms · voice_fallback_tts.
+ * 이 큐가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 허브가 보낸 선택이 조용히 사라진다(컷이 그랬다).
+ * 규칙은 허브 gas/Orders.gs RENDER_VOICE_* · 노트북 lib/render.js voiceParamsOf 와 같은 값이다.
+ * 값이 없으면 아무 키도 넣지 않는다 — 구버전 오더는 지금과 100% 동일(TTS 경로).
+ */
+const QQ_RENDER_VOICE_MODES = ['tts', 'human'];
+const QQ_RENDER_VOICE_FILE_RE = /^[A-Za-z0-9가-힣][A-Za-z0-9가-힣._ -]{0,79}\.(mp3|m4a|wav)$/i;
+const QQ_RENDER_VOICE_OFFSET_MS = 3000;
+function qqRenderVoiceOf_(o, out) {
+  const raw = o.voice_mode;
+  if (raw === undefined || raw === null || raw === '') return;
+  const vm = String(raw).trim().toLowerCase();
+  if (QQ_RENDER_VOICE_MODES.indexOf(vm) < 0) throw qqErr_('bad_request', '음성 방식(voice_mode)은 tts · human 중 하나여야 해요.');
+  out.voice_mode = vm;
+  if (vm !== 'human') return;
+  const vf = String(o.voice_file === undefined || o.voice_file === null ? '' : o.voice_file).trim();
+  if (!QQ_RENDER_VOICE_FILE_RE.test(vf) || vf.indexOf('..') >= 0 || vf.indexOf('/') >= 0 || vf.indexOf('\\') >= 0) {
+    throw qqErr_('bad_request', '녹음 파일 이름(mp3·m4a·wav, 폴더·경로 금지)만 넣을 수 있어요.');
+  }
+  out.voice_file = vf;
+  if (o.voice_offset_ms !== undefined && o.voice_offset_ms !== null && o.voice_offset_ms !== '') {
+    const vo = Number(o.voice_offset_ms);
+    if (!isFinite(vo) || Math.round(vo) !== vo || Math.abs(vo) > QQ_RENDER_VOICE_OFFSET_MS) {
+      throw qqErr_('bad_request', '녹음 앞 자를 길이(voice_offset_ms)는 -' + QQ_RENDER_VOICE_OFFSET_MS + '~' + QQ_RENDER_VOICE_OFFSET_MS + ' 사이 정수(ms)여야 해요.');
+    }
+    if (vo) out.voice_offset_ms = vo;
+  }
+  if (o.voice_fallback_tts !== undefined && o.voice_fallback_tts !== null && o.voice_fallback_tts !== '') {
+    if (typeof o.voice_fallback_tts !== 'boolean') throw qqErr_('bad_request', '실패 시 TTS 대체(voice_fallback_tts)는 true·false 여야 해요.');
+    if (o.voice_fallback_tts === true) out.voice_fallback_tts = true;
+  }
+}
 /** 영상 렌더 2·3단계 payload — 노트북 lib/render_stages.js validateStage 와 같은 규칙(옵션만 통과, 모르는 필드는 버린다). */
 function qqRenderStagePayloadOf_(o, contentId, brand, stage) {
   if (stage !== 'transcribe' && stage !== 'finish') throw qqErr_('bad_request', 'stage 는 transcribe 또는 finish 여야 해요.');

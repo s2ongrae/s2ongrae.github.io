@@ -380,6 +380,20 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(mn.ok === true && !('motion' in tplPayload(mn)) && !('motion_quality' in tplPayload(mn)), '안보내면 키를 만들지 않는다(노트북이 auto 로 돈다)');
   ok(tplPost({content_id: 'C-045', motion: 'wobble'}).code === 'bad_request' && tplPost({content_id: 'C-046', motion_quality: '4k'}).code === 'bad_request', '모르는 motion·화질은 거절');
 
+  // ⑤-2f 내 육성 녹음 — 2026-11-23: voice_mode·voice_file·voice_offset_ms·voice_fallback_tts 4키가 포털 큐에서 잘리지 않게
+  const v1 = tplPost({content_id: 'C-050', voice_mode: 'human', voice_file: 'C-050_voice.m4a', voice_offset_ms: 1200, voice_fallback_tts: true});
+  const v1p = v1.ok ? tplPayload(v1) : {};
+  ok(v1.ok === true && v1p.voice_mode === 'human' && v1p.voice_file === 'C-050_voice.m4a' && v1p.voice_offset_ms === 1200 && v1p.voice_fallback_tts === true, '육성 녹음 4키가 payload 까지 간다', v1p);
+  ok(col(tplRow(v1), 'approval_hash') === hashOf(v1p), '승인 해시가 육성 녹음까지 묶는다');
+  const v2 = tplPost({content_id: 'C-051', voice_mode: 'TTS'});
+  ok(v2.ok === true && tplPayload(v2).voice_mode === 'tts' && !('voice_file' in tplPayload(v2)), 'tts 는 소문자로 싣고 파일 키는 만들지 않는다');
+  const v3 = tplPost({content_id: 'C-052'});
+  ok(v3.ok === true && !('voice_mode' in tplPayload(v3)) && !('voice_file' in tplPayload(v3)), '안보내면 키를 만들지 않는다(구버전 오더 그대로)');
+  const v4 = tplPost({content_id: 'C-053', voice_mode: 'human', voice_file: 'my_voice.mp3'});
+  ok(v4.ok === true && tplPayload(v4).voice_file === 'my_voice.mp3', 'mp3 이름도 받는다');
+  ok(tplPost({content_id: 'C-054', voice_mode: 'ai'}).code === 'bad_request' && tplPost({content_id: 'C-055', voice_mode: 'human'}).code === 'bad_request' && tplPost({content_id: 'C-056', voice_mode: 'human', voice_file: '../v.m4a'}).code === 'bad_request' && tplPost({content_id: 'C-057', voice_mode: 'human', voice_file: 'inbox/v.m4a'}).code === 'bad_request' && tplPost({content_id: 'C-058', voice_mode: 'human', voice_file: 'v.aac'}).code === 'bad_request', '모르는 방식·파일 없음·경로·다른 확장자는 거절');
+  ok(tplPost({content_id: 'C-059', voice_mode: 'human', voice_file: 'v.m4a', voice_offset_ms: 3001}).code === 'bad_request' && tplPost({content_id: 'C-060', voice_mode: 'human', voice_file: 'v.m4a', voice_offset_ms: 1.5}).code === 'bad_request' && tplPost({content_id: 'C-061', voice_mode: 'human', voice_file: 'v.m4a', voice_fallback_tts: 'yes'}).code === 'bad_request', 'offset 은 ±3000 정수 · fallback 은 true/false 만');
+
   // ⑤-2c 영상 렌더 2·3단계(stage) — 2026-11-20: 자막 초안·마무리는 원본 이름이 없고 옵션만 통과한다
   const stPost = patch => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({content_id: 'C-010', brand: 'ppiyak_kimmary'}, patch)});
   const payloadOf = r => JSON.parse(String(col(qrows().find(x => x[0] === (r.item && r.item.id)), 'payload')));
