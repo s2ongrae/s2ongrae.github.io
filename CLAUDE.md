@@ -98,6 +98,11 @@
   `payload.target` 이 cue·vooy·keyring·pi1·portal 같은 오더까지 집어 가 엉뚱한 답을 달았다(부이 제보).
   이제 `cqForNotebook_()` 이 **비었거나 notebook·all** 인 PENDING 만 집고, 워커(`lib/targets.js`)도 한 번 더 본다.
   포털 `queue_claim` 은 원래부터 `target=나|all` 만 집는다. **CommandQueue.gs 재배포가 있어야 서버 쪽 가드가 켜진다.**
+- **`[워커 규칙]` 문구는 화면에 보이지 않는다(2026-11-25, v31)**: 큐가 프롬프트 끝에 붙이던 셸 안내가 말풍선·요약에 그대로 나와 시인성을 해쳤다.
+  · 대화(`payload.kind='chat'`)에는 **붙이지 않는다**(답장이라 셸 규칙이 필요 없다) — `qqWithWorkerNote_` 가 건너뛴다.
+  · `qqSummary_` 는 저장된 프롬프트에서 `\s*\[워커 규칙\][\s\S]*$` 를 떼고 요약한다(**이미 저장된 옛 줄도 같이 깨끗해진다** — 요약은 저장값이 아니라 payload 에서 매번 만든다). 대화 요약에는 `클로드: ` 접두사도 붙이지 않는다.
+  · 화면은 `ordStripNote`/`ordSumLine`(index.html)으로 말풍선·실행 중 카드·관제 카드·오더 요약에서 문구를 한 번 더 뗀다(옛 줄·다른 경로 방어).
+  · 같은 규칙을 노트북 쪽 `hub-agent/gas/CommandQueue.gs`(`cqWithWorkerNote_`·`cqPayloadSummary_`)와 `lib/approval.js` 에도 넣었다 — **양쪽 재배포가 있어야 완전**하다.
 - **서버(Code.gs)**: `queue_list` 가 `source·kind·target` 을 돌려주고 `chat:true`·`targets`·`sources` 를 알린다.
   `queue_enqueue` 는 `source`(화이트리스트+규칙)와 `payload.kind/target` 을 기록한다. `queue_list target=pi1|pi2` = 내 멘션만.
   **`target` 필터 성능(2026-11-25, v26)**: 행마다 `qqItem_`(payload 파싱 + 가림 정규식 + 스크립트 속성 읽기 4~5회)을 만들면
