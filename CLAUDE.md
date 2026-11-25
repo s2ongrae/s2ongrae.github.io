@@ -103,6 +103,15 @@
   · `qqSummary_` 는 저장된 프롬프트에서 `\s*\[워커 규칙\][\s\S]*$` 를 떼고 요약한다(**이미 저장된 옛 줄도 같이 깨끗해진다** — 요약은 저장값이 아니라 payload 에서 매번 만든다). 대화 요약에는 `클로드: ` 접두사도 붙이지 않는다.
   · 화면은 `ordStripNote`/`ordSumLine`(index.html)으로 말풍선·실행 중 카드·관제 카드·오더 요약에서 문구를 한 번 더 뗀다(옛 줄·다른 경로 방어).
   · 같은 규칙을 노트북 쪽 `hub-agent/gas/CommandQueue.gs`(`cqWithWorkerNote_`·`cqPayloadSummary_`)와 `lib/approval.js` 에도 넣었다 — **양쪽 재배포가 있어야 완전**하다.
+- **말풍선 주체는 '답한 비서'(2026-11-25, v32)**: 답장·진행·결과 말풍선의 이름·이모지는 원 질문자 `source` 가 아니라
+  `replied_by`/`claimed_by` 다(`ordReplyKey`·`ordReplyWhoKey`). 노트북이 답한 말이 `🌐 포털` 로 보여 "내가 답하려는 것 같다"로 읽혔다.
+  RUNNING·PENDING 이면 받을 비서(`ordTargetKey`)가 왼쪽에 선다.
+- **순수 답장에는 대기 말풍선을 달지 않는다(2026-11-25, v32)**: 비서가 포털·다른 비서 앞에 남긴 `kind='chat'` 답장은 아무도 집지 않는다.
+  `ordIsPlainReply` = 대화 + 남이 보냄 + 아무도 처리하지 않음(`ordNeedsWorker`). 이런 줄은 두 번째 말풍선도, `대기` 배지도,
+  대기 건수(머리말·오더 큐·노트북 카드·프로젝트 통계·자동 확인)도 만들지 않는다(결과·사유가 따로 있으면 보여준다).
+  기다리는 상대가 노트북이 아니면 문구가 그 이름을 말한다(`@큐가 다음 확인 때 읽어요`). 대화 실패는 사유만 적어 내 말과 겹치지 않는다.
+  서버는 **포털(사람) 앞 대화를 접수 순간 DONE** 으로 닫고(`qqDeliveredOnly_`), `queue_head` 에 `replied_by`·`reply_to` 를 싣고,
+  답장이 달린 원글에 `answer_by`/`answered_at` 을 붙인다. 새 대화가 PENDING 으로 쌓이지 않는다.
 - **서버(Code.gs)**: `queue_list` 가 `source·kind·target` 을 돌려주고 `chat:true`·`targets`·`sources` 를 알린다.
   `queue_enqueue` 는 `source`(화이트리스트+규칙)와 `payload.kind/target` 을 기록한다. `queue_list target=pi1|pi2` = 내 멘션만.
   **`target` 필터 성능(2026-11-25, v26)**: 행마다 `qqItem_`(payload 파싱 + 가림 정규식 + 스크립트 속성 읽기 4~5회)을 만들면
