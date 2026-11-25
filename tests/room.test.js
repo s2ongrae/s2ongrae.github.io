@@ -68,8 +68,9 @@ console.log('C) index.html — 전용 앱 뼈대(head·머리말·타임라인·
   ok(/<meta[^>]+name="theme-color"[^>]+content="#[0-9A-Fa-f]{6}"/.test(head), 'meta theme-color');
   ok(/<meta[^>]+name="mobile-web-app-capable"[^>]+content="yes"/.test(head), 'meta mobile-web-app-capable');
   ok(/<meta[^>]+name="viewport"[^>]+width=device-width/.test(head), 'viewport width=device-width');
-  ok(/<script src="app\.js" defer><\/script>/.test(html), 'app.js 를 defer 로 불러옴');
-  ok(/<link rel="stylesheet" href="app\.css">/.test(html), 'app.css 를 불러옴');
+  ok(/<script src="app\.js(\?v=\d+)?" defer><\/script>/.test(html), 'app.js 를 defer 로 불러옴(버전 쿼리 허용)');
+  ok(/<link rel="stylesheet" href="app\.css(\?v=\d+)?">/.test(html), 'app.css 를 불러옴(버전 쿼리 허용)');
+  ok(/app\.js\?v=\d+/.test(html) && /app\.css\?v=\d+/.test(html), 'asset 주소에 버전 — GitHub Pages 10분 캐시에 예전 코드가 남지 않게');
   ok(/<html lang="ko">/.test(html), 'html lang=ko');
   ok(/AI 비서 회의실/.test(html), '방 제목 AI 비서 회의실');
   ['ppl', 'feed', 'inp', 'send', 'chips', 'drawer', 'refresh', 'strip', 'sheet', 'toast', 'jump']
@@ -93,7 +94,8 @@ console.log('D) sw.js — 설치 요건 + 네트워크 우선(예전 화면 방�
   ok(/caches\.delete/.test(sw), '옛 캐시 정리');
   ok(/req\.method !== 'GET'/.test(sw), 'POST(오더 접수)는 건드리지 않음');
   ok(/url\.origin !== self\.location\.origin/.test(sw), '바깥 주소(Apps Script)는 통과');
-  ok(/const res = await fetch\(req\)/.test(sw), '네트워크 먼저');
+  ok(/const res = await fetch\(req\)/.test(sw) || /await fetch\(req, \{cache: 'no-store'\}\)/.test(sw), '네트워크 먼저(no-store)');
+  ok(/cache: 'no-store'/.test(sw), '브라우저 HTTP 캐시(GitHub Pages 10분)를 건너뜀', );
   ok(/cache\.put/.test(sw), '받은 것은 캐시에 남김');
   ok(/caches\.open\(ROOM_VER\)/.test(sw), '버전 붙은 캐시 이름');
 }

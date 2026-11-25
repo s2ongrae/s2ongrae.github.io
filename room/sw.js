@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════════
    💬 AI 비서 회의실 — Service Worker
    · 하는 일 두 가지: ① 홈 화면 앱 설치 요건 ② 오프라인일 때 껍데기
-   · 화면·코드는 **네트워크 먼저** — 캐시가 예전 화면을 붙잡지 않게(포털 방침과 같음)
+   · 화면·코드는 **네트워크 먼저(no-store)** — 캐시가 예전 화면을 붙잡지 않게(포털 방침과 같음)
    · Apps Script(다른 주소) 요청은 건드리지 않습니다
    ═══════════════════════════════════════════════════════════ */
-const ROOM_VER = 'room-v1';
+const ROOM_VER = 'room-v2';
 const ROOM_SHELL = [
   './', './index.html', './app.css', './app.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png'
@@ -34,7 +34,8 @@ self.addEventListener('fetch', (e) => {
   e.respondWith((async () => {
     const cache = await caches.open(ROOM_VER);
     try {
-      const res = await fetch(req);
+      // GitHub Pages 는 정적 파일을 10분 캐시한다 — no-store 로 항상 새 코드를 받아요
+      const res = await fetch(req, {cache: 'no-store'});
       if (res && res.ok) cache.put(req, res.clone());
       return res;
     } catch (_) {
