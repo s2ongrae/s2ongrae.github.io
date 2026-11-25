@@ -235,7 +235,160 @@ function roomWsPick(list, saved){
   if(arr.indexOf('hub-agent') >= 0) return 'hub-agent';
   return arr[0] || '';
 }
-const ROOM_USE_TXT = {danger: '위험', soon: '임박', ok: '정상', unknown: '미확인'};
+/* ─────────────────────────────────────────────────────────
+   📊 사용량 표시 — 포털 PR #4(비서 사용량 자동 연동)와 같은 규칙
+   · 카드 하나의 상태 = ① 이번 주기에 들어온 숫자 → ② 가동 신호 → ③ 미확인
+   · 04:00(일일) · 월요일 09:00(주간) 리셋이 지나면 지난 %는 화면이 스스로 내린다
+     (어제 숫자가 오늘 것처럼 남지 않게).
+   · 숫자를 안 내는 계정(피클 무료 등)은 살아 있다는 신호만으로 '가동 중 · 잔여 비공개'.
+   · 숫자를 지어내지 않는다 — %는 비서의 usage_report 또는 사람의 '잔여 입력'만 채운다.
+   ───────────────────────────────────────────────────────── */
+const ROOM_USE_TXT = {danger: '위험', soon: '임박', ok: '정상', na: '비공개', unknown: '미확인'};
+const ROOM_USE_ALIVE_MIN = 24 * 60;   // 하루 넘게 신호가 없으면 '가동 중'이라 말하지 않는다
+/** 리셋 주기 — 피클 크레딧은 매일 04:00, 회사 PC 주간 한도만 월요일 09:00 */
+function roomResetOf(id){ return String(id) === 'pc' ? 'weekly' : 'daily04'; }
+/** 이번 주기의 시작(ms) — 일일 04:00 · 주간 월요일 09:00 (포털 useCycleStart 와 같은 셈) */
+function roomCycleStart(id, now){
+  const t = new Date(roomNum(now) === null ? Date.now() : roomNum(now));
+  if(roomResetOf(id) === 'weekly'){
+    const at = new Date(t.getTime());
+    at.setHours(9, 0, 0, 0);
+    let back = (at.getDay() - 1 + 7) % 7;                  // 이번 주 월요일까지 거슬러
+    if(back === 0 && t.getTime() < at.getTime()) back = 7; // 월요일 09:00 전이면 지난 월요일
+    at.setDate(at.getDate() - back);
+    return at.getTime();
+  }
+  const at = new Date(t.getTime());
+  at.setHours(4, 0, 0, 0);
+  if(at.getTime() > t.getTime()) at.setDate(at.getDate() - 1);
+  return at.getTime();
+}
+/** 이번 주기에 들어온 보고인가 — 리셋 전에 받은 %는 이미 무효라 '지난 값'으로 본다 */
+function roomUseFresh(id, x, now){
+  if(!x || roomNum(x.pct) === null) return false;
+  const at = Date.parse(String(x.at || ''));
+  if(!isFinite(at)) return false;                        // 시각 없는 옛 기록은 믿지 않는다
+  return at >= roomCycleStart(id, now);
+}
+/** 다음 리셋 시각(ms) — 일일 04:00 · 주간 월요일 09:00 */
+function roomResetAt(id, now){
+  const t = new Date(roomNum(now) === null ? Date.now() : roomNum(now));
+  if(roomResetOf(id) === 'weekly'){
+    const at = new Date(t.getTime());
+    at.setHours(9, 0, 0, 0);
+    let add = (1 - at.getDay() + 7) % 7;                    // 1 = 월요일
+    if(add === 0 && t.getTime() >= at.getTime()) add = 7;
+    at.setDate(at.getDate() + add);
+    return at.getTime();
+  }
+  const at = new Date(t.getTime());
+  at.setHours(4, 0, 0, 0);
+  if(at.getTime() <= t.getTime()) at.setDate(at.getDate() + 1);
+  return at.getTime();
+}
+/** '리셋 5시간 31분 후' */
+function roomResetText(id, now){
+  const t = roomNum(now) === null ? Date.now() : roomNum(now);
+  const left = roomResetAt(id, t) - t;
+  if(!(left > 0)) return '곧 리셋';
+  const m = Math.ceil(left / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24);
+  if(d > 0) return '리셋 ' + d + '일 ' + (h % 24) + '시간 후';
+  if(h > 0) return '리셋 ' + h + '시간 ' + (m % 60) + '분 후';
+  return '리셋 ' + Math.max(1, m) + '분 후';
+}
+/**
+ * 상태 파일/서버 응답 → 비서 신호 {at, state} (없으면 null).
+ *  · 서버 agent_status: {agent, updated_at} · {pi2:{agent,updated_at}} · {pc:{state,updated_at}}
+ *  · 저장소 status/agent.json 도 같은 모양이라 그대로 읽힌다.
+ */
+function roomSignalOf(d, id){
+  if(!d || !id) return null;
+  const of = (o, at) => {
+    if(!o || !at) return null;
+    return {at: String(at), state: String(o.state || (o.agent && o.agent.state) || '')};
+  };
+  if(id === 'pi1') return of(d.agent, d.updated_at);
+  if(id === 'pi2'){
+    if(d.pi2 && d.pi2.agent) return of(d.pi2.agent, d.pi2.updated_at);  // 저장소 파일 모양
+    if(d.pi2 && d.pi2.updated_at) return {at: String(d.pi2.updated_at), state: String(d.pi2.state || '')};  // agent_beat 모양
+    return null;
+  }
+  if(id === 'pc') return (d.pc && d.pc.updated_at) ? {at: String(d.pc.updated_at), state: String(d.pc.state || '')} : null;
+  if(id === 'notebook') return (d.direct && d.direct.updated_at) ? {at: String(d.direct.updated_at), state: String(d.direct.state || '')} : null;
+  return null;
+}
+/** 상태 파일 하나에서 id 별 신호를 뽑는다 — 파일마다 모양이 달라서(as) 여기서 맞춘다 */
+function roomSignalsFrom(d, as){
+  const out = {};
+  if(!d) return out;
+  if(as === 'pi2'){                       // status/pi2.json 은 {agent, updated_at} 한 사람 모양
+    if(d.agent && d.updated_at) out.pi2 = {at: String(d.updated_at), state: String(d.agent.state || '')};
+    return out;
+  }
+  ['pi1', 'pi2', 'pc', 'notebook'].forEach(id => {
+    const sig = roomSignalOf(d, id);
+    if(sig) out[id] = sig;
+  });
+  return out;
+}
+/** 신호가 몇 분 전인가 (모르면 null) */
+function roomSignalMin(sig, now){
+  const t = Date.parse(String((sig && sig.at) || ''));
+  if(!isFinite(t)) return null;
+  const n = roomNum(now) === null ? Date.now() : roomNum(now);
+  return Math.max(0, Math.round((n - t) / 60000));
+}
+/** 하루 넘게 소식이 없으면 살아 있다고 말하지 않는다(쉬는 중일 수도, 한도가 끝났을 수도) */
+function roomSignalLive(sig, now){
+  const m = roomSignalMin(sig, now);
+  return m !== null && m <= ROOM_USE_ALIVE_MIN;
+}
+/** 카드 하나의 상태 — 이번 주기 숫자 → 가동 신호 → 미확인 순으로 본다 */
+function roomStateOf(id, x, sig, now){
+  if(roomUseFresh(id, x, now)) return roomUseState(x.pct);
+  if(roomSignalLive(sig, now)) return 'na';
+  return 'unknown';
+}
+/**
+ * 한 줄에 그릴 것 — 상태·숫자·설명. 숫자는 지어내지 않고, 지난 값은 지웠다고 말한다.
+ *  · 잔여 N%      (이번 주기 보고)          · 보고 11분 전
+ *  · 잔여 비공개  (가동 신호만 있을 때)     · 가동 중 · 신호 3시간 전
+ *  · — 새 보고 대기 (리셋 지난 값)          · 리셋 지남 · 지난 값 85%는 지웠어요
+ *  · — 미확인     (아무 신호도 없음)
+ */
+function roomUseView(id, x, sig, now){
+  const t = roomNum(now) === null ? Date.now() : roomNum(now);
+  const st = roomStateOf(id, x, sig, t);
+  const fresh = roomUseFresh(id, x, t);
+  const pct = fresh ? Math.max(0, Math.min(100, Number(x.pct))) : null;
+  const m = roomSignalMin(sig, t);
+  let label, note = '';
+  if(pct !== null){
+    label = '잔여 ' + (Math.round(pct * 10) / 10) + '%';
+    const at = Date.parse(String(x.at || ''));
+    if(isFinite(at)) note = '보고 ' + roomAgo(Math.max(0, (t - at) / 60000));
+    if(x && x.note) note += (note ? ' · ' : '') + String(x.note);
+  } else if(st === 'na'){
+    label = '잔여 비공개';
+    note = (String((sig && sig.state) || '').toLowerCase() === 'working' ? '작업 중' : '가동 중') +
+      (m !== null ? ' · 신호 ' + roomAgo(m) : '');
+    if(x && roomNum(x.pct) !== null) note += ' · 지난 값 ' + (Math.round(Number(x.pct) * 10) / 10) + '% 지움';
+  } else if(x){
+    label = '— 새 보고 대기';
+    note = '리셋 지남 · 지난 값 ' + (Math.round(Number(x.pct) * 10) / 10) + '%는 지웠어요';
+  } else {
+    label = '— 미확인';
+  }
+  return {state: st, pct: pct, label: label, note: note, stale: !fresh && !!x && roomNum(x.pct) !== null};
+}
+/** 요약 알약 — 위험·임박·정상·비공개·미확인 (포털 사용량판과 같은 다섯 칸) */
+function roomUseSummary(ids, usage, sigs, now){
+  const c = {danger: 0, soon: 0, ok: 0, na: 0, unknown: 0};
+  (Array.isArray(ids) ? ids : []).forEach(id => {
+    c[roomStateOf(id, usage && usage[id], sigs && sigs[id], now)]++;
+  });
+  return c;
+}
 
 /** 본문 속 @이름 → 칩 (이미 esc() 한 문자열에만 적용) */
 function roomMentionHtml(s){
@@ -353,9 +506,9 @@ function roomOnlineCount(items, hb, now){
   const POLL_MS = 20000;
   const STATUS_EVERY = 4 * 60000;
   const S = {
-    items: [], at: '', sum: {}, hb: null, usage: {},
+    items: [], at: '', sum: {}, hb: null, usage: {}, sigs: {},
     busy: false, sending: false, err: '', sig: '', painted: false,
-    lastFetch: 0, statusAt: 0, usageAt: 0, chatOk: null,
+    lastFetch: 0, statusAt: 0, usageAt: 0, sigAt: 0, chatOk: null,
     wss: [], ws: lsGet('room_ws')
   };
   let pinned = true, toastTimer = null;
@@ -555,28 +708,35 @@ function roomOnlineCount(items, hb, now){
     const u = S.usage && S.usage[id];
     return (u && roomNum(u.pct) !== null) ? u : null;
   }
+  function signalOf(id){ return (S.sigs && S.sigs[id]) || null; }
   function summaryPills(){
-    const c = {danger: 0, soon: 0, ok: 0, unknown: 0};
-    ROOM_AGENTS.forEach(a => { c[roomUseState(usageOf(a.id) ? usageOf(a.id).pct : null)]++; });
-    return ['danger', 'soon', 'ok', 'unknown'].map(k =>
+    const ids = ROOM_AGENTS.filter(a => a.quota !== false).map(a => a.id);
+    const c = roomUseSummary(ids, S.usage, S.sigs, Date.now());
+    return ['danger', 'soon', 'ok', 'na', 'unknown'].map(k =>
       '<span class="pill ' + k + '"><i></i>' + ROOM_USE_TXT[k] + ' <b>' + c[k] + '</b></span>').join('');
   }
   function agentRow(a, act){
-    const u = usageOf(a.id);
-    const pct = u ? Math.max(0, Math.min(100, u.pct)) : null;
-    const stt = roomUseState(pct);
+    // 사용량 칸이 없는 비서(노트북 = 실행 엔진)는 % 대신 활동만 — 숫자를 안 내는 계정과 섞지 않게
+    const v = a.quota === false ? null : roomUseView(a.id, usageOf(a.id), signalOf(a.id), Date.now());
     const hb = S.hb && S.hb.heartbeat;
     const min = (a.id === 'notebook' && hb) ? roomNum(hb.min) : act[a.id];
     let when = '기록 없음', cls = '';
     if(min !== null && min !== undefined){ when = (a.id === 'notebook' ? '응답 ' : '활동 ') + roomAgo(min); if(min <= 30) cls = 'on'; else if(min <= 180) cls = ''; else cls = 'away'; }
-    const bar = pct === null
-      ? '<div class="bar"><span class="pct none">사용량 —</span></div>'
-      : '<div class="bar"><span class="track"><i class="fill ' + stt + '" style="width:' + pct + '%"></i></span>' +
-        '<span class="pct">잔여 ' + Math.round(pct) + '%</span></div>';
+    let bar = '';
+    if(v && v.pct !== null){
+      bar = '<div class="bar"><span class="track" aria-hidden="true"><i class="fill ' + v.state + '" style="width:' + v.pct + '%"></i></span>' +
+        '<span class="pct">' + esc(v.label) + '</span></div>';
+    } else if(v && v.state === 'na'){
+      bar = '<div class="bar"><span class="track" aria-hidden="true"><i class="fill na"></i></span>' +
+        '<span class="pct na">' + esc(v.label) + '</span></div>';
+    } else if(v){
+      bar = '<div class="bar"><span class="pct solo ' + (v.stale ? 'stale' : 'none') + '">' + esc(v.label) + '</span></div>';
+    }
     return '<div class="ag"><div class="av" aria-hidden="true">' + esc(a.icon) + '</div>' +
       '<div class="ag-b"><div class="ag-n">' + esc(a.name) + '<span class="id">' + esc(a.id) + '</span>' +
       '<span class="st ' + cls + '">' + esc(when) + '</span></div>' +
-      '<div class="ag-d">' + esc(a.duty) + '</div>' + bar + '</div></div>';
+      '<div class="ag-d">' + esc(a.duty) + '</div>' + bar +
+      (v && v.note ? '<div class="ag-m">' + esc(v.note) + '</div>' : '') + '</div></div>';
   }
   function enginesHtml(){
     const defs = [
@@ -585,7 +745,8 @@ function roomOnlineCount(items, hb, now){
       {id: 'freellmapi', name: '노트북 · FreeLLMAPI', icon: '🆓'},
       {id: 'pc', name: '회사 PC · Claude Code', icon: '💻'}
     ];
-    const rows = defs.filter(d => usageOf(d.id));
+    // 보고가 있거나(지난 값 포함) 살아 있는 신호가 있는 엔진만 — 없으면 줄을 만들지 않는다
+    const rows = defs.filter(d => usageOf(d.id) || signalOf(d.id));
     if(!rows.length) return '';
     return '<div style="padding:14px 10px 4px;font-size:11.5px;font-weight:800;color:var(--hint)">엔진 사용량</div>' +
       rows.map(d => agentRow({id: d.id, name: d.name, icon: d.icon, duty: '남은 %'}, {})).join('');
@@ -601,7 +762,9 @@ function roomOnlineCount(items, hb, now){
       (S.at ? ' · 마지막 확인 <b>' + esc(roomClock(S.at)) + '</b>' : ''));
     lines.push('노트북 <b>' + (hb && roomNum(hb.min) !== null ? roomAgo(hb.min) : '신호 없음') + '</b>' +
       ' · 대기 <b>' + (c.pending || 0) + '</b> · 승인 <b>' + (c.waiting || 0) + '</b> · 실행 <b>' + (c.running || 0) + '</b>');
-    lines.push('잔여 %는 포털·비서가 기록한 값이에요 (없으면 —). 위험 &lt;10% · 임박 &lt;30%');
+    lines.push('잔여 %는 포털·비서가 기록한 값이에요 — ' + roomResetText('pi1') +
+      ' · 리셋이 지나면 지난 값은 지우고 새 보고를 기다려요(회사 PC는 월요일 09:00)');
+    lines.push('숫자를 안 내는 계정(피클 무료 등)은 가동 신호로만 「비공개」 · 위험 &lt;10% · 임박 &lt;30%');
     const cur = roomWsPick(S.wss, S.ws);
     const wsOpts = (S.wss.length ? S.wss : ['hub-agent']).map(w =>
       '<option value="' + esc(w) + '"' + (w === cur ? ' selected' : '') + '>' + esc(roomWsName(w)) + '</option>').join('');
@@ -617,6 +780,7 @@ function roomOnlineCount(items, hb, now){
     renderDrawer();
     if(configured() && Date.now() - S.usageAt > 60000) fetchUsage();
     if(configured() && Date.now() - S.statusAt > 60000) fetchStatus();
+    if(Date.now() - S.sigAt > 5 * 60000) fetchSignals();   // 신호는 5분에 한 번이면 충분해요
   }
   function drawerClose(){
     $('scrim').classList.remove('on');
@@ -777,7 +941,7 @@ function roomOnlineCount(items, hb, now){
     renderHead();
     renderFeed();
     renderDrawer();
-    if(kind === 'full'){ fetchUsage(); fetchStatus(); }
+    if(kind === 'full'){ fetchUsage(); fetchStatus(); fetchSignals(); }
     else if(Date.now() - S.statusAt > STATUS_EVERY) fetchStatus();
   }
   async function fetchUsage(){
@@ -804,6 +968,48 @@ function roomOnlineCount(items, hb, now){
       const d = await api('queue_status');
       if(d && d.ok){ S.hb = d; S.statusAt = Date.now(); renderHead(); renderDrawer(); }
     } catch(e){ /* 상태는 없어도 대화는 돼요 */ }
+  }
+  /* ── 가동 신호 — 숫자를 안 내는 계정도 '가동 중 · 잔여 비공개'로 정직하게 ── */
+  const SIG_FILES = [
+    {path: '../status/agent.json'},                        // 피원(pi1)
+    {path: '../status/pi2.json', as: 'pi2'}                 // 피투(pi2) — 한 사람 모양
+  ];
+  function mergeSignals(out){
+    let got = false;
+    Object.keys(out || {}).forEach(id => {
+      const sig = out[id];
+      if(!sig || !sig.at) return;
+      const cur = S.sigs[id];
+      if(cur && (Date.parse(cur.at) || 0) >= (Date.parse(sig.at) || 0)) return;
+      S.sigs[id] = sig; got = true;
+    });
+    return got;
+  }
+  async function fetchSignals(){
+    let got = false;
+    if(configured()){
+      try{ const d = await api('agent_status'); if(d && d.ok) got = mergeSignals(roomSignalsFrom(d, 'server')) || got; }
+      catch(e){ /* 신호는 없어도 사용량판은 그려요 */ }
+    }
+    if(typeof fetch === 'function'){
+      for(const f of SIG_FILES){
+        try{
+          const r = await fetch(f.path + '?t=' + Math.floor(Date.now() / 600000), {cache: 'no-store'});
+          if(r && r.ok) got = mergeSignals(roomSignalsFrom(await r.json(), f.as)) || got;
+        } catch(e){ /* 파일이 아직 없을 수도 있어요 */ }
+      }
+    }
+    if(got){
+      S.sigAt = Date.now();
+      lsSet('room_sig_cache', JSON.stringify({at: new Date().toISOString(), items: S.sigs}));
+      renderDrawer();
+    }
+  }
+  function loadLocalSignals(){
+    try{
+      const c = JSON.parse(lsGet('room_sig_cache') || '{}');
+      mergeSignals(c && c.items);
+    } catch(e) {}
   }
   function loadLocalUsage(){
     try{
@@ -869,9 +1075,11 @@ function roomOnlineCount(items, hb, now){
     bind();
     onInput();
     loadLocalUsage();
+    loadLocalSignals();
     renderHead();
     renderFeed(true);
     renderDrawer();
+    fetchSignals();          // 신호는 서버 없이도 저장소 파일에서 읽어요
     if(!configured()){
       showStrip('서버를 한 번만 연결하면 대화가 열려요', false);
       setTimeout(openSheet, 450);
