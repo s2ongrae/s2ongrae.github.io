@@ -953,6 +953,17 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
           <div class="ord-help-note">@피원·@피투 를 고르면 그 비서 몫으로 큐에 남아요(외부 웹훅이 없어 바로 답은 못 하고, 그 비서가 열어볼 때 처리해요).</div>
         </div>
         <div class="ord-help-sec">
+          <div class="ord-help-h">🌿 어사이드 — 집 노트북 자동화</div>
+          <button class="ord-ex" onclick="quickAside('status')">어사이드 상태 확인</button>
+          <button class="ord-ex act" onclick="quickAside('musinsa')">무신사 체험단</button>
+          <button class="ord-ex act" onclick="quickAside('kakao')">카카오 체험단</button>
+          <button class="ord-ex act" onclick="quickAside('quiz')">공공퀴즈</button>
+          <button class="ord-ex act" onclick="quickAside('naver')">네이버 출첵</button>
+          <button class="ord-ex act" onclick="quickAside('ali')">알리 출첵</button>
+          <div class="ord-help-note">누르면 <b>바로</b> 집 노트북에 보내요(오더 대기 없이 실행 — 노트북이 아는 작업만 돼요). 상태 확인은 아무것도 실행하지 않아요.</div>
+          <div class="ord-help-note">노트북 <code>.env</code> 에 <b>ASIDE_BIN</b> 이 없으면 "아직 연결 전" 안내만 와요. 결과는 이 회의실에 자동으로 남아요.</div>
+        </div>
+        <div class="ord-help-sec">
           <div class="ord-help-h">✏️ 파일 수정 (일부는 승인)</div>
           <button class="ord-ex act" onclick="ordExample(this)" data-fill="README 오타와 깨진 링크를 확인해서 고쳐줘" data-edit="1">README 오타·링크 고치기</button>
           <button class="ord-ex act" onclick="ordExample(this)" data-fill="테스트가 실패하는 부분의 원인을 찾아서 고치고, 고친 내용을 요약해줘" data-edit="1">테스트 실패 원인 찾아 고치기</button>
@@ -1274,8 +1285,8 @@ async function refreshQueueStatus(force){
 //  · 설정 전·예전 배포·시트 미연결이면 빨간 에러 대신 무엇을 하면 되는지 안내만 보여요.
 // ══════════════════════════════════════════
 const ORD_WS_LABEL = {'gaegyebu':'가계부','content-hub':'콘텐츠 허브','insurance-manager':'보험관리툴','smartstore-hub':'스마트스토어'};
-const ORD_TYPE_LABEL = {'git_pull':'코드 최신화','toss_sync':'토스 동기화','claude_prompt':'클로드 지시','git_push':'깃 푸시','smartstore_api_relay':'스마트스토어','content_render':'영상 렌더'};
-const ORD_TYPE_ICON = {'git_pull':'🔄','toss_sync':'📈','claude_prompt':'💬','git_push':'🚀','smartstore_api_relay':'🛍️','content_render':'🎞️'};
+const ORD_TYPE_LABEL = {'git_pull':'코드 최신화','toss_sync':'토스 동기화','claude_prompt':'클로드 지시','git_push':'깃 푸시','smartstore_api_relay':'스마트스토어','content_render':'영상 렌더','aside_run':'어사이드'};
+const ORD_TYPE_ICON = {'git_pull':'🔄','toss_sync':'📈','claude_prompt':'💬','git_push':'🚀','smartstore_api_relay':'🛍️','content_render':'🎞️','aside_run':'🌿'};
 const ORD_STATUS = {
   PENDING:{t:'대기',c:'c-pend',s:''},
   WAITING_APPROVAL:{t:'승인 대기',c:'c-wait',s:'st-wait'},
@@ -1569,12 +1580,30 @@ let ORD_WHO = 'all';        // 발신 필터(all · pi1 · pi2 · portal)
 let ORD_FILTER = 'all';     // 상태 필터(all · live · wait · done)
 let ORD_CHAT_OK = null;     // 서버가 kind:'chat' 을 아는가(null=모름 · false=예전 배포)
 let ORD_REPLY_TO = '';      // 답글 원문 요약(보낼 때 인용으로 붙어요)
+/* ── 🌿 어사이드(aside) — 집 노트북 로컬 자동화 (2026-11-25) ──
+ *  포털 앱스크립트(Code.gs · 웹훅 v36)는 claude_prompt 만 받으므로 오더 타입을 새로 만들지 않고,
+ *  **회의실 한 줄 명령**을 kind=chat 으로 보냅니다. 집 노트북(notebook-agent/lib/aside.js)이 이 모양을
+ *  알아보고 LLM 없이 화이트리스트 작업만 실행합니다(토큰 0원).
+ *  ⚠ word 는 노트북 표와 같아야 합니다 — 바꾸면 양쪽을 꼭 같이 고치세요(tests/portal_integration).
+ */
+const ASIDE_JOBS = [
+  {id: 'status',  word: '상태',  label: '상태 확인',    icon: '🌿', note: '설치·연결만 확인해요(아무것도 실행하지 않아요)'},
+  {id: 'musinsa', word: '무신사', label: '무신사 체험단', icon: '🛍️', note: '무신사 체험단 자동화를 실행해요'},
+  {id: 'kakao',   word: '카카오', label: '카카오 체험단', icon: '💛', note: '카카오 체험단 자동화를 실행해요'},
+  {id: 'quiz',    word: '공공퀴즈', label: '공공퀴즈',    icon: '🧠', note: '공공퀴즈 자동화를 실행해요'},
+  {id: 'naver',   word: '네이버', label: '네이버 출첵',  icon: '🟢', note: '네이버 출첵을 실행해요'},
+  {id: 'ali',     word: '알리',  label: '알리 출첵',    icon: '🔴', note: '알리 출첵을 실행해요'}
+];
+function asideJobOf(id){ return ASIDE_JOBS.find(j => j.id === String(id || '').toLowerCase()) || null; }
+/** 어사이드 오더의 본문 — 노트북 parseCommand 와 같은 모양(마커 + 작업 한 낱말) */
+function asidePrompt(job){ const j = asideJobOf(job); return j ? '🌿어사이드 ' + j.word : ''; }
 const ORD_PRESETS = [
   {icon: '📝', label: '블로그 초안', fill: '이번 주 대전 로컬 맛집 하나 골라서 네이버 블로그 초안 써줘 — 2줄 호흡·구어체로'},
   {icon: '🎞️', label: '숏폼 렌더', fill: '메리 쇼츠 한 편 렌더까지 가자 — 원본은 inbox 폴더에 있어'},
   {icon: '🛒', label: '품절 점검', fill: '묘한살림 상품 중에 품절·가격 이상한 것만 집어서 알려줘'},
   {icon: '📊', label: '상태 확인', fill: '지금 큐 상황과 노트북이 마지막으로 한 일을 3줄로 알려줘'},
-  {icon: '🧾', label: '할 일 뽑기', fill: '이번 주 할 일 후보 5개만 뽑아줘 — 돈 되는 것부터'}
+  {icon: '🧾', label: '할 일 뽑기', fill: '이번 주 할 일 후보 5개만 뽑아줘 — 돈 되는 것부터'},
+  {icon: '🌿', label: '어사이드', fill: '🌿어사이드 상태'}
 ];
 
 /* ── 📊 비서 사용량 (2026-11-25) — 남은 % 를 직접 넣어 기록한다(토큰 0원) ── */
@@ -2665,6 +2694,32 @@ async function loadOrders(opts){
     if(!silent) renderOrderNotice('오더를 불러오지 못했어요 — 잠시 뒤 ⟳ 로 다시 확인해 주세요');
     return null;
   } finally { ORD_BUSY = false; ordPollSchedule(); }
+}
+/**
+ * 🌿 어사이드 — 집 노트북의 로컬 자동화를 **원탭**으로 부른다(2026-11-25).
+ *  · 포털 앱스크립트는 claude_prompt 만 받으므로, 같은 봉투에 `kind:'chat'` 한 줄 명령을 실어 보낸다.
+ *    → 노트북이 이 모양을 알아보고 LLM 없이 aside 를 실행한다(연결 방법은 notebook-agent/lib/aside.js).
+ *  · 상태 확인은 아무것도 실행하지 않으므로 확인창 없이, 실행 작업은 한 번 물어본 뒤 보낸다.
+ *  · 작업 위치(workspace)는 서버 양식상 필요한 칸일 뿐, 어사이드 실행에는 쓰이지 않는다.
+ */
+async function quickAside(job){
+  const j = asideJobOf(job);
+  if(!j){ sync('어사이드에 그런 작업은 없어요', 3000); return; }
+  if(!serverConfigured()){ sync('⚙️ 서버 설정을 먼저 해주세요', 3500); return; }
+  if(ORD_SEND_BUSY) return;
+  if(j.id !== 'status' && !confirm('🌿 어사이드 · ' + j.label + ' 을(를) 지금 집 노트북에서 실행할까요?\n외부 사이트에 실제로 반영돼요.')) return;
+  ORD_SEND_BUSY = true;
+  try{
+    sync('어사이드에 보내는 중...', 0);
+    ORD_EPOCH++;
+    const d = await post({action: 'queue_enqueue', type: 'claude_prompt', workspace: ordWs(),
+      payload: {kind: 'chat', target: 'notebook', prompt: asidePrompt(j.id)},
+      source: ORD_SENDER, client_id: ORD_SENDER});
+    if(!d || !d.ok){ sync('접수 실패 — ' + ordErr(d), 4500); return; }
+    sync(d.duplicate ? '같은 어사이드 오더가 이미 대기 중이에요'
+      : '🌿 ' + j.label + ' — 노트북에 보냈어요(다음 확인 때 결과가 여기 남아요)', 4200);
+  } finally { ORD_SEND_BUSY = false; }
+  await loadOrders();
 }
 async function quickOrder(type){
   if(!serverConfigured()){ sync('⚙️ 서버 설정을 먼저 해주세요', 3500); return; }

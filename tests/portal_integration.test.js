@@ -1341,5 +1341,60 @@ console.log('X) 💬 회의실 말풍선 — 답장 주체·대기 말풍선 정
     '대기 건수는 큐 앞 내 말 1건만');
 }
 
+console.log('Y) 🌿 어사이드 — 포털 버튼이 노트북 한 줄 명령으로 간다 (2026-11-25)');
+{
+  // 계약: 포털은 claude_prompt 봉투(payload.kind='chat'·target='notebook')에
+  //  `🌿어사이드 <작업>` 한 줄을 실어 보낸다 — 노트북 notebook-agent/lib/aside.js parseCommand 가 받는 모양.
+  ok(/label: '어사이드', fill: '🌿어사이드 상태'/.test(html), '빠른 오더(#ord-presets)에 🌿 어사이드 칩');
+  ok(/onclick="quickAside\('status'\)"/.test(html), '안내 패널에 상태 확인 버튼(원탭)');
+  ok(['musinsa', 'kakao', 'quiz', 'naver', 'ali'].every(j => new RegExp('onclick="quickAside\\(' + "'" + j + "'" + '\\)"').test(html)),
+    '안내 패널에 작업 5종 실행 버튼');
+  ok(/id="ord-help"/.test(html) && /🌿 어사이드 — 집 노트북 자동화/.test(html), '어사이드 안내 칸이 도움말 안에 있다');
+
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SY = mk();
+  SY.props.QUEUE_SHEET_ID = 'SHEETidAside0001';
+  SY.addSheet('SHEETidAside0001', {'Command_Queue': [HEAD.slice(0)]});
+  const DY = makeDevice(SY); DY.config();
+  const rows = () => SY.books['SHEETidAside0001'].Command_Queue;
+  const last = () => rows()[rows().length - 1] || [];
+  const lastPayload = () => { try { return JSON.parse(last()[5]); } catch (e) { return {}; } };
+
+  ok(DY.run("asidePrompt('musinsa')") === '🌿어사이드 무신사' && DY.run("asidePrompt('status')") === '🌿어사이드 상태', '명령 본문은 🌿어사이드 + 한 낱말');
+  ok(DY.run("asideJobOf('shell')") === null && DY.run("asideJobOf('ALI').id") === 'ali', '아는 작업만 고른다(대소문자 무관)');
+
+  // ① 실행 버튼 — 확인 뒤 claude_prompt(kind=chat · target=notebook) 로 접수
+  const n0 = rows().length;
+  await DY.run("quickAside('musinsa')");
+  ok(rows().length === n0 + 1, '무신사 버튼 → 오더 1건 접수');
+  ok(last()[3] === 'claude_prompt' && last()[2] === 'portal', '오더 타입은 claude_prompt · 발신 portal', last().slice(0, 4));
+  // 포털 서버는 target=notebook 을 싣지 않는다(기본값) — 비어 있으면 노트북 것이기도 하다.
+  ok(lastPayload().kind === 'chat' && (!lastPayload().target || lastPayload().target === 'notebook') && lastPayload().prompt === '🌿어사이드 무신사',
+    'payload = kind:chat · target:notebook · 🌿어사이드 무신사', lastPayload());
+  ok(last()[6] === 'PENDING', '노트북이 집어 갈 수 있게 PENDING(전달 완료로 닫히지 않음)');
+
+  // ② 상태 확인 — 확인창 없이 바로, 아무것도 실행하지 않는 명령
+  await DY.run("quickAside('status')");
+  ok(lastPayload().prompt === '🌿어사이드 상태' && rows().length === n0 + 2, '상태 확인 버튼도 한 줄 명령으로 접수');
+
+  // ③ 실행 버튼에서 취소하면 아무것도 안 보낸다
+  DY.run('__confirmSave = confirm'); DY.run('confirm = function(){ return false; }');
+  const n1 = rows().length;
+  await DY.run("quickAside('quiz')");
+  ok(rows().length === n1, '확인창에서 취소하면 접수하지 않는다');
+  DY.run('confirm = __confirmSave');
+
+  // ④ 모르는 작업·서버 미설정
+  await DY.run("quickAside('shell')");
+  ok(rows().length === n1 && /그런 작업은 없어요/.test(DY.el('sync-txt').textContent), '모르는 작업은 보내지 않고 안내');
+  await DY.run("quickAside()");
+  ok(rows().length === n1, '작업 이름 없이 불러도 접수하지 않는다');
+
+  // ⑤ 문서·카드 표식 — 회의실에서 어사이드 오더도 알아볼 수 있다
+  ok(DY.run("ORD_TYPE_LABEL['aside_run']") === '어사이드' && DY.run("ORD_TYPE_ICON['aside_run']") === '🌿', 'aside_run 타입 라벨·아이콘');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
