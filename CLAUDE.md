@@ -94,6 +94,10 @@
   기본 참여자(예약 id)는 서버 파일에 쌓지 않는다(화면 `AGENT_SEED`·서버 `AG_BUILTINS` 가 진짜). 예전 배포면 `AG_SRV=false` 로 조용히 이 기기 명부만 쓴다.
 - **@멘션 → 대상**: 칩을 누르지 않고 본문에 `@큐`·`@키링`·`@부이2` 라고 써도 그 비서 앞으로 간다(`ordTargetFromText`, 서버도 `qqMentionOf_` 로 한 번 더).
   명시한 `payload.target` 이 있으면 그게 우선이고, `@전체` 는 `all` 이다. 이메일 속 `@` 는 멘션으로 보지 않는다.
+- **노트북은 남의 오더를 집지 않는다(2026-11-25)**: 같은 시트를 쓰므로 노트북 워커(CommandQueue `poll_commands`)가
+  `payload.target` 이 cue·vooy·keyring·pi1·portal 같은 오더까지 집어 가 엉뚱한 답을 달았다(부이 제보).
+  이제 `cqForNotebook_()` 이 **비었거나 notebook·all** 인 PENDING 만 집고, 워커(`lib/targets.js`)도 한 번 더 본다.
+  포털 `queue_claim` 은 원래부터 `target=나|all` 만 집는다. **CommandQueue.gs 재배포가 있어야 서버 쪽 가드가 켜진다.**
 - **서버(Code.gs)**: `queue_list` 가 `source·kind·target` 을 돌려주고 `chat:true`·`targets`·`sources` 를 알린다.
   `queue_enqueue` 는 `source`(화이트리스트+규칙)와 `payload.kind/target` 을 기록한다. `queue_list target=pi1|pi2` = 내 멘션만.
   **`target` 필터 성능(2026-11-25, v26)**: 행마다 `qqItem_`(payload 파싱 + 가림 정규식 + 스크립트 속성 읽기 4~5회)을 만들면
