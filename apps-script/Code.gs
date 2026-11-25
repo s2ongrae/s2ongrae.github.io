@@ -85,6 +85,7 @@ function doPost(e) {
       case 'agent_status':      return out(agentStatus());        // 🤖 피클이 남긴 작업 상태(읽기 전용)
       case 'queue_list':        return out(queueList(body));      // 🤖 오더함 — 최근 오더
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
+      case 'webhook_set':       return out(queueWebhookSet(body)); // 🔔 외부 비서 웹훅 주소 등록(ScriptProperties)
       case 'queue_decide':      return out(queueDecide(body));    // 🤖 오더함 — 승인/거절
       case 'queue_claim':       return out(queueClaim(body));     // 🤖 외부 비서가 자기 앞 오더를 집어 감
       case 'queue_done':        return out(queueDone(body));      // 🤖 집어 간 오더의 결과를 남김
@@ -1059,6 +1060,11 @@ const QQ_SOURCES = ['portal', 'pi1', 'pi2', 'cue', 'vooy', 'keyring'];   // 2026
 // 사람이 아닌 별칭(피원이 쓰던 이름) — 자동 합류 후보에서 뺀다.
 const QQ_SRC_ALIAS = ['pickle', 'pk', 'hub-agent', 'nb', 'telegram', 'tg', 'phone', 'mobile'];
 const QQ_AGENT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
+// 2026-11-25 — 외부 에이전트 인바운드 웹훅(실시간 깨우기).
+//  URL 은 코드·저장소·시트·로그 어디에도 두지 않는다 — ScriptProperties 한 곳에만.
+//   {"cue":"https://…","cue2":"https://…"}  ← 에이전트 id 키만 늘리면 새 비서도 바로 깨어진다.
+const QQ_WEBHOOK_PROP = 'WEBHOOK_TRIGGERS_JSON';
+const QQ_WEBHOOK_MENTION_MAX = 6;
 // 대상(target, @멘션) — 누구에게 시키는가. all=전체, notebook=집 노트북(기본 실행자).
 const QQ_TARGETS = ['all', 'pi1', 'pi2', 'notebook', 'cue', 'vooy', 'keyring'];
 // @이름 → 대상 id. 본문에만 @큐 처럼 적어도 그 비서 앞으로 가게 한다(화면 칩과 같은 규칙).
@@ -2028,6 +2034,105 @@ function qqDeliveredOnly_(type, payload) {
   return String(p.target || '').toLowerCase() === 'portal';
 }
 
+// ── 외부 에이전트 인바운드 웹훅 (2026-11-25) ───────────────────
+/**
+ * 등록된 웹훅 맵 {에이전트 id: https URL}. 형식이 틀린 줄은 조용히 버린다.
+ *  · 읽는 곳은 여기 하나 — URL 이 화면·응답·로그로 새지 않게 목록(id)만 밖으로 낸다.
+ */
+function qqWebhookMap_() {
+  let raw = '';
+  try { raw = String(PropertiesService.getScriptProperties().getProperty(QQ_WEBHOOK_PROP) || ''); } catch (err) { return {}; }
+  raw = raw.trim();
+  if (!raw) return {};
+  let m;
+  try { m = JSON.parse(raw); } catch (err) { return {}; }
+  if (!isObj(m)) return {};
+  const out = {};
+  Object.keys(m).forEach(function (k) {
+    const id = String(k == null ? '' : k).trim().toLowerCase();
+    const url = String(m[k] == null ? '' : m[k]).trim();
+    if (!QQ_AGENT_ID_RE.test(id)) return;
+    if (!/^https:\/\/[^\s]+$/.test(url)) return;      // https 만 — 오더 내용이 평문으로 새지 않게
+    out[id] = url;
+  });
+  return out;
+}
+/**
+ * 웹훅 본문 — 큐투 요구 규격 그대로 { id, target, mentions, summary, created_at }.
+ *  · target === 'all' 이어도 이 비서 이름이 mentions 에 반드시 들어간다.
+ *  · 원본 mentions 배열은 건드리지 않고 **복사본**에만 붙인다.
+ */
+function qqWebhookBody_(row, p, agentId) {
+  const target = String((p && p.target) == null ? '' : p.target).trim().toLowerCase();
+  const mentions = qqMentionAll_(p && p.prompt, QQ_WEBHOOK_MENTION_MAX, false);
+  if (target && target !== 'all' && QQ_AGENT_ID_RE.test(target) && mentions.indexOf(target) < 0) mentions.push(target);
+  const list = mentions.slice();
+  if (list.indexOf(agentId) < 0) list.push(agentId);
+  return {
+    id: String((row && row.id) || ''),
+    target: target,
+    mentions: list,
+    summary: qqSummary_(row && row.type, p || {}),
+    created_at: String((row && row.created_at) || '')
+  };
+}
+/**
+ * 접수된 오더를 기다리는 비서를 실시간으로 깨운다.
+ *  조건: source !== agentId 이고 (target === agentId · target === 'all' · mentions 에 agentId).
+ *  · 본인이 낸 글에는 본인을 깨우지 않는다(비서끼리 무한 루프 방지).
+ *  · 호출은 통째로 격리한다 — 웹훅이 실패해도 queue_enqueue 는 그대로 성공이다.
+ *  반환: 깨운 에이전트 id 배열(시험·보고용).
+ */
+function qqFireWebhooks_(row, p) {
+  try {
+    const map = qqWebhookMap_();
+    const ids = Object.keys(map);
+    if (!ids.length) return [];
+    const source = String((row && row.source) == null ? '' : row.source).trim().toLowerCase();
+    const target = String((p && p.target) == null ? '' : p.target).trim().toLowerCase();
+    const mentioned = qqMentionAll_(p && p.prompt, QQ_WEBHOOK_MENTION_MAX, false);
+    const fired = [];
+    ids.forEach(function (agentId) {
+      if (source === agentId) return;
+      if (!(target === agentId || target === 'all' || mentioned.indexOf(agentId) >= 0)) return;
+      try {
+        if (typeof UrlFetchApp === 'undefined') throw new Error('no UrlFetchApp');
+        UrlFetchApp.fetch(map[agentId], {
+          method: 'post', contentType: 'application/json',
+          payload: JSON.stringify(qqWebhookBody_(row, p, agentId)),
+          muteHttpExceptions: true
+        });
+        fired.push(agentId);
+      } catch (err) { /* 웹훅 실패가 접수를 막지 않는다 */ }
+    });
+    return fired;
+  } catch (err) { return []; }
+}
+/**
+ * 웹훅 주소 등록·변경·삭제(비밀 키 인증 필요).
+ *  본문: {"action":"webhook_set","key":"…","triggers":{"cue":"https://…","cue2":"https://…"}}
+ *  · 준 키만 새로 넣고 나머지는 그대로 둔다(부분 갱신). 값을 빈 문자열로 주면 그 키를 지운다.
+ *  · URL 은 응답에 돌려주지 않는다(id·개수만). 저장은 ScriptProperties 한 곳뿐.
+ */
+function queueWebhookSet(body) {
+  const t = isObj(body && body.triggers) ? body.triggers : (isObj(body && body.webhooks) ? body.webhooks : null);
+  if (!t) throw qqErr_('bad_request', 'triggers(에이전트 id → https 주소)가 필요해요.');
+  const map = qqWebhookMap_();
+  const ids = [];
+  Object.keys(t).forEach(function (k) {
+    const id = String(k == null ? '' : k).trim().toLowerCase();
+    if (!QQ_AGENT_ID_RE.test(id)) throw qqErr_('bad_request', '에이전트 id 는 영소문자·숫자·_·- 12자 이내여야 해요.');
+    const url = String(t[k] == null ? '' : t[k]).trim();
+    if (!url) { delete map[id]; ids.push(id); return; }
+    if (!/^https:\/\/[^\s]+$/.test(url)) throw qqErr_('bad_request', id + ' 웹훅은 https 주소여야 해요.');
+    map[id] = url;
+    ids.push(id);
+  });
+  PropertiesService.getScriptProperties().setProperty(QQ_WEBHOOK_PROP, JSON.stringify(map));
+  return { ok: true, ids: ids, count: Object.keys(map).length,
+    note: '웹훅 주소는 ScriptProperties 에만 저장했어요(응답에는 돌려주지 않아요).' };
+}
+
 function queueEnqueue(body) {
   const type = String((body && body.type) || '').trim();
   const spec = QQ_TYPES[type];
@@ -2048,7 +2153,8 @@ function queueEnqueue(body) {
   // 사람(포털) 앞으로 온 대화는 아무도 실행하지 않는다 — 접수 순간에 전달 완료로 닫는다(2026-11-25).
   const delivered = qqDeliveredOnly_(type, payload);
 
-  return qqLock_(function () {
+  let posted = null;   // 락 밖에서 웹훅을 쏘려고 잡아 두는 줄(락을 네트워크로 잡지 않는다)
+  const res = qqLock_(function () {
     const ctx = qqOpen_();
     if (!spec.idempotent) {
       const dupe = qqFindInflight_(ctx, type, workspace, payload, nowMs);
@@ -2069,6 +2175,7 @@ function queueEnqueue(body) {
       approval_note: autoBy ? verdict.reason : '', approval_hash: qqHashPayload_(payload)
     };
     qqAppend_(ctx, row);
+    posted = row;
     return {
       ok: true, duplicate: false, item: qqItem_(row),
       note: delivered
@@ -2080,6 +2187,9 @@ function queueEnqueue(body) {
           : '접수했어요. 노트북이 다음 확인 때 실행해요.')
     };
   });
+  // 접수에 성공했을 때만 — 기다리는 외부 비서(큐·큐투 …)를 깨운다. 실패는 접수에 영향 없다.
+  if (posted) qqFireWebhooks_(posted, qqParse_(posted.payload));
+  return res;
 }
 
 /** 승인(approve → PENDING) / 거절(reject → REJECTED). 둘 다 Audit_Log 에 남긴다. */

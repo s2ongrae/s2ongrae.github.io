@@ -6,7 +6,7 @@ const memo = (id,x={})=>Object.assign({id,title:'제목'+id,body:'내용'+id,col
 
 console.log('1) 접근 통제');
 let r = S.doGet(); ok(r.ok===false && r.error==='POST로만 사용할 수 있어요.' && Object.keys(r).length===2, 'doGet은 안내 문구만(캘린더·메모 안 줌)');
-for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide','agent_beat']){
+for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide','webhook_set','agent_beat']){
   r = post({action:a}); ok(r.error==='unauthorized', `키 없이 ${a} 거절`);
   r = post({action:a, key:'x'.repeat(64)}); ok(r.error==='unauthorized', `틀린 키로 ${a} 거절`);
 }
@@ -1212,6 +1212,89 @@ console.log('17) 🔓 GET 읽기 · queue_claim/done · mentions·reply_to · �
   const plain = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
     payload: { prompt: '제목만 고쳐줘', mode: 'ask' } });
   ok(plain.item.status === 'PENDING', '보통 오더는 그대로 PENDING');
+}
+
+console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');
+{
+  const K4 = S.props.SECRET_KEY;
+  const CUE = 'https://hook.test/cue', CUE2 = 'https://hook.test/cue2';
+  S.props.WEBHOOK_TRIGGERS_JSON = JSON.stringify({cue: CUE, cue2: CUE2});
+  S.fetchCalls.length = 0;
+  const enq = (extra) => Object.assign({action:'queue_enqueue', key:K4, type:'claude_prompt', workspace:'gaegyebu'}, extra);
+  const chat = (target, prompt, source) => ({payload:{prompt:prompt, mode:'ask', kind:'chat', target:target}, source:source});
+
+  // ① 큐투 앞 대화 → 큐투만 깨어난다. 본문은 큐투 규격 그대로.
+  S.fetchCalls.length = 0;
+  let w = post(enq(chat('cue2', '@큐투 이거 봐줘', 'portal')));
+  ok(w.ok === true, '큐투 앞 대화 접수');
+  const call1 = S.fetchCalls[0] || {};
+  ok(S.fetchCalls.length === 1 && call1.url === CUE2, '큐투 앞 오더는 큐투 웹훅 하나만 부른다');
+  ok(call1.opts && call1.opts.method === 'post' && call1.opts.contentType === 'application/json', 'POST · application/json 으로 보낸다');
+  ok(call1.opts && !call1.opts.headers, '인증 헤더 없음');
+  const b1 = call1.opts ? JSON.parse(call1.opts.payload) : {};
+  ok(Object.keys(b1).sort().join(',') === 'created_at,id,mentions,summary,target', '본문은 {id,target,mentions,summary,created_at} 뿐');
+  ok(b1.id === w.item.id && b1.target === 'cue2' && b1.created_at === w.item.created_at, 'id · target · created_at 이 큐 줄과 같다');
+  ok(Array.isArray(b1.mentions) && b1.mentions.indexOf('cue2') >= 0, 'mentions 에 큐투가 들어 있다');
+  ok(typeof b1.summary === 'string' && b1.summary.indexOf('이거 봐줘') >= 0, 'summary 에 본문이 담긴다');
+
+  // ② 본인이 낸 글에는 본인을 깨우지 않는다(무한루프 방지)
+  S.fetchCalls.length = 0;
+  post(enq(Object.assign(chat('cue2', '@큐투 내가 나한테', 'cue2'))));
+  ok(S.fetchCalls.length === 0, 'source=cue2 인 글에는 cue2 를 깨우지 않는다');
+
+  // ③ target='all' → 둘 다 깨우고, 각자 mentions 에 자기 id 가 반드시 들어간다
+  S.fetchCalls.length = 0;
+  post(enq(chat('all', '@전체 다들 봐', 'portal')));
+  ok(S.fetchCalls.length === 2, '@전체는 등록된 비서 모두(2)를 깨운다');
+  S.fetchCalls.forEach(c => {
+    const b = JSON.parse(c.opts.payload);
+    const id = c.url === CUE ? 'cue' : 'cue2';
+    ok(b.target === 'all' && b.mentions.indexOf(id) >= 0, `target=all 이어도 mentions 에 ${id} 가 들어간다`);
+  });
+
+  // ④ target 없이 본문 멘션만 있어도 그 비서를 깨운다
+  S.fetchCalls.length = 0;
+  post(enq({payload:{prompt:'@큐투 확인 부탁', mode:'ask'}, source:'pi1'}));
+  ok(S.fetchCalls.length === 1 && S.fetchCalls[0].url === CUE2, '본문 @큐투 만으로도 큐투를 깨운다');
+
+  // ⑤ 상관없는 오더·포털 앞 대화는 아무도 깨우지 않는다
+  S.fetchCalls.length = 0;
+  post(enq({type:'git_pull', workspace:'gaegyebu', payload:{}}));
+  post(enq(chat('portal', '@포털 확인', 'cue')));
+  post(enq({payload:{prompt:'제목만 고쳐줘', mode:'ask'}, source:'portal'}));
+  ok(S.fetchCalls.length === 0, '대상 없는 오더 · 포털 앞 대화에는 웹훅을 쏘지 않는다');
+
+  // ⑥ 웹훅이 죽어도 접수는 성공한다
+  S.fetchCalls.length = 0; S.setFetchFail(true);
+  const survived = post(enq(chat('cue2', '@큐투 살아있니', 'portal')));
+  S.setFetchFail(false);
+  ok(survived.ok === true && survived.item && survived.item.id, '웹훅이 실패해도 queue_enqueue 는 성공');
+
+  // ⑦ target 이 다른 비서면 그 비서만
+  S.fetchCalls.length = 0;
+  post(enq(chat('cue', '@큐 이건 네 거', 'portal')));
+  ok(S.fetchCalls.length === 1 && S.fetchCalls[0].url === CUE, 'cue 앞 오더는 cue 웹훅만 부른다');
+
+  // ⑧ 등록 API — 주소는 응답·로그에 돌려주지 않는다
+  S.props.WEBHOOK_TRIGGERS_JSON = '';
+  let s = post({action:'webhook_set', key:K4, triggers:{cue:CUE, cue2:CUE2}});
+  ok(s.ok === true && s.ids.length === 2 && s.count === 2, 'webhook_set 으로 두 비서를 등록');
+  ok(!JSON.stringify(s).includes('hook.test'), '응답에 웹훅 주소가 없다');
+  const saved = JSON.parse(S.props.WEBHOOK_TRIGGERS_JSON);
+  ok(saved.cue === CUE && saved.cue2 === CUE2, 'ScriptProperties(WEBHOOK_TRIGGERS_JSON)에만 저장된다');
+  s = post({action:'webhook_set', key:K4, triggers:{cue2:'http://insecure.test/x'}});
+  ok(s.ok === false && s.code === 'bad_request', 'http(비 https) 주소는 거절');
+  s = post({action:'webhook_set', key:K4, triggers:{'큐투':CUE2}});
+  ok(s.ok === false && s.code === 'bad_request', '에이전트 id 규칙에 안 맞는 키는 거절');
+  s = post({action:'webhook_set', key:K4, triggers:{cue:CUE}});
+  ok(s.ok === true && JSON.parse(S.props.WEBHOOK_TRIGGERS_JSON).cue2 === CUE2, '부분 갱신 — 안 준 키는 그대로');
+  s = post({action:'webhook_set', key:K4, triggers:{cue:''}});
+  const after = JSON.parse(S.props.WEBHOOK_TRIGGERS_JSON);
+  ok(s.ok === true && !after.cue && after.cue2 === CUE2, '빈 문자열이면 그 키만 지운다');
+  S.props.WEBHOOK_TRIGGERS_JSON = 'not json';
+  S.fetchCalls.length = 0;
+  post(enq(chat('cue2', '@큐투 깨져도 돼', 'portal')));
+  ok(S.fetchCalls.length === 0, '속성이 깨져 있으면 조용히 아무도 안 깨운다(접수는 성공)');
 }
 
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);

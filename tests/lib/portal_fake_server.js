@@ -14,6 +14,7 @@ module.exports = function makePortalServer(){
     createFolder(n){const f=new FakeFolder(n,this);this.folders.push(f);return f;}
     createFile(n,c){const f=new FakeFile(n,c,this);this.files.push(f);return f;} }
   const ROOT=new FakeFolder('',null), props={}; let lockBusy=false;
+  const fetchCalls=[]; let fetchFail=false;   // 웹훅 호출 기록 / 실패 주입 스위치
   // 스프레드시트 (queue_status 읽기 · 오더함 쓰기 시험용. rows 배열을 그대로 들여다보고 고친다)
   const books={};   // id -> { 탭이름: rows[][] }
   class FakeSheet{
@@ -60,6 +61,8 @@ module.exports = function makePortalServer(){
       update:(t,id,tid)=>{const a=taskStore[id]||[];const i=a.findIndex(x=>x.id===tid);if(i>=0)a[i]=t;},
       remove:(id,tid)=>{taskStore[id]=(taskStore[id]||[]).filter(t=>t.id!==tid);} } };
   const sb={ console, Logger:{log(){}}, Session:{getScriptTimeZone:()=>'Asia/Seoul'}, CalendarApp:{getDefaultCalendar:()=>calendar}, Tasks, SpreadsheetApp,
+    // 외부 비서 웹훅(2026-11-25) — 실제 네트워크 대신 호출을 기록한다. 요청 url·opts 를 그대로 남긴다.
+    UrlFetchApp:{ fetch:(url,opts)=>{ if(fetchFail) throw new Error('webhook down'); fetchCalls.push({url:url,opts:opts||{}}); return {getResponseCode:()=>200}; } },
     DriveApp:{getFoldersByName:n=>ROOT._it(ROOT.folders.filter(f=>f.name===n)),createFolder:n=>ROOT.createFolder(n),
       getFileById:id=>allFiles().find(f=>f.id===id)||null},
     MimeType:{PLAIN_TEXT:'t'}, PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]===undefined?null:props[k],setProperty:(k,v)=>{props[k]=v;}})},
@@ -77,6 +80,6 @@ module.exports = function makePortalServer(){
   const KEY='P'.repeat(20)+'q'.repeat(44); props.SECRET_KEY=KEY;
   const post = body => JSON.parse(sb.doPost({postData:{contents: typeof body==='string'?body:JSON.stringify(body)}}).getContent());
   const memoFile = ()=>{ const r=ROOT.folders.find(f=>f.name==='김성래포털'); return r&&r.files.find(f=>f.name==='포털_메모.json'); };
-  return { post, KEY, ROOT, props, sb, events, taskStore, memoFile, books, addSheet:(id,tabs)=>{books[id]=tabs;},
+  return { post, KEY, ROOT, props, sb, events, taskStore, memoFile, books, fetchCalls, setFetchFail:b=>{fetchFail=!!b;}, addSheet:(id,tabs)=>{books[id]=tabs;},
     tick:ms=>{CLOCK+=ms;}, setLock:b=>{lockBusy=b;}, doGet:()=>JSON.parse(sb.doGet({}).getContent()), run:c=>vm.runInContext(c,sb) };
 };

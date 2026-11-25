@@ -131,8 +131,16 @@
   `queue_enqueue` payload 에 `reply_to:'Q-…'` 를 실으면 그 오더에 답장한 것으로 기록되고, 원본 항목에는 `queue_list` 가 `replied_by`(답장한 source)·`replied_at` 을 붙인다(최근 400행 기준, payload 문자열만 싸게 본다).
 - **담당(duty) 노출(2026-11-25, v28)**: 서버 `AG_BUILTINS` 가 기본 6명의 이름·이모지·담당을 갖고, `agentRoster_()`(60초 캐시)가 기본+추가 비서를 합쳐 준다.
   `agents_get.items[].duty`, `usage_get.duties`, `queue_list.duties` 로 **어느 비서든 남의 역할을 바로 조회**한다. 추가 비서는 `agent_save` 의 `items[].duty`(60자)로 넣고, 담당을 안 보내면 이전 값을 지우지 않는다.
+- **외부 비서 실시간 깨우기 — 인바운드 웹훅(2026-11-25, v34)**: `queue_enqueue` 가 접수에 성공한 **직후** 등록된 외부 비서(큐·큐투 …)의
+  웹훅으로 그 오더를 바로 보낸다. 외부 비서가 30분 폴링을 기다리지 않고 말하자마자 깨어난다.
+  · **주소는 코드·시트·로그에 절대 없다** — ScriptProperties `WEBHOOK_TRIGGERS_JSON` 한 곳에만(`{"cue":"https://…","cue2":"https://…"}`). 키(에이전트 id)만 늘리면 새 비서도 바로 깨어진다.
+  · 발사 조건: `source !== agentId`(본인 글엔 본인을 안 깨운다 — 무한 루프 방지) **그리고** `target === agentId | target === 'all' | mentions 에 agentId`.
+  · 본문은 큐투 규격 `{id, target, mentions, summary, created_at}` · `Content-Type: application/json` · 인증 헤더 없음. `target='all'` 이어도 그 비서 id 가 `mentions` 에 반드시 들어간다(원본 배열은 그대로, 복사본에만 붙인다).
+  · 호출은 통째로 격리(`muteHttpExceptions` + try/catch) — **웹훅이 실패해도 `queue_enqueue` 는 성공**이고, 락 밖에서 쏜다(락을 네트워크로 잡지 않는다).
+  · 등록 API `webhook_set`(비밀 키 인증, POST) — `{"action":"webhook_set","key":…,"triggers":{"cue":"https://…"}}`. 부분 갱신이고 빈 문자열이면 그 키만 지운다. **응답에 주소를 돌려주지 않는다**(id·개수만).
+  · 같은 규칙이 `hub-agent/gas/CommandQueue.gs`(`set_webhooks`)에도 있다 — 양쪽 속성을 등록해야 어느 길로 들어온 오더든 깨어난다.
 - **피투 상태 파일**: `status/pi2.json`(피원은 지금처럼 `status/agent.json`). 카드 6칸 = 직접·허브·회사PC·피원·피투·오더 큐.
-- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · **17)절(GET 읽기·claim/done·mentions·reply_to·duty)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)** · **X)절(닉네임·이모지 머리·부계정 자동 이름·담당 표시)**.
+- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · **17)절(GET 읽기·claim/done·mentions·reply_to·duty)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)** · **X)절(닉네임·이모지 머리·부계정 자동 이름·담당 표시)** · **10)절(외부 비서 웹훅 — 발사 조건·무한루프·본문 규격·실패 격리)**.
 
 ## 🤖 노트북 오더함 (2026-11-15)
 
@@ -178,7 +186,7 @@
 ## 서버 (Code.gs)
 
 - POST 전용, 모든 요청에 비밀 키. `doGet` 은 안내 문구만.
-- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태 + `direct`·`pc` 비트 + `beat_targets`), `queue_list` / `queue_enqueue` / `queue_decide` / `queue_claim` / `queue_done`(오더함), `agent_beat`(기기 상태 비트 — `target:'direct'|'pc'`, `stale_min` 5~240, `source`), `usage_get` / `usage_set` / `usage_report`(📊 비서 사용량), `agents_get` / `agent_save`(👥 참여 비서 명부·담당). **GET 은 읽기 6개만**(`GET_ACTIONS`).
+- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태 + `direct`·`pc` 비트 + `beat_targets`), `queue_list` / `queue_enqueue` / `queue_decide` / `queue_claim` / `queue_done`(오더함), `agent_beat`(기기 상태 비트 — `target:'direct'|'pc'`, `stale_min` 5~240, `source`), `usage_get` / `usage_set` / `usage_report`(📊 비서 사용량), `agents_get` / `agent_save`(👥 참여 비서 명부·담당), `webhook_set`(🔔 외부 비서 웹훅 주소 — ScriptProperties). **GET 은 읽기 6개만**(`GET_ACTIONS`).
 - **`agent_beat`(2026-11-18)**: `target` 이 없으면 `direct` — 예전 `$PROFILE free` 함수와 그대로 호환된다. 파일은 `포털_agent_직접.json` / `포털_agent_pc.json` 두 장(같은 스키마·이력 8건·`qqMask_` 가림). `agent_status` 는 둘을 `direct`·`pc` 블록으로 내려주고 `beat_targets` 로 **이 배포가 pc 를 아는지** 알려준다(화면이 재배포 안내를 고를 때 씀).
 - **오더함은 `work/hub-agent/gas/CommandQueue.gs` 와 100% 호환**이어야 한다: 같은 22칸(`CQ_COLS`), 같은 상태값(`PENDING`·`WAITING_APPROVAL`·`RUNNING`·`DONE`·`FAILED`·`REJECTED`·`EXPIRED`·`TIMEOUT_REVIEW`), 같은 `Audit_Log` 11칸, 같은 payload 해시(canonical JSON 의 SHA-256 — 워커 `lib/approval.js` 와 같은 값). 바꿀 때는 양쪽을 같이 고친다.
 - 오더함 화이트리스트는 `git_pull`·`toss_sync`·`claude_prompt` 셋뿐(`QQ_TYPES`). `git_push`·`smartstore_api_relay` 는 포털에서 접수하지 않는다. 작업 위치는 `QUEUE_WORKSPACES`(선택, 없으면 `gaegyebu,content-hub,insurance-manager,smartstore-hub`).
