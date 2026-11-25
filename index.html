@@ -231,12 +231,14 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .room-use>summary::-webkit-details-marker{display:none}
 .room-use-t{white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
 .room-use-s{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:800;
-  color:var(--rmut);white-space:nowrap;font-variant-numeric:tabular-nums}
+  color:var(--rmut);white-space:nowrap;font-variant-numeric:tabular-nums;flex-wrap:wrap;justify-content:flex-end}
 .room-use-s .ru{display:inline-flex;align-items:center;gap:4px}
 .room-use-s .ru::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--rhint)}
 .room-use-s .ru.danger::before{background:#EF4444}
 .room-use-s .ru.soon::before{background:#F59E0B}
 .room-use-s .ru.ok::before{background:#10B981}
+.room-use-s .ru.na::before{background:#94A3B8}
+.room-use-s .ru.unknown::before{background:#CBD5E1}
 .room-use-c{color:var(--rhint);font-size:11px;transition:transform .18s;line-height:1}
 .room-use[open] .room-use-c{transform:rotate(180deg)}
 .use-wrap{padding:0 14px 14px}
@@ -252,6 +254,9 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .use-pill.soon i{background:#F59E0B}
 .use-pill.ok{color:#047857;border-color:#CBEFDC;background:#F2FCF7}
 .use-pill.ok i{background:#10B981}
+/* 비공개 — 숫자를 안 내는 계정(피클 무료 등)은 살아 있다는 신호만 보여준다 */
+.use-pill.na{color:#475569;border-color:#E2E8F4;background:#F6F8FC}
+.use-pill.na i{background:#94A3B8}
 .use-body{min-width:0}
 .use-grp{font-size:9.5px;font-weight:800;color:#7A859C;letter-spacing:.08em;margin:10px 2px 6px}
 .use-grp:first-child{margin-top:2px}
@@ -290,6 +295,12 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .use-dev:hover{border-color:#D3DDF7;box-shadow:0 10px 22px -18px rgba(16,24,40,.5)}
 .use-dev.soon{background:linear-gradient(180deg,#FFFDF6,#FFF9EC);border-color:#F7E3B4}
 .use-dev.danger{background:linear-gradient(180deg,#FFF8F8,#FFF1F1);border-color:#F8CFCF}
+.use-dev.na{background:linear-gradient(180deg,#FBFCFE,#F6F9FD);border-color:#E2E8F4}
+.use-dev.na .use-badge{background:#EEF2FA;color:#475569}
+.use-dev.na .use-pct{font-size:13.5px;font-weight:800;color:#3F4B60;letter-spacing:-.01em}
+.use-dev.na .use-pct span{display:block;font-size:9.5px;font-weight:700;color:var(--rhint);margin:2px 0 0;letter-spacing:0}
+.use-bar.na{background:repeating-linear-gradient(90deg,#E6ECF7 0 6px,#F4F7FC 6px 11px)}
+.use-bar.na i{display:none}
 .use-top{display:flex;align-items:center;gap:5px;min-width:0}
 .use-name{font-size:11.5px;font-weight:800;color:var(--rink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .use-duty{font-size:10px;color:#7A859C;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1641,7 +1652,7 @@ const USE_DEFS = [
   {id: 'freellmapi',name: '집 노트북 · FreeLLMAPI',icon: '🆓', group: '일일', reset: 'daily04', sub: '무료 게이트웨이'},
   {id: 'pc',        name: '회사 PC · Claude Code', icon: '💻', group: '주간', reset: 'weekly',  sub: '주간 한도'}
 ];
-const USE_STATE_TXT = {danger: '위험', soon: '임박', ok: '정상', unknown: '미확인'};
+const USE_STATE_TXT = {danger: '위험', soon: '임박', ok: '정상', na: '비공개', unknown: '미확인'};
 let USE_DATA = {}, USE_AT = '', USE_EDIT = '', USE_SRV = null;
 
 function ordWsName(id){ return ORD_WS_LABEL[id] || id || '작업 위치 없음'; }
@@ -2244,9 +2255,98 @@ function useState(pct){
   if(n < 30) return 'soon';
   return 'ok';
 }
+/** 이번 주기의 시작(ms) — 피클 크레딧은 매일 04:00, 주간 한도는 월요일 09:00 에 다시 찬다 */
+function useCycleStart(def, now){
+  const t = new Date(numOf(now) || Date.now());
+  if(def && def.reset === 'weekly'){
+    const at = new Date(t.getTime());
+    at.setHours(9, 0, 0, 0);
+    let back = (at.getDay() - 1 + 7) % 7;                  // 이번 주 월요일까지 거슬러
+    if(back === 0 && t.getTime() < at.getTime()) back = 7;  // 월요일 09:00 전이면 지난 월요일
+    at.setDate(at.getDate() - back);
+    return at.getTime();
+  }
+  const at = new Date(t.getTime());
+  at.setHours(4, 0, 0, 0);
+  if(at.getTime() > t.getTime()) at.setDate(at.getDate() - 1);
+  return at.getTime();
+}
+/** 이번 주기에 들어온 보고인가 — 리셋 전에 받은 %는 이미 무효라 '지난 값'으로 본다 */
+function useFresh(def, x){
+  if(!x || !isFinite(x.pct)) return false;
+  const at = Date.parse(String(x.at || ''));
+  if(!isFinite(at)) return false;                        // 시각 없는 옛 기록은 믿지 않는다
+  return at >= useCycleStart(def);
+}
+/**
+ * 숫자를 안 내도 살아 있음을 아는 길.
+ *  · 피원(pi1)·피투(pi2)는 status/agent.json · status/pi2.json 이나 서버 기기 비트(agent_beat)를,
+ *    회사 PC 는 pc 비트를 이미 관제 카드가 읽어 둔다(AGENT_DATA). 사용량판은 그것만 빌려 쓴다.
+ *  · 피클 무료 플랜처럼 한도 숫자가 공개되지 않는 계정은 이 신호가 곧 정직한 상태다.
+ */
+function useSignal(def){
+  const id = def && def.id;
+  const d = AGENT_DATA;
+  if(!d || !id) return null;
+  if(id === 'pi1') return (d.agent && d.updated_at) ? {at: d.updated_at, state: d.agent.state, task: d.agent.task} : null;
+  if(id === 'pi2') return (d.pi2 && d.pi2.agent && d.pi2.updated_at) ? {at: d.pi2.updated_at, state: d.pi2.agent.state, task: d.pi2.agent.task} : null;
+  if(id === 'pc') return (d.pc && d.pc.updated_at) ? {at: d.pc.updated_at, state: d.pc.state, task: d.pc.task} : null;
+  if(id === 'notebook') return (d.direct && d.direct.updated_at) ? {at: d.direct.updated_at, state: d.direct.state} : null;
+  return null;
+}
+/**
+ * 상태 파일이 없는 비서(큐·부이·키링 등)의 가동 신호 — 회의실에 최근에 말을 남겼는가.
+ *  · 말을 남겼다 = 그 계정이 그 시각에 살아서 일했다. 남은 %와는 다른 이야기라 '최근 활동'으로 적는다.
+ */
+function useRoomSignal(id){
+  const list = Array.isArray(ORD_ITEMS) ? ORD_ITEMS : [];
+  let best = null;
+  list.forEach(it => {
+    if(!it) return;
+    const who = [String(it.source || ''), String(it.claimed_by || ''), String(it.replied_by || '')];
+    if(who.indexOf(String(id || '')) < 0) return;
+    const t = Date.parse(String(it.finished_at || it.created_at || ''));
+    if(!isFinite(t)) return;
+    const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+    if(best === null || min < best.min) best = {at: new Date(t).toISOString(), min: min};
+  });
+  return best;
+}
+/** 신호가 몇 분 전인가 (모르면 null) */
+function useSignalMin(sig){
+  const t = Date.parse(String((sig && sig.at) || ''));
+  if(!isFinite(t)) return null;
+  return Math.max(0, Math.round((Date.now() - t) / 60000));
+}
+/** 하루 넘게 소식이 없으면 살아 있다고 말하지 않는다(쉬는 중일 수도, 한도가 끝났을 수도) */
+const USE_ALIVE_MIN = 24 * 60;
+function useSignalLive(def){
+  const sig = useSignal(def);
+  const min = useSignalMin(sig);
+  if(min !== null && min <= USE_ALIVE_MIN) return true;
+  const room = useRoomSignal(def && def.id);
+  return !!(room && room.min <= USE_ALIVE_MIN);
+}
+function useSignalText(def){
+  const sig = useSignal(def);
+  const min = useSignalMin(sig);
+  if(min !== null && min <= USE_ALIVE_MIN){
+    const st = String((sig && sig.state) || '').toLowerCase();
+    return st === 'working' ? '작업 중 · 신호 ' + (agoText(min) || '방금') : '신호 ' + (agoText(min) || '방금');
+  }
+  const room = useRoomSignal(def && def.id);
+  return room ? '최근 활동 ' + (agoText(room.min) || '방금') : '';
+}
+/** 카드 하나의 상태 — 이번 주기 숫자 → 가동 신호 → 미확인 순으로 본다 */
+function useStateOf(def){
+  const x = useOf(def.id);
+  if(useFresh(def, x)) return useState(x.pct);
+  if(useSignalLive(def)) return 'na';
+  return 'unknown';
+}
 function useSummary(){
-  const c = {danger: 0, soon: 0, ok: 0, unknown: 0};
-  useDefs().forEach(d => { const x = useOf(d.id); c[useState(x ? x.pct : null)]++; });
+  const c = {danger: 0, soon: 0, ok: 0, na: 0, unknown: 0};
+  useDefs().forEach(d => { c[useStateOf(d)]++; });
   return c;
 }
 /** 다음 리셋 시각(ms) — 피클 크레딧은 매일 04:00, 주간 한도는 월요일 09:00 */
@@ -2282,12 +2382,15 @@ function useAgoText(iso){
 }
 function useCard(def){
   const x = useOf(def.id);
-  const pct = x ? x.pct : null;
-  const st = useState(pct);
+  const st = useStateOf(def);
+  const fresh = useFresh(def, x);
+  const pct = fresh ? x.pct : null;
   const editing = USE_EDIT === def.id;
   const w = pct === null ? 0 : Math.max(0, Math.min(100, pct));
   const meta = [useLeftText(useResetAt(def) - Date.now())];
-  if(x && x.at) meta.push(useAgoText(x.at));
+  if(pct !== null && x && x.at) meta.push(useAgoText(x.at));
+  else if(x) meta.push('리셋 지남 · 지난 값 ' + (Math.round(x.pct * 10) / 10) + '%는 지웠어요');
+  if(st === 'na'){ const txt = useSignalText(def); if(txt) meta.push(txt); }
   if(x && x.note) meta.push(String(x.note));
   const duty = String(def.duty || def.sub || '');
   const act = editing
@@ -2299,8 +2402,9 @@ function useCard(def){
   return `<div class="use-dev ${st}">` +
     `<div class="use-top"><span class="use-name">${esc(def.icon + ' ' + def.name)}</span><span class="use-badge">${esc(USE_STATE_TXT[st])}</span></div>` +
     (duty ? `<div class="use-duty" title="${esc(duty)}">${esc(duty)}</div>` : '') +
-    `<div class="use-pct">${pct === null ? '— 미확인' : esc(String(Math.round(pct * 10) / 10)) + '<span>% 남음</span>'}</div>` +
-    `<div class="use-bar"><i style="width:${w}%"></i></div>` +
+    `<div class="use-pct">${pct !== null ? esc(String(Math.round(pct * 10) / 10)) + '<span>% 남음</span>'
+      : (st === 'na' ? '가동 중<span>잔여 비공개</span>' : (x ? '— 새 보고 대기' : '— 미확인'))}</div>` +
+    (st === 'na' ? `<div class="use-bar na"><i></i></div>` : `<div class="use-bar"><i style="width:${w}%"></i></div>`) +
     `<div class="use-meta">${esc(meta.join(' · '))}</div>` + act + '</div>';
 }
 function renderUse(force){
@@ -2308,7 +2412,7 @@ function renderUse(force){
   const body = document.getElementById('use-grid');
   const sum = document.getElementById('use-sum');
   const c = useSummary();
-  if(sum) sum.innerHTML = ['danger', 'soon', 'ok', 'unknown'].map(k =>
+  if(sum) sum.innerHTML = ['danger', 'soon', 'ok', 'na', 'unknown'].map(k =>
     `<span class="use-pill ${k}"><i></i>${esc(USE_STATE_TXT[k])} <b>${c[k]}</b></span>`).join('');
   if(body){
     let html = '';
@@ -2327,14 +2431,15 @@ function renderUse(force){
   }
   const note = document.getElementById('use-note');
   if(note){
-    const reported = useDefs().filter(d => useOf(d.id)).length;
-    note.textContent = reported + '/' + useDefs().length + '개 보고 · ' +
+    const reported = useDefs().filter(d => useStateOf(d) !== 'unknown').length;
+    note.textContent = reported + '/' + useDefs().length + '개 연동 · ' +
       (USE_AT ? '이 기기 저장 ' + clockText(USE_AT) : '아직 입력 없음') +
-      ' · 위험 <10% · 임박 <30% · 직접 넣거나 비서가 usage_report 로 스스로 보고' +
+      ' · 위험 <10% · 임박 <30% · 리셋(04:00)이 지나면 지난 값은 지우고 새 보고를 기다려요' +
+      ' · 숫자를 안 내는 계정(피클 무료 등)은 가동 신호로만 표시 · 비서가 usage_report 로 스스로 보고' +
       (USE_SRV === false ? ' · 서버 저장은 Apps Script 재배포 후' : '');
   }
   const sm = document.getElementById('room-use-sum');
-  if(sm) sm.innerHTML = ['danger', 'soon', 'ok', 'unknown'].map(k =>
+  if(sm) sm.innerHTML = ['danger', 'soon', 'ok', 'na', 'unknown'].map(k =>
     `<span class="ru ${k}">${esc(USE_STATE_TXT[k])} <b>${c[k]}</b></span>`).join('');
 }
 function useToggle(){ renderUse(true); }
@@ -2777,6 +2882,8 @@ function applyOrderList(d){
     timeout: numOf(d.timeout), done: numOf(d.done), failed: numOf(d.failed)};
   if(typeof d.chat === 'boolean') ORD_CHAT_OK = d.chat;      // 서버가 kind:'chat' 을 아는가
   if(Array.isArray(d.sources_seen) && d.sources_seen.length) agentAutoJoin(d.sources_seen);   // 큐에 처음 말을 건 비서 합류
+  // 회의실 활동도 사용량판의 가동 신호다(상태 파일이 없는 비서) — 목록이 같아도 이 한 번은 다시 그린다
+  try { renderUse(); } catch(e) {}
   if(Array.isArray(d.workspaces) && d.workspaces.length) ORD_WSS = d.workspaces.slice(0, 20);
   fillOrderWs();
   const sig = ordSig(ORD_ITEMS);
@@ -3300,6 +3407,8 @@ async function agentLoad(force){
       merged.fetched_at = new Date().toISOString();
       merged.source = (pick === fromServer) ? 'drive' : 'repo';
       agentSave(merged);
+      // 가동 신호(피원·피투·회사 PC)를 사용량판에도 바로 반영 — 숫자를 안 내는 계정의 정직한 상태
+      try { renderUse(); } catch(e) {}
     }
   } finally { AGENT_BUSY = false; }
   return AGENT_DATA;

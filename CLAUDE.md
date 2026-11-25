@@ -121,6 +121,18 @@
 - **사용량 자동 보고(2026-11-25, v27)**: 외부 비서는 `{"action":"usage_report","key":…,"id":"cue","pct":42,"note":"리서치 대기","status":"ok"}` **한 번**으로 자기 줄만 바꾼다(upsert).
   `pct` 대신 `remain`(+`total`)도 받고, `note`(40자)·`status` 는 **보낸 칸만** 바뀐다(안 보내면 이전 값, 빈 문자열이면 지움). 다른 비서 줄은 건드리지 않는다.
   집 노트북 도구 `hub-agent/notebook-agent/tools/report-usage.js` 가 엔진 한도 쿨다운(`engine-cooldown.json`)을 0%·danger·"해제 시각" 메모로 올린다(별도 프로그램 — 데몬 재시작 불필요, `.env` 에 `PORTAL_GAS_URL`·`PORTAL_API_KEY` 필요).
+- **리셋·비공개·가동 신호(2026-11-25 v37)**: 카드 상태는 **이번 주기 숫자 → 가동 신호 → 미확인** 순으로 정한다(`useStateOf`).
+  · **이번 주기** = `useCycleStart`(일일 04:00 · 주간 월요일 09:00) 이후. 그 전에 받은 %는 리셋으로 이미 무효라 화면이 스스로 내린다
+    (`useFresh`). 카드는 "— 새 보고 대기" + "리셋 지남 · 지난 값 85%는 지웠어요" 로 남겨 어제 숫자가 오늘 것처럼 보이지 않게 한다.
+  · **숫자를 안 내는 계정**(피투 = 피클 무료 플랜처럼 한도 숫자가 공개되지 않는 계정)은 관제가 이미 읽는 가동 신호
+    (`status/agent.json`·`status/pi2.json`·`agent_beat` 의 pi1/pi2·pc 비트 = `AGENT_DATA`)로 **가동 중 · 잔여 비공개**로 그린다(`useSignal`).
+    신호가 **하루(24시간) 넘게** 없으면 가동 중이라고 하지 않고 미확인으로 돌린다(한도 소진·휴면과 구별되지 않으므로).
+  · **상태 파일이 없는 비서**(큐·부이·키링 등)는 `queue_list` 에 남은 **회의실 활동**(`source`/`claimed_by`/`replied_by`, 24시간)을
+    가동 신호로 쓴다 — 카드에는 `최근 활동 N분 전` 으로 적고, 그것도 없으면 미확인. `applyOrderList` 가 목록 서명이 같아도
+    이 한 번은 `renderUse()` 를 부른다(새 말이 들어오면 카드가 바로 산다).
+  · 요약 알약은 위험·임박·정상·**비공개**·미확인 5개(`USE_STATE_TXT.na`), 안내줄은 "N/9개 연동". `#room-use-sum` 은 `flex-wrap`.
+  · **%를 채우는 길은 여전히 하나** — 비서가 `usage_report` 로 남기거나 사람이 `잔여 입력`. 포털이 대신 숫자를 만들지 않는다.
+  · 테스트: `portal_integration` **AA)절**(리셋 경계 24시간·7일, 지난 값 무효, 가동 신호→비공개, 24시간 컷, 회의실 활동 신호, 요약·안내 문구).
 - **GET 읽기(2026-11-25, v27)**: `doGet` 은 기본 읽기 6개만 연다 — `ping`·`queue_status`·`queue_list`·`queue_head`·`usage_get`·`agents_get`.
   `?action=queue_list&target=keyring&limit=5&key=…` 처럼 쓴다. **쓰기 액션은 GET 으로 절대 안 된다**(`code:'read_only'`). 키 검증은 POST 와 같은 64자 비교다.
   `queue_head` 는 최신 1건의 `id·created_at·status·source·target·kind·type` 만 돌려주는 초경량 확인용이다(`target` 을 주면 내 앞 최신 글).

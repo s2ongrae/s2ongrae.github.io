@@ -1501,5 +1501,67 @@ console.log('Z) 💬 답장 인용 — 원문 미리보기 · 원문으로 이�
   ok(DZ.run("ordQuoteBox({id:'Q-y', reply_to:'Q-x1'})").indexOf('<img') < 0, '인용 박스 단독으로 그려도 안전');
 }
 
+console.log('AA) 📊 사용량 자동 연동 — 리셋 경계 · 가동 신호 · 비공개 (2026-11-25)');
+{
+  const SAA = mk();
+  const DAA = makeDevice(SAA);
+  DAA.config();
+  // ① 상태 계산 — 이번 주기 숫자 → 가동 신호 → 미확인
+  DAA.run('AGENT_DATA = null; USE_DATA = {}');
+  const defOf = id => `agentById('${id}')`;
+  ok(DAA.run(`useStateOf(${defOf('pi1')})`) === 'unknown', '아무 보고도 없으면 미확인');
+  DAA.run(`USE_DATA['pi1'] = {pct: 80, at: new Date().toISOString()}`);
+  ok(DAA.run(`useStateOf(${defOf('pi1')})`) === 'ok', '이번 주기 숫자가 있으면 정상');
+  DAA.run(`USE_DATA['pi1'] = {pct: 80, at: '2020-01-01T00:00:00.000Z'}`);
+  ok(DAA.run(`useStateOf(${defOf('pi1')})`) === 'unknown', '리셋 전에 받은 지난 값은 정상으로 세지 않는다');
+  ok(/리셋 지남/.test(DAA.run(`useCard(${defOf('pi1')})`)), '지난 값 카드는 리셋이 지났다고 적는다');
+
+  // ② 리셋 경계 — 일일 04:00 · 주간 월요일 09:00
+  ok(DAA.run("useResetAt({reset:'daily04'}) - useCycleStart({reset:'daily04'})") === 86400000,
+    '일일 주기는 다음 04:00 까지 정확히 24시간');
+  ok(DAA.run("useResetAt({reset:'weekly'}) - useCycleStart({reset:'weekly'})") === 7 * 86400000,
+    '주간 주기는 다음 월요일 09:00 까지 7일');
+  ok(DAA.run("new Date(useCycleStart({reset:'weekly'})).getDay()") === 1 &&
+     DAA.run("new Date(useCycleStart({reset:'weekly'})).getHours()") === 9, '주간 주기는 월요일 09:00 에 시작');
+  ok(DAA.run("new Date(useCycleStart({reset:'daily04'})).getHours()") === 4, '일일 주기는 04:00 에 시작');
+
+  // ③ 가동 신호 — 숫자를 안 내는 계정(피투 = Pickle 무료)은 '가동 중 · 잔여 비공개'
+  DAA.run('USE_DATA = {}');
+  DAA.run("AGENT_DATA = {updated_at: new Date().toISOString(), pi2: {updated_at: new Date().toISOString(), agent: {state: 'idle'}}}");
+  ok(DAA.run(`useStateOf(${defOf('pi2')})`) === 'na', '살아 있는 신호만 있으면 비공개 상태');
+  const pi2Card = DAA.run(`useCard(${defOf('pi2')})`);
+  ok(/가동 중/.test(pi2Card) && /잔여 비공개/.test(pi2Card), '카드에 가동 중 · 잔여 비공개를 적는다');
+  ok(/use-dev na/.test(pi2Card) && /use-bar na/.test(pi2Card), '비공개 카드는 전용 표시(점선 막대)');
+  ok(/신호/.test(pi2Card), '마지막 신호 시각을 함께 보여준다');
+  ok(DAA.run(`useStateOf(${defOf('pi1')})`) === 'unknown', '신호가 없는 다른 비서는 여전히 미확인');
+  DAA.run("AGENT_DATA = {updated_at: new Date(Date.now() - 30 * 3600000).toISOString(), pi2: {updated_at: new Date(Date.now() - 30 * 3600000).toISOString(), agent: {state: 'idle'}}}");
+  ok(DAA.run(`useStateOf(${defOf('pi2')})`) === 'unknown', '하루 넘게 소식이 없으면 가동 중이라고 하지 않는다');
+
+  // ③-2 상태 파일이 없는 비서(큐·부이·키링) — 회의실에 남긴 말도 가동 신호
+  DAA.run('AGENT_DATA = null; USE_DATA = {}');
+  DAA.run("ORD_ITEMS = [{id:'Q-a1', source:'cue', status:'DONE', kind:'chat', created_at:new Date(Date.now()-10*60000).toISOString()}]");
+  ok(DAA.run(`useStateOf(${defOf('cue')})`) === 'na', '큐가 방금 말을 남겼으면 비공개 상태(가동)');
+  ok(/최근 활동/.test(DAA.run(`useCard(${defOf('cue')})`)), '카드는 가동 근거를 최근 활동으로 적는다');
+  DAA.run("ORD_ITEMS = [{id:'Q-a2', source:'vooy', status:'DONE', kind:'chat', created_at:new Date(Date.now()-30*3600000).toISOString()}]");
+  ok(DAA.run(`useStateOf(${defOf('vooy')})`) === 'unknown', '하루 넘게 조용한 비서는 미확인');
+  ok(DAA.run(`useStateOf(${defOf('keyring')})`) === 'unknown', '말을 남긴 적 없는 비서는 미확인');
+  DAA.run('ORD_ITEMS = []');
+
+  // ④ 이번 주기 숫자가 신호보다 우선 · 다른 기기 부이2 같은 추가 비서도 같은 규칙
+  DAA.run("AGENT_DATA = {updated_at: new Date().toISOString(), pi2: {updated_at: new Date().toISOString(), agent: {state: 'working'}}}");
+  DAA.run(`USE_DATA['pi2'] = {pct: 12, at: new Date().toISOString()}`);
+  ok(DAA.run(`useStateOf(${defOf('pi2')})`) === 'soon', '이번 주기 숫자가 있으면 숫자가 이긴다');
+  ok(DAA.run('useSummary().soon') >= 1 && DAA.run('useSummary().na') >= 0, '요약에 임박·비공개 칸이 있다');
+
+  // ⑤ 요약·안내 문구 — 비공개 칸이 생기고, 왜 비어 있는지 화면이 설명한다
+  DAA.run('USE_DATA = {}; renderUse(true)');
+  const sum = DAA.el('use-sum').innerHTML;
+  ok(/비공개/.test(sum), '요약에 비공개 칸');
+  ok(/가동 신호/.test(DAA.el('use-note').textContent || ''), '안내: 숫자를 안 내는 계정은 가동 신호로 표시');
+  ok(/usage_report/.test(DAA.el('use-note').textContent || ''), '안내: 비서가 스스로 보고(usage_report)');
+  ok(/개 연동/.test(DAA.el('use-note').textContent || ''), '몇 개가 연동됐는지 센다');
+  ok(/비공개/.test(DAA.el('room-use-sum').innerHTML), '머리말 요약에도 비공개가 보인다');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
