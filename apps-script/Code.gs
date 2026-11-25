@@ -827,12 +827,12 @@ const AG_RESERVED = ['all', 'portal', 'phone', 'telegram', 'notebook', 'pi1', 'p
 // 기본 참여자와 담당 한 줄(2026-11-25 v28, 성래 님 지시) — API(agents_get·usage_get·queue_list)로도 보인다.
 //  화면(AGENT_SEED.duty)과 같은 글이다. 바뀌면 양쪽을 같이 고친다.
 const AG_BUILTINS = [
-  { id: 'pi1', name: '피원', icon: '🤖', group: '일일', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘' },
+  { id: 'pi1', name: '피원', icon: '🍋', group: '일일', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘' },
   { id: 'pi2', name: '피투', icon: '🤖', group: '일일', duty: 'GitHub PR/이슈·분산 실행·SNS/커머스 보조' },
-  { id: 'cue', name: '큐', icon: '🎯', group: '일일', duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)' },
-  { id: 'vooy', name: '부이', icon: '🛟', group: '일일', duty: '후보 비교/체크리스트·채용/면접 리서치·PDF/HWP 문서 읽기' },
+  { id: 'cue', name: '큐', icon: '🌀', group: '일일', duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)' },
+  { id: 'vooy', name: '부이', icon: '🫛', group: '일일', duty: '후보 비교/체크리스트·채용/면접 리서치·PDF/HWP 문서 읽기' },
   { id: 'keyring', name: '키링', icon: '🔑', group: '일일', duty: '전화 발신 검증·KTX/예약·대전 밥집/쇼핑커넥트 발굴' },
-  { id: 'notebook', name: '집 노트북', icon: '🏠', group: '일일', duty: '24시간 즉답·코드 실행·숏폼 무토큰 렌더' }
+  { id: 'notebook', name: '집 노트북', icon: '🖥️', group: '일일', duty: '24시간 즉답·코드 실행·숏폼 무토큰 렌더' }
 ];
 let AG_ROSTER_CACHE = { at: 0, items: null };
 
