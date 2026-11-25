@@ -415,7 +415,29 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   animation:monPulse 1.2s ease-in-out infinite}
 .chat-typing i:nth-child(2){animation-delay:.2s}.chat-typing i:nth-child(3){animation-delay:.4s}
 .chat-quote{font-size:10.5px;color:var(--rink2);background:#F3F6FF;border-left:3px solid #9DB0FF;
-  border-radius:0 9px 9px 0;padding:5px 9px;margin-bottom:6px;overflow-wrap:anywhere}
+  border-radius:0 9px 9px 0;padding:5px 9px;margin-bottom:6px;overflow-wrap:anywhere;
+  display:flex;align-items:center;gap:6px;min-width:0}
+.chat-quote .cq-who{font-weight:800;color:var(--rink);white-space:nowrap;max-width:42%;overflow:hidden;text-overflow:ellipsis}
+.chat-quote .cq-txt{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--rink2)}
+/* 답장 인용 박스(2026-11-25) — 말풍선 안 상단: 이 말이 어느 말에 대한 답장인지. 누르면 원문으로 간다 */
+.chat-quote-in{display:flex;flex-direction:column;gap:2px;min-width:0;max-width:100%;margin:0 0 7px;
+  padding:5px 9px 6px;background:#F1F5FF;border-left:3px solid #8FA6FF;border-radius:0 10px 10px 0;
+  font-size:10.5px;line-height:1.5;text-align:left;font-family:inherit;color:var(--rink2);
+  cursor:pointer;transition:background .15s,border-color .15s}
+.chat-quote-in:hover,.chat-quote-in:focus-visible{background:#E7EEFF;border-left-color:#5F7CFF;outline:none}
+.chat-quote-in .cq-who{font-weight:800;color:var(--rink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-quote-in .cq-txt{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.chat-quote-in.miss{background:#F8FAFF;border-left:1px dashed #C3CCE3;cursor:help}
+.chat-quote-in.miss .cq-who,.chat-quote-in.miss .cq-txt{color:var(--rmut)}
+.chat-row.out .chat-quote-in{background:rgba(255,255,255,.18);border-left-color:rgba(255,255,255,.6)}
+.chat-row.out .chat-quote-in:hover,.chat-row.out .chat-quote-in:focus-visible{background:rgba(255,255,255,.27)}
+.chat-row.out .chat-quote-in .cq-who{color:#fff}
+.chat-row.out .chat-quote-in .cq-txt{color:rgba(255,255,255,.88)}
+.chat-row.out .chat-quote-in.miss{border-left-color:rgba(255,255,255,.4)}
+/* 원문으로 이동했을 때 잠깐 빛난다 */
+.chat-row.cq-flash{animation:cqFlash 1.6s ease-out;border-radius:18px;padding:3px;margin:-3px}
+@keyframes cqFlash{0%{background:rgba(94,126,255,.22)}55%{background:rgba(94,126,255,.13)}100%{background:rgba(94,126,255,0)}}
+@media (prefers-reduced-motion:reduce){.chat-row.cq-flash{animation:none;background:rgba(94,126,255,.16)}}
 .room-compose{display:flex;flex-direction:column;gap:8px;min-width:0;padding:12px;border:1px solid var(--rl);
   border-radius:18px;background:linear-gradient(180deg,#FFFFFF,#FBFCFE);
 }
@@ -1580,6 +1602,8 @@ let ORD_WHO = 'all';        // 발신 필터(all · pi1 · pi2 · portal)
 let ORD_FILTER = 'all';     // 상태 필터(all · live · wait · done)
 let ORD_CHAT_OK = null;     // 서버가 kind:'chat' 을 아는가(null=모름 · false=예전 배포)
 let ORD_REPLY_TO = '';      // 답글 원문 요약(보낼 때 인용으로 붙어요)
+let ORD_REPLY_ID = '';      // 답장할 원문 오더 id — payload.reply_to 로 함께 보낸다(2026-11-25)
+let ORD_JUMP = '';          // 방금 인용 박스로 찾아간 원문 id(하이라이트 표시용)
 /* ── 🌿 어사이드(aside) — 집 노트북 로컬 자동화 (2026-11-25) ──
  *  포털 앱스크립트(Code.gs · 웹훅 v36)는 claude_prompt 만 받으므로 오더 타입을 새로 만들지 않고,
  *  **회의실 한 줄 명령**을 kind=chat 으로 보냅니다. 집 노트북(notebook-agent/lib/aside.js)이 이 모양을
@@ -2010,6 +2034,8 @@ function ordSumLine(it){
 /** 오더 한 줄의 본문(내가 보낸 말) — 서버가 주는 한 줄 요약에서 머리말을 덜어낸다 */
 function ordMsgText(it){
   let s = ordSumLine(it);
+  // 답장이면 앞에 붙어 온 '↩ 원문' 조각은 인용 박스가 대신 보여준다(2026-11-25)
+  if(ordReplyToId(it)) s = ordStripReplyQuote(s, it);
   if(ordIsChat(it)) return s;
   s = s.replace(/\s*\(파일 수정\)\s*$/, '');
   s = s.replace(/\s*·\s*엔진\s+[A-Za-z]+$/, '');
@@ -2158,16 +2184,23 @@ function ordReply(it){
   if(!inp) return;
   const src = ordMsgText(it) || String(it && it.result || '');
   ORD_REPLY_TO = ordShort(src, 60);
+  // 어느 말에 대한 답장인지 — 서버가 reply_to 로 오더를 이어 붙이고 비서 중복 답장을 막는다
+  ORD_REPLY_ID = String((it && it.id) || '').trim();
   try { inp.focus(); } catch(e) {}
   ordQuoteRender();
-  sync('답글을 적어보세요 — 보내면 원문을 인용해요', 3200);
+  sync('답장을 적어보세요 — 보내면 원문을 인용해요', 3200);
 }
-function ordQuoteClear(){ ORD_REPLY_TO = ''; ordQuoteRender(); }
+function ordQuoteClear(){ ORD_REPLY_TO = ''; ORD_REPLY_ID = ''; ordQuoteRender(); }
 function ordQuoteRender(){
   const box = document.getElementById('ord-quote');
   if(!box) return;
   if(!ORD_REPLY_TO){ box.innerHTML = ''; return; }
-  box.innerHTML = `<div class="chat-quote"><b>답글</b> ${esc(ORD_REPLY_TO)} <button class="chat-a" onclick="ordQuoteClear()" title="인용 취소">✕</button></div>`;
+  const orig = ORD_REPLY_ID ? ordById(ORD_REPLY_ID) : null;
+  const who = orig ? ordQuoteAuthor(orig) : '';
+  box.innerHTML = `<div class="chat-quote"><b>답장</b>` +
+    (who ? `<span class="cq-who">${esc(who)}</span>` : '') +
+    `<span class="cq-txt">${esc(ORD_REPLY_TO)}</span> ` +
+    `<button class="chat-a" onclick="ordQuoteClear()" title="인용 취소">✕</button></div>`;
 }
 /** 오더 하나를 피클 채팅에 붙여넣을 수 있는 글로 복사 — 외부 웹훅이 없어도 전달된다 */
 function ordCopyChat(it){
@@ -2430,6 +2463,83 @@ function ordWhoBadge(k){
   const d = ordSenderLabel(k);
   return `<span class="who ${ordWhoCls(k)}">${esc(d.icon + ' ' + d.name)}</span>`;
 }
+/* ── 답장 인용 (2026-11-25) — 어떤 말에 대한 답장인지 한눈에 ──
+ *  · 서버(Code.gs)는 오더 payload·item 의 reply_to 에 원문 오더 id 를 실어 준다(Q-2026…).
+ *  · 말풍선 안 인용 박스를 누르면 원문 말풍선으로 스크롤하고 잠깐 빛난다(카톡·피클 방식).
+ */
+/** 이 말이 답장한 원문 오더 id — 오더 id 는 대소문자를 가리므로 그대로 둔다 */
+function ordReplyToId(it){ return String((it && it.reply_to) || '').trim(); }
+/** 인용 박스에 보일 원문 한 줄 — 원문이 스스로 답장이어도 그대로 보여준다(재귀 없이) */
+function ordQuoteText(orig){
+  if(!orig) return '';
+  return ordSumLine(orig) || String(orig.result || orig.error || '') || String(orig.id || '');
+}
+/** 원문 말풍선의 주인 — 그 말을 쓴 사람(내 말이면 나) */
+function ordQuoteAuthor(orig){
+  if(!orig) return '';
+  const d = ordSenderLabel(ordSenderKey(orig));
+  return d.icon + ' ' + d.name;
+}
+/**
+ * 답장 본문 앞에 붙어 온 '↩ 원문…' 조각을 덜어낸다 — 같은 내용을 인용 박스가 보여준다.
+ *  · 서버 요약은 줄바꿈을 접어서 오므로, 원문 미리보기와 앞부분이 같을 때만 덜어낸다(아니면 그대로).
+ */
+function ordStripReplyQuote(s, it){
+  const t = String(s == null ? '' : s);
+  const rid = ordReplyToId(it);
+  if(!rid || t.charAt(0) !== '↩') return t;
+  const orig = ordById(rid);
+  if(!orig) return t;                                    // 원문이 없으면 어디까지가 인용인지 알 수 없다
+  const q = String(ordShort(ordQuoteText(orig), 60) || '').replace(/\s+/g, ' ').trim();
+  const flat = t.slice(1).replace(/\s+/g, ' ').trim();
+  if(!q || flat.indexOf(q) !== 0) return t;
+  return flat.slice(q.length).replace(/^[.…\s]+/, '').trim();
+}
+/** 말풍선 안 인용 박스 — reply_to 가 없으면 빈 문자열(아무것도 안 그린다) */
+function ordQuoteBox(it){
+  const rid = ordReplyToId(it);
+  if(!rid || !it || rid === String(it.id || '')) return '';
+  const orig = ordById(rid);
+  const open = `role="button" tabindex="0" onclick="ordJumpTo('${esc(rid)}')" onkeydown="ordJumpKey(event,'${esc(rid)}')"`;
+  if(!orig){
+    return `<div class="chat-quote-in miss" ${open} title="원문이 지금 목록에 없어요 — 누르면 찾아볼게요">` +
+      `<span class="cq-who">↩ 원문 · 지금 목록에 없어요</span>` +
+      `<span class="cq-txt">${esc(rid)}</span></div>`;
+  }
+  return `<div class="chat-quote-in" ${open} title="누르면 원문으로 이동해요">` +
+    `<span class="cq-who">${esc(ordQuoteAuthor(orig))}</span>` +
+    `<span class="cq-txt">${esc(ordShort(ordQuoteText(orig), 90))}</span></div>`;
+}
+/** 원문 말풍선으로 부드럽게 이동 + 잠깐 하이라이트. 못 찾으면 이유를 알려준다 */
+function ordJumpTo(id){
+  const rid = String(id || '').trim();
+  if(!rid) return;
+  const it = ordById(rid);
+  if(!it){
+    sync('원문을 지금 목록에서 찾지 못했어요 — ⟳ 로 새로 불러오면 보여요', 4400);
+    return;
+  }
+  // 필터에 가려져 있으면 먼저 풀어서 보이게 한다
+  if(!ordVisible(it)){
+    ORD_FILTER = 'all'; ORD_WHO = 'all';
+    ordFilterRender(); renderOrders();
+  }
+  const el = document.getElementById('chat-' + rid) || document.getElementById('chat-' + rid + '-in');
+  if(!el){ sync('원문 말풍선을 화면에서 찾지 못했어요', 3600); return; }
+  ORD_JUMP = rid;
+  try { if(typeof el.scrollIntoView === 'function') el.scrollIntoView({behavior: 'smooth', block: 'center'}); } catch(e) {}
+  if(el.classList){
+    try { el.classList.add('cq-flash'); } catch(e) {}
+    setTimeout(() => { try { el.classList.remove('cq-flash'); } catch(e) {} if(ORD_JUMP === rid) ORD_JUMP = ''; }, 1700);
+  }
+}
+/** 인용 박스 키보드(Enter·Space) — 마우스 없이도 원문으로 간다 */
+function ordJumpKey(e, id){
+  if(!e) return;
+  if(e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+  if(e.preventDefault) e.preventDefault();
+  ordJumpTo(id);
+}
 /** 오른쪽(나) 말풍선 — 내가 보낸 말 */
 /** 오른쪽(나) 말풍선 — 내가 보낸 말. left=true 면 **남이 보낸 말**이라 왼쪽에 그린다(2026-11-25 v28). */
 function chatOut(it, left){
@@ -2441,13 +2551,17 @@ function chatOut(it, left){
   const plain = ordIsPlainReply(it);
   const to = `<span class="chat-to">→ ${esc(tg.label)}</span>`;
   const av = left ? `<div class="chat-av">${esc(who.icon || '🤖')}</div>` : '';
-  return `<div class="chat-row ${left ? 'in' : 'out'}">${av}<div class="chat-bubble${left ? ' side-in' : ''}">` +
+  const qb = ordQuoteBox(it);
+  const acts = it.id ? `<div class="chat-acts"><button class="chat-a" onclick="ordReplyById('${esc(it.id)}')" title="이 말에 답장하며 원문을 인용해요">↩ 답장</button></div>` : '';
+  return `<div class="chat-row ${left ? 'in' : 'out'}"${it.id ? ` id="chat-${esc(it.id)}"` : ''}>${av}<div class="chat-bubble${left ? ' side-in' : ''}">` +
     `<div class="chat-meta">${ordWhoBadge(ordSenderKey(it))}${to}` +
     (plain ? '' : `<span class="ord-chip ${s.c}">${esc(s.t)}</span>`) +
     (it.auto_approved ? '<span class="ord-chip c-auto" title="이미 지시한 일반 코드 작업이라 승인 없이 실행해요">자동(위임)</span>' : '') +
     `<span class="ord-when">${esc(ordWhen(it.created_at))}</span></div>` +
+    qb +
     `<div class="chat-text">${ordMentionHtml(esc(body))}</div>` +
     (ordIsChat(it) ? '' : `<div class="ord-sub">${esc([ordTypeName(it.type), (it.workspace ? ordWsName(it.workspace) : ''), (it.id || '')].filter(Boolean).join(' · '))}</div>`) +
+    acts +
     `</div></div>`;
 }
 /** 왼쪽(비서) 말풍선 — 진행·승인·답장·결과 */
@@ -2506,9 +2620,9 @@ function chatIn(it){
     inner = `<div class="chat-text">${esc(body.t)}</div>`;
   }
   if(st === 'RUNNING') inner = inner + ordStaleBadge(it);
-  // 답장·결과에 붙는 버튼 — 답글 · 오더로 · 복사 · 다시 실행
-  if(st === 'DONE' || st === 'FAILED' || st === 'TIMEOUT_REVIEW' || st === 'EXPIRED'){
-    acts.push(`<button class="chat-a" onclick="ordReplyById('${esc(it.id)}')">↩ 답글</button>`);
+  // 답장·결과에 붙는 버튼 — 인용 답장 · 오더로 · 복사 · 다시 실행
+  if(st === 'DONE' || st === 'FAILED' || st === 'TIMEOUT_REVIEW' || st === 'EXPIRED' || st === 'REJECTED' || st === 'REVIEW_NEEDED'){
+    if(it.id) acts.push(`<button class="chat-a" onclick="ordReplyById('${esc(it.id)}')" title="이 답장에 인용 답장을 달아요">↩ 답장</button>`);
     acts.push(`<button class="chat-a" onclick="ordPromoteById('${esc(it.id)}')">📦 오더로</button>`);
     acts.push(`<button class="chat-a" onclick="ordCopyById('${esc(it.id)}')">📋 복사</button>`);
     if((it.type === 'git_pull' || it.type === 'toss_sync') && (st === 'FAILED' || st === 'TIMEOUT_REVIEW' || st === 'EXPIRED'))
@@ -2762,6 +2876,8 @@ async function sendOrder(){
     const payload = {prompt: text, mode: mode === 'edit' ? 'edit' : 'ask'};
     if(target) payload.target = target;
     if(mode === 'chat') payload.kind = 'chat';
+    // 답장이면 어느 오더에 대한 답장인지 함께 보낸다 — 서버가 오더를 이어 붙이고 비서 중복 답장을 막는다(2026-11-25)
+    if(ORD_REPLY_ID && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/.test(ORD_REPLY_ID)) payload.reply_to = ORD_REPLY_ID;
     // auto 는 서버에 보내지 않는다(기본값) — 예전 서버에서도 오더 모양이 그대로다.
     if(engine !== 'auto') payload.engine = engine;
     ORD_EPOCH++;
@@ -2772,7 +2888,7 @@ async function sendOrder(){
     const editBox = document.getElementById('ord-edit-mode');
     if(editBox && editBox.checked) editBox.checked = false;
     if(mode === 'edit') ordModeSet('chat');
-    ORD_REPLY_TO = ''; ordQuoteRender();
+    ORD_REPLY_TO = ''; ORD_REPLY_ID = ''; ordQuoteRender();
     ordTyped();
     if(!d.duplicate) ordRecentAdd(text);                        // 이 기기에만 남는 최근 글
     const autoOk = !!(d.item && d.item.auto_approved);

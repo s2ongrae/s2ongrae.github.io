@@ -1190,8 +1190,8 @@ console.log('X) 🏷️ 말풍선 닉네임·이모지 · 부계정(*2·_2·pi3)
   ok(D17.run("ordSenderLabel('portal').name") === '포털', '내 말(portal)은 포털 그대로');
   // 비서가 낸 말은 오른쪽(내 말)이 아니라 **왼쪽**에 그린다(2026-11-25 v28)
   ok(D17.run("ordIsMine({source:'cue'})") === false, '큐가 낸 말은 내 말이 아니다');
-  ok(/class="chat-row in"><div class="chat-av">🌀<\/div><div class="chat-bubble side-in">/.test(feed17()), '큐가 낸 말도 왼쪽 말풍선(🌀 아바타)');
-  ok(/class="chat-row in"><div class="chat-av">🔑<\/div><div class="chat-bubble side-in">/.test(feed17()), '키링이 낸 말도 왼쪽 말풍선(🔑)');
+  ok(/class="chat-row in"[^>]*><div class="chat-av">🌀<\/div><div class="chat-bubble side-in">/.test(feed17()), '큐가 낸 말도 왼쪽 말풍선(🌀 아바타)');
+  ok(/class="chat-row in"[^>]*><div class="chat-av">🔑<\/div><div class="chat-bubble side-in">/.test(feed17()), '키링이 낸 말도 왼쪽 말풍선(🔑)');
 
   // ② 부계정 비서 자동 합류 — 코드 수정 없이 베이스 닉네임·이모지를 따라간다
   const added = D17.run("agentAutoJoin(['cue2','vooy2','keyring2','pi3','keyring_2'])");
@@ -1394,6 +1394,111 @@ console.log('Y) 🌿 어사이드 — 포털 버튼이 노트북 한 줄 명령�
 
   // ⑤ 문서·카드 표식 — 회의실에서 어사이드 오더도 알아볼 수 있다
   ok(DY.run("ORD_TYPE_LABEL['aside_run']") === '어사이드' && DY.run("ORD_TYPE_ICON['aside_run']") === '🌿', 'aside_run 타입 라벨·아이콘');
+}
+
+console.log('Z) 💬 답장 인용 — 원문 미리보기 · 원문으로 이동 · 말풍선 답장 버튼 (2026-11-25)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SZ = mk();
+  const nowMs = Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, source, status, payload, x) => {
+    const r = [id, created, source, 'claude_prompt', 'gaegyebu', JSON.stringify(payload), status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  SZ.props.QUEUE_SHEET_ID = 'SHEETidReplyQuote01';
+  SZ.addSheet('SHEETidReplyQuote01', {'Command_Queue': [HEAD.slice(0)].concat([
+    // 원문 — 내가 노트북에 물어본 말, 노트북이 답했다
+    row('Q-q1', at(nowMs - 9 * 60000), 'portal', 'DONE',
+      { prompt: '가계부 11월 지출 점검해줘', mode: 'ask', kind: 'chat', target: 'notebook' },
+      { claimed_by: 'notebook', finished_at: at(nowMs - 8 * 60000), result: '11월 지출은 82만원이에요 — 카드값 마감 25일' }),
+    // 원문 Q-q1 에 대한 답장 — 본문 앞에 '↩ …' 줄이 함께 저장돼 있다
+    row('Q-q2', at(nowMs - 5 * 60000), 'portal', 'PENDING',
+      { prompt: '↩ 가계부 11월 지출 점검해줘\n카드값 마감일은 25일이야', mode: 'ask', kind: 'chat', target: 'notebook', reply_to: 'Q-q1' })
+  ])});
+  const DZ = makeDevice(SZ);
+  DZ.config();
+  await DZ.run('loadOrders()');
+  const feedZ = () => DZ.el('ord-list').innerHTML;
+  const lastZ = a => {
+    for (let i = DZ.calls.length - 1; i >= 0; i--) { const b = JSON.parse(DZ.calls[i].opts.body); if (b.action === a) return b; }
+    return null;
+  };
+  const sz = DZ.el('sync-txt');
+
+  // ① 서버가 준 reply_to 가 목록에 그대로 살아 있다(예전 배포면 없음 — 화면은 인용 줄로 물러선다)
+  ok(DZ.run("ordById('Q-q2').reply_to") === 'Q-q1', 'queue_list 의 reply_to 가 오더에 그대로 온다');
+  ok(DZ.run("ordReplyToId({reply_to:' Q-q1 '})") === 'Q-q1' && DZ.run('ordReplyToId({})') === '', 'reply_to 읽기(빈 값·공백 정리)');
+
+  // ② 답장 말풍선 안 인용 박스 — 원 작성자 + 원문 미리보기
+  const qb2 = DZ.run("ordQuoteBox(ordById('Q-q2'))");
+  ok(/class="chat-quote-in"/.test(qb2), '답장 말풍선에 인용 박스가 그려진다');
+  ok(/🌐 포털/.test(qb2), '인용 박스에 원 작성자 이름');
+  ok(/가계부 11월 지출 점검해줘/.test(qb2), '인용 박스에 원문 미리보기');
+  ok(/onclick="ordJumpTo\('Q-q1'\)"/.test(qb2), '인용 박스를 누르면 원문으로 간다(ordJumpTo)');
+  ok(/role="button"/.test(qb2) && /tabindex="0"/.test(qb2) && /onkeydown/.test(qb2), '키보드로도 인용 박스를 누를 수 있다');
+  ok(DZ.run("chatOut(ordById('Q-q2'))").indexOf('↩ 가계부') < 0, '본문의 ↩ 인용 줄은 인용 박스와 겹치지 않게 덜어낸다');
+  ok(/카드값 마감일은 25일이야/.test(DZ.run("chatOut(ordById('Q-q2'))")), '답장 본문은 그대로 보인다');
+  ok(DZ.run("ordQuoteBox(ordById('Q-q1'))") === '', '원문 쪽 말풍선에는 인용 박스가 없다');
+  ok(DZ.run("ordQuoteBox({id:'Q-s', reply_to:'Q-s'})") === '', '자기 자신을 가리키는 reply_to 는 그리지 않는다');
+
+  // ③ 원문이 비서가 쓴 말이면 — 그 비서 이름으로 보인다
+  ok(DZ.run("ordQuoteAuthor(ordById('Q-q1'))") === '🌐 포털', '내 말을 인용하면 나(포털)로 보인다');
+  ok(/피투/.test(DZ.run("ordQuoteAuthor({id:'Q-a', status:'PENDING', source:'pi2', kind:'chat', target:'portal', summary:'출석 완료'})")), '비서가 쓴 말을 인용하면 그 비서 이름으로 보인다');
+  ok(/노트북/.test(DZ.run("ordQuoteAuthor({id:'Q-a', status:'DONE', source:'notebook', kind:'chat', claimed_by:'notebook', summary:'가계부 점검'})")), '노트북 말은 노트북 이름으로');
+  ok(DZ.run("ordQuoteText({id:'Q-a', status:'DONE', source:'portal', claimed_by:'notebook', kind:'chat', summary:'', result:'11월 지출은 82만원'})") === '11월 지출은 82만원', '본문 요약이 없으면 결과를 미리보기로 쓴다');
+
+  // ④ 원문이 지금 목록에 없을 때 — 안내 + 원문 id
+  const miss = DZ.run("ordQuoteBox({id:'Q-z', reply_to:'Q-old', kind:'chat', summary:'↩ 예전에 하던 얘기 이어서 해줘'})");
+  ok(/chat-quote-in miss/.test(miss), '원문이 목록에 없으면 점선 인용 박스');
+  ok(/지금 목록에 없어요/.test(miss) && /Q-old/.test(miss), '목록에 없다는 안내 + 원문 id');
+  ok(DZ.run("ordMsgText({id:'Q-z', reply_to:'Q-old', kind:'chat', summary:'↩ 예전에 하던 얘기 이어서 해줘'})").indexOf('예전에 하던 얘기') >= 0,
+    '원문을 모를 때는 본문의 ↩ 줄을 지우지 않는다(내용이 사라지면 안 됨)');
+  sz.textContent = '';
+  DZ.run("ordJumpTo('Q-old')");
+  ok(/찾지 못했어요/.test(sz.textContent), '없는 원문을 누르면 새로고침 안내');
+
+  // ⑤ 원문으로 이동 — 필터에 가려져 있으면 먼저 풀고, 하이라이트를 남긴다
+  DZ.run("ORD_FILTER='live'; renderOrders()");
+  ok(DZ.run("ORD_ITEMS.filter(ordVisible).some(i=>i.id==='Q-q1')") === false, '상태 필터로 원문이 가려진 상태');
+  DZ.run("ordJumpTo('Q-q1')");
+  ok(DZ.run('ORD_WHO') === 'all' && DZ.run('ORD_FILTER') === 'all', '원문이 가려져 있으면 필터를 풀어 보이게 한다');
+  ok(DZ.run('ORD_JUMP') === 'Q-q1', '찾아간 원문 id 를 남긴다(하이라이트)');
+  ok(new RegExp('id="chat-Q-q1"').test(feedZ()), '원문 말풍선에 id 가 있어 그 자리로 갈 수 있다');
+
+  // ⑥ 말풍선마다 답장 버튼 — 원클릭으로 reply_to 지정
+  ok(/↩ 답장/.test(DZ.run("chatOut(ordById('Q-q1'), false)")) && /↩ 답장/.test(DZ.run("chatOut(ordById('Q-q1'), true)")), '보낸 말·받은 말 말풍선 모두에 ↩ 답장 버튼');
+  ok(/↩ 답장/.test(DZ.run("chatIn(ordById('Q-q1'))")), '비서 답장 말풍선에도 ↩ 답장 버튼');
+  DZ.run("ordReplyById('Q-q1')");
+  ok(DZ.run('ORD_REPLY_ID') === 'Q-q1', '답장 버튼 → 원문 id 를 기억');
+  ok(/chat-quote/.test(DZ.el('ord-quote').innerHTML) && /🌐 포털/.test(DZ.el('ord-quote').innerHTML) && /가계부/.test(DZ.el('ord-quote').innerHTML),
+    '입력칸 위 인용 미리보기에 원 작성자·원문');
+  DZ.run('ordQuoteClear()');
+  ok(DZ.run('ORD_REPLY_ID') === '' && DZ.run('ORD_REPLY_TO') === '' && DZ.el('ord-quote').innerHTML === '', '✕ 로 인용을 취소한다');
+
+  // ⑦ 보내기 — payload.reply_to 로 오더를 잇는다(예전 서버는 모르는 칸을 그냥 버린다)
+  DZ.run("ordModeSet('chat')");
+  DZ.run("ordReplyById('Q-q1')");
+  DZ.el('ord-inp').value = '카드값은 25일이야';
+  await DZ.run('sendOrder()');
+  let bz = lastZ('queue_enqueue');
+  ok(bz && bz.payload.reply_to === 'Q-q1', '보낸 답장에 reply_to(Q-q1) 가 실린다');
+  ok(/^↩ /.test(bz.payload.prompt) && /카드값은 25일이야/.test(bz.payload.prompt), '본문 인용 줄은 예전 서버·비서를 위해 그대로 남긴다');
+  ok(DZ.run('ORD_REPLY_ID') === '' && DZ.run('ORD_REPLY_TO') === '' && DZ.el('ord-quote').innerHTML === '', '보내면 인용 상태를 비운다');
+
+  // ⑧ 안전 — 제목·미리보기도 그대로 그리지 않는다
+  DZ.run(`ORD_ITEMS = [
+    {id:'Q-x1', status:'DONE', source:'portal', kind:'chat', summary:'<img src=x>원문', created_at:new Date().toISOString()},
+    {id:'Q-x2', status:'PENDING', source:'portal', kind:'chat', summary:'<b>답장</b>', created_at:new Date().toISOString(), reply_to:'Q-x1'}
+  ]; renderOrders()`);
+  const fx = feedZ();
+  ok(fx.indexOf('<img') < 0 && fx.indexOf('&lt;img') >= 0, '원문 인용 미리보기도 이스케이프한다');
+  ok(/chat-quote-in/.test(fx), '이스케이프한 뒤에도 인용 박스는 살아 있다');
+  ok(DZ.run("ordQuoteBox({id:'Q-y', reply_to:'Q-x1'})").indexOf('<img') < 0, '인용 박스 단독으로 그려도 안전');
 }
 
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
