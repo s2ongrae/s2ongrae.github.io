@@ -231,6 +231,22 @@
 - **금지**: `push --force`·`reset --hard`·충돌 파일 통째 덮어쓰기·남의 `agent/…`·`auto/…` 브랜치 수정·`status/agent.json` 직접 수정(피클 전용). 키·주소·고객 정보는 어디에도 넣지 않는다.
 - 전체 규칙·한계·설치: `s2ongrae.github.io` 의 `docs/AGENT_COORDINATION.md`, 도구 `tools/agent-lock.ps1`.
 
+### 🌿 어사이드(aside) 버튼 (2026-11-25)
+
+집 노트북의 로컬 자동화(`aside` — 무신사·카카오 체험단, 공공퀴즈, 네이버·알리 출첵)를 포털에서 원탭으로 부른다.
+
+- **`apps-script/Code.gs` 는 건드리지 않는다(웹훅 v36 유지).** 포털 서버는 `claude_prompt` 만 받으므로,
+  새 오더 타입 대신 **회의실 한 줄 명령**을 기존 봉투에 실어 보낸다 — `type:'claude_prompt'` +
+  `payload:{kind:'chat', prompt:'🌿어사이드 <작업>'}` (`quickAside(job)`). `target` 은 서버가 notebook 기본으로 둔다.
+- 화면: ① `빠른 오더`(`ORD_PRESETS`)에 `🌿 어사이드`(입력칸을 `🌿어사이드 상태` 로 채움 — 다른 칩과 같은 규칙)
+  ② `뭘 시킬 수 있나` 의 `🌿 어사이드 — 집 노트북 자동화` 칸에 버튼 6개(상태·무신사·카카오·공공퀴즈·네이버·알리) — **누르면 바로 접수**(원탭).
+- 상태 확인은 아무것도 실행하지 않아 확인창이 없고, 실행 작업은 `confirm` 한 번 뒤 보낸다(외부 사이트에 실제로 반영됨).
+- **작업 낱말(`ASIDE_JOBS[].word`)은 노트북 `hub-agent/notebook-agent/lib/aside.js` 의 표와 같아야 한다**(`🌿어사이드 무신사` → `musinsa`).
+  바꾸면 양쪽을 같이 고치고 `tests/portal_integration` Y)절도 같이 고친다.
+- 결과는 노트북이 같은 회의실로 자동 보고한다(`kind:'chat'`, `target:'portal'` 한 줄 — 서버가 전달 완료로 닫는다).
+- `ORD_TYPE_LABEL/ICON` 에 `aside_run`(🌿 어사이드)을 넣어 큐에 `aside_run` 오더가 보여도 읽힌다.
+- 작업 위치(`workspace`)는 서버 양식상 필요한 칸일 뿐, 어사이드 실행에는 쓰이지 않는다(현재 고른 위치가 그대로 실린다).
+
 ## ECC 스킬 (2026-11-19)
 
 - `affaan-m/ECC` v2.2.3에서 포털에 맞는 2개만 골라 `.claude/skills/ecc-*/`에 넣었다 — `ecc-security-review`(공개 저장소·GAS 키·`esc()` 누락·민감정보 노출) · `ecc-make-interfaces-feel-better`(폰 헤더·칩·달력의 여백·터치·모션).
