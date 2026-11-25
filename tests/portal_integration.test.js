@@ -1104,7 +1104,7 @@ console.log('W) 👥 큐·부이·키링 기본 탑재 · 서버 명부 공유 �
   ok(!D15.run("agentMentions().some(a=>a.name==='큐2')"), '다른 기기에서도 뺀 비서가 사라진다');
 
   // ⑥ 큐에 처음 말을 건 새 비서는 자동 합류(sources_seen) — 어느 기기에서도 @멘션
-  ok(D14.run("agentAutoJoin(['cue2','bad id!','portal','notebook']).length") === 1, '새 비서만 골라 합류한다(이상한 값·내 말·노트북 제외)');
+  ok(D14.run("agentAutoJoin(['cue2','bad id!','portal','notebook','pickle']).length") === 1, '새 비서만 골라 합류한다(이상한 값·내 말·노트북·별칭 pickle 제외)');
   ok(D14.run("agentMentions().some(a=>a.id==='cue2')") === true, '합류한 비서가 참여자가 된다');
   ok(lastBody14('agent_save').items.some(x => x.id === 'cue2'), '합류도 서버에 남긴다');
   await D15.run('agentServerGet()');

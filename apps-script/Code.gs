@@ -964,6 +964,8 @@ const QQ_WS_DEFAULT = 'gaegyebu,content-hub,insurance-manager,smartstore-hub,s2o
 //  부이(vooy)·큐(cue) 처럼 나중에 붙는 비서도 **GAS 재배포 없이** 이름을 쓸 수 있게 규칙으로 검사한다.
 //  (영소문자·숫자·_·- 12자 — 시트 한 칸에 안전한 값)
 const QQ_SOURCES = ['portal', 'pi1', 'pi2', 'cue', 'vooy', 'keyring'];   // 2026-11-25 큐·부이·키링 합류
+// 사람이 아닌 별칭(피원이 쓰던 이름) — 자동 합류 후보에서 뺀다.
+const QQ_SRC_ALIAS = ['pickle', 'pk', 'hub-agent', 'nb', 'telegram', 'tg', 'phone', 'mobile'];
 const QQ_AGENT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
 // 대상(target, @멘션) — 누구에게 시키는가. all=전체, notebook=집 노트북(기본 실행자).
 const QQ_TARGETS = ['all', 'pi1', 'pi2', 'notebook', 'cue', 'vooy', 'keyring'];
@@ -1729,10 +1731,12 @@ function queueList(body) {
   }
   // 2026-11-25(v27): 큐에 한 번이라도 말을 건 비서는 화면이 자동으로 참여자 명부에 합류시킨다.
   //   서버는 읽기만 하고(명부 쓰기는 agent_save), 여기서는 "누가 말했는지"만 알려 준다.
+  //   피원이 쓰는 별칭(pickle·pk…)은 사람이 아이라 뺀다(화면이 이미 pi1 로 읽는다).
   const srcSeen = [];
   for (let i = rows.length - 1; i >= 0 && srcSeen.length < 12; i--) {
     const s = String(rows[i].source == null ? '' : rows[i].source).trim().toLowerCase();
     if (!QQ_AGENT_ID_RE.test(s) || s === 'portal' || srcSeen.indexOf(s) >= 0) continue;
+    if (QQ_SRC_ALIAS.indexOf(s) >= 0) continue;
     srcSeen.push(s);
   }
   return {

@@ -1262,6 +1262,8 @@ async function agentPush(items, removed){
 }
 /** 큐에 처음 말을 건 비서(sources_seen)를 참여자로 자동 합류 — 어느 기기에서든 @멘션으로 부를 수 있게 */
 const AGENT_KNOWN_NAMES = {cue: '큐', vooy: '부이', keyring: '키링', pi1: '피원', pi2: '피투'};
+// 사람이 아닌 별칭(피원이 쓰던 이름)은 합류시키지 않는다 — 화면이 이미 pi1 로 읽는다.
+const AGENT_ALIAS = ['pickle', 'pk', 'hub-agent', 'nb', 'telegram', 'tg', 'phone', 'mobile'];
 function agentAutoJoin(ids){
   const list = Array.isArray(ids) ? ids : [];
   if(!list.length) return [];
@@ -1272,6 +1274,7 @@ function agentAutoJoin(ids){
     const id = String(raw || '').trim().toLowerCase();
     if(!/^[a-z0-9][a-z0-9_-]{0,11}$/.test(id) || have[id]) return;
     if(['all', 'portal', 'phone', 'telegram', 'notebook'].indexOf(id) >= 0) return;
+    if(AGENT_ALIAS.indexOf(id) >= 0) return;
     const nm = AGENT_KNOWN_NAMES[id] || id;
     const rec = {id: id, name: nm, icon: '🤖', group: '일일', at: at, auto: true};
     custom.push(rec); have[id] = 1; added.push(rec);

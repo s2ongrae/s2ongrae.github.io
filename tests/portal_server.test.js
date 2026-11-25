@@ -1016,7 +1016,8 @@ console.log('16) 👥 참여 비서 명부(agents_get·agent_save) · 부분 사
     mkRow('Q-a2', 'cue', JSON.stringify({prompt: '연결 확인', mode: 'ask'})),
     mkRow('Q-a3', 'vooy', JSON.stringify({prompt: '연결 확인', mode: 'ask'})),
     mkRow('Q-a4', 'keyring', JSON.stringify({prompt: '연결 확인', mode: 'ask'})),
-    mkRow('Q-a5', 'cue2', JSON.stringify({prompt: '연결 확인', mode: 'ask'}))
+    mkRow('Q-a5', 'cue2', JSON.stringify({prompt: '연결 확인', mode: 'ask'})),
+    mkRow('Q-a6', 'pickle', JSON.stringify({prompt: '연결 확인', mode: 'ask'}))
   ]});
   S.props.QUEUE_SHEET_ID = SHEET2;
   r = post({action: 'queue_list', key: KS, limit: 10});
@@ -1024,6 +1025,7 @@ console.log('16) 👥 참여 비서 명부(agents_get·agent_save) · 부분 사
     'sources_seen 에 큐·부이·키링이 온다');
   ok(r.sources_seen.indexOf('portal') < 0, '내(portal) 말은 합류 후보가 아니다');
   ok(r.sources_seen.indexOf('cue2') >= 0, '새 비서(cue2)도 큐에 말을 걸면 후보로 온다');
+  ok(r.sources_seen.indexOf('pickle') < 0, '피원 별칭(pickle)은 사람이 아니라 후보에서 뺀다');
   ok(JSON.stringify(r.targets) === JSON.stringify(['all', 'pi1', 'pi2', 'notebook', 'cue', 'vooy', 'keyring']),
     'targets 목록에 큐·부이·키링이 들어간다');
   ok(r.sources.indexOf('cue') >= 0 && r.sources.indexOf('keyring') >= 0, 'sources 목록에도 들어간다');
