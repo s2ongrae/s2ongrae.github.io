@@ -627,6 +627,27 @@ console.log('9-1) 🤖 오더 프롬프트에 "셸은 없다" 자동 주입 (202
   const grow = findRow(again.item.id) || [];
   ok(String(grow[5]).indexOf('워커 규칙') === -1, '다른 타입에는 안 붙는다');
   ok(!!grow.length, '두 번째 오더도 접수됐다');
+
+  // 2026-11-25 — 대화(kind=chat)는 답장이라 셸 규칙이 필요 없다. 말풍선·요약에 규칙 문구가 보이면 안 된다.
+  const ch = post({action:'queue_enqueue', key:K3, type:'claude_prompt', workspace:'gaegyebu',
+    payload:{prompt:'자 ai 친구들 대답해봐라', mode:'ask', kind:'chat', target:'all'}});
+  ok(ch.ok === true && ch.item.kind === 'chat', '대화 접수', ch.error);
+  const chPl = JSON.parse(findRow(ch.item.id)[5]);
+  ok(String(chPl.prompt).indexOf('워커 규칙') === -1 && !chPl.worker_note, '대화에는 워커 규칙을 붙이지 않는다', chPl.prompt);
+  ok(ch.item.summary === '자 ai 친구들 대답해봐라', '대화 요약은 말 그대로(클로드: 접두사·규칙 문구 없음)', ch.item.summary);
+
+  // 옛 줄 — 이미 규칙 문구가 붙어 저장된 대화·오더도 요약에서는 뗀다(멱등)
+  const QHEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const legacy = findRow(ch.item.id).slice();
+  legacy[QHEAD.indexOf('id')] = 'Q-LEGACY-NOTE-1';
+  legacy[QHEAD.indexOf('payload')] = JSON.stringify({prompt: '자 ai 친구들 대답해봐라' + '\n\n[워커 규칙] 셸(Bash)은 차단되어 있다. 테스트·문법 검증은 …', mode: 'ask', kind: 'chat', worker_note: 'auto'});
+  S.books[S.props.QUEUE_SHEET_ID]['Command_Queue'].push(legacy);
+  const lg = post({action:'queue_list', key:K3, limit:5});
+  const lgItem = lg.items.filter(x => x.id === 'Q-LEGACY-NOTE-1')[0] || {};
+  ok(!!lgItem.id && String(lgItem.summary).indexOf('워커 규칙') === -1, '옛 대화 줄도 요약에 규칙 문구가 없다', lgItem.summary);
+  ok(String(lgItem.summary) === '자 ai 친구들 대답해봐라', '옛 대화 요약은 말만 남는다', lgItem.summary);
 }
 
 console.log('10) 🤖 피클 상태 파일 (agent_status) — 드라이브 포털_에이전트상태.json');

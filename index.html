@@ -1682,10 +1682,19 @@ function ordMentionHtml(s){
   }
   return out;
 }
+/** 큐가 붙인 [워커 규칙] 문구 — 화면에 보이지 않게 뗀다(2026-11-25). 이미 저장된 옛 메시지에도 같이 먹는다. */
+const ORD_NOTE_RE = /\s*\[워커 규칙\][\s\S]*$/;
+function ordStripNote(s){
+  return String(s == null ? '' : s).replace(ORD_NOTE_RE, '').trim();
+}
+/** 화면에 보일 한 줄 요약 — 큐가 붙인 규칙 문구와 '클로드: '/ '프롬프트: ' 머리말만 덜어낸다 */
+function ordSumLine(it){
+  return ordStripNote(it && it.summary).replace(/^(?:클로드|프롬프트):\s*/, '');
+}
 /** 오더 한 줄의 본문(내가 보낸 말) — 서버가 주는 한 줄 요약에서 머리말을 덜어낸다 */
 function ordMsgText(it){
-  let s = String((it && it.summary) || '');
-  s = s.replace(/^프롬프트:\s*/, '');
+  let s = ordSumLine(it);
+  if(ordIsChat(it)) return s;
   s = s.replace(/\s*\(파일 수정\)\s*$/, '');
   s = s.replace(/\s*·\s*엔진\s+[A-Za-z]+$/, '');
   return s;
@@ -2150,7 +2159,7 @@ function chatIn(it){
       `<button class="ord-no" data-id="${esc(it.id)}" onclick="decideOrder(this.dataset.id,'reject')">🚫 거절</button></div>`;
   } else if(st === 'RUNNING'){
     cls = 'in';
-    inner = `<div class="chat-text">${isChat ? '답장 쓰는 중이에요' : (it.summary ? esc(ordShort(it.summary, 60)) + ' — 실행 중' : '실행 중이에요')} ` +
+    inner = `<div class="chat-text">${isChat ? '답장 쓰는 중이에요' : (ordSumLine(it) ? esc(ordShort(ordSumLine(it), 60)) + ' — 실행 중' : '실행 중이에요')} ` +
       `<span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ordElapsedMs(it) || 0))}</span>째</div>` +
       `<div class="mon-bar"><i></i></div>` + ordBeatText(it);
   } else if(st === 'DONE'){
@@ -2256,7 +2265,7 @@ function ordErr(d){
   return d.error || '연결 실패';
 }
 function ordBody(it){
-  const sum = String(it.summary || '');
+  const sum = ordStripNote(it && it.summary);
   const st = it.status;
   if(st === 'DONE') return {t: (it.result ? '✅ ' + it.result : '✅ 완료') + (sum ? '\n' + sum : ''), err: false};
   if(st === 'FAILED' || st === 'TIMEOUT_REVIEW') return {t: (it.error ? '⚠️ ' + it.error : '⚠️ 실패') + (sum ? '\n' + sum : ''), err: true};
@@ -2984,7 +2993,7 @@ function monDevNotebookBody(){
     const it = runs[0], stale = ordStale(it), ms = ordElapsedMs(it) || 0;
     const cls = stale ? stale.lv : 'run';
     const main = `<b>${esc(ordTypeName(it.type))}</b> · ${esc(ordWsName(it.workspace) || '공통')}` +
-      (it.summary ? ` — ${esc(ordShort(it.summary, 70))}` : '');
+      (it.summary ? ` — ${esc(ordShort(ordSumLine(it), 70))}` : '');
     const sub = `⏱ <span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ms))}</span>째 실행 중 · 시작 ${esc(ordWhen(it.started_at || it.claimed_at || it.created_at))}` +
       ordBeatText(it) +
       (runs.length > 1 ? ` · 실행 중 ${runs.length}건` : '') +
@@ -3115,7 +3124,7 @@ function monEvents(){
     const at = (ended ? (ordEndMs(it) || ordStartMs(it)) : ordStartMs(it));
     if(!at) return;
     const lab = (ORD_STATUS[st] || {t: st || '오더'}).t;
-    const body = (st === 'DONE' ? (it.result || it.summary) : (it.error || it.summary)) || '';
+    const body = (st === 'DONE' ? (it.result || ordSumLine(it)) : (it.error || ordSumLine(it))) || '';
     evs.push({at: at, who: 'hub', whoTxt: '🏠 노트북·허브', proj: ordProject(it), ic: ordIcon(it.type),
       tx: `<b>${esc(ordTypeName(it.type))}</b> · ${esc(lab)}` +
         (it.workspace ? ' · ' + esc(ordWsName(it.workspace)) : '') +

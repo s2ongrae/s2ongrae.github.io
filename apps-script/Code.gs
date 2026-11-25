@@ -1349,7 +1349,11 @@ function qqSummary_(type, p) {
   else if (type === 'toss_sync') s = '토스증권 → 가계부 동기화';
   else if (type === 'claude_prompt') {
     const eng = String(p.engine || '').toLowerCase();
-    s = '클로드: ' + String(p.prompt || '').replace(/\s+/g, ' ').slice(0, 160) +
+    const kind = String(p.kind || '').toLowerCase();
+    // 큐가 붙인 [워커 규칙] 은 실행 규칙이지 사람이 읽을 내용이 아니다 — 요약에서는 뗀다(2026-11-25).
+    //  대화(kind='chat')는 '클로드: ' 접두사도 붙이지 않는다(말풍선에 그대로 보이던 것).
+    const body = qqStripWorkerNote_(p.prompt).replace(/\s+/g, ' ');
+    s = (kind === 'chat' ? '' : '클로드: ') + body.slice(0, 160) +
       (String(p.mode || '').toLowerCase() === 'edit' ? ' (파일 수정)' : '') +
       (eng && eng !== 'auto' ? ' · 엔진 ' + eng : '');
   } else if (type === 'git_push') s = '깃 푸시 → ' + String(p.branch || '(브랜치 없음)');
@@ -1939,14 +1943,22 @@ function queueHead(body) {
  *  들어가면 엔진이 그걸 시도하다 턴을 버리고 "테스트를 못 돌렸다"로 끝난다(11/19 실측: 스마트스토어 12건).
  *  포털은 시트에 직접 쓰므로 CommandQueue.gs 를 거치지 않는다 — 여기에도 같은 문구를 붙인다.
  *  · claude_prompt 에만, 이미 있으면 다시 붙이지 않는다(멱등). 해시는 이 문구 뒤 payload 로 계산된다.
+ *  · 대화(kind='chat')에는 붙이지 않는다 — 코드 실행이 아니라 답장이라 셸 규칙이 필요 없고,
+ *    붙으면 말풍선·요약에 규칙 문구가 그대로 보여 시인성이 떨어진다(2026-11-25).
  */
 var QQ_WORKER_NOTE = '\n\n[워커 규칙] 셸(Bash)은 차단되어 있다. 테스트·문법 검증은 네가 저장한 뒤 워커가 직접 돌린다. ' +
   'npm test·node --test 같은 실행 명령을 시도하지 말고, 바꾼 파일과 완료 조건만 보고해라.';
+// 2026-11-25 — 예전에 붙어 저장된 오더·대화도 화면·요약에서는 안 보이게 뗀다(멱등).
+var QQ_WORKER_NOTE_RE = /\s*\[워커 규칙\][\s\S]*$/;
+function qqStripWorkerNote_(s) {
+  return String(s == null ? '' : s).replace(QQ_WORKER_NOTE_RE, '').trim();
+}
 function qqWithWorkerNote_(type, payload) {
   if (type !== 'claude_prompt') return payload;
   var p;
   try { p = qqParse_(payload); } catch (err) { return payload; }
   if (!p || typeof p !== 'object' || Array.isArray(p)) return payload;
+  if (String(p.kind || '').toLowerCase() === 'chat') return payload;
   var prompt = String(p.prompt || '');
   if (!prompt || prompt.indexOf('[워커 규칙]') !== -1) return payload;
   if (prompt.length + QQ_WORKER_NOTE.length > QQ_MAX_PAYLOAD) return payload;

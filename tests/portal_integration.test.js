@@ -1016,6 +1016,28 @@ console.log('V) 💬 비서 통합 회의실 — 카톡 타임라인·@멘션·�
   D13.run(`ORD_ITEMS = [{id:'Q-x', status:'DONE', source:'pi1', type:'claude_prompt', kind:'chat', summary:'<img src=x>@피원', result:'<script>x</script>', created_at:new Date().toISOString()}]; renderOrders()`);
   ok(feed().indexOf('<img') < 0 && feed().indexOf('<script') < 0 && feed().indexOf('&lt;img') >= 0, '말풍선 글자도 그대로 그리지 않는다');
   ok(/class="mt mt-pi1"/.test(feed()), '이스케이프한 뒤에도 @피원 칩은 살아 있다');
+
+  // ⑩ [워커 규칙] 문구는 화면에 안 보인다(2026-11-25) — 새 말뿐 아니라 이미 저장된 옛 메시지도
+  {
+    const note = '\n\n[워커 규칙] 셸(Bash)은 차단되어 있다. 테스트·문법 검증은 네가 저장한 뒤 워커가 직접 돌린다. ' +
+      'npm test·node --test 같은 실행 명령을 시도하지 말고, 바꾼 파일과 완료 조건만 보고해라.';
+    const N = JSON.stringify(note);
+    D13.run(`ORD_ITEMS = [
+      {id:'Q-n1', status:'DONE', source:'portal', type:'claude_prompt', kind:'chat', target:'all',
+       summary:'클로드: 자 ai 친구들 대답해봐라' + ${N}, result:'네, 대답할게요', created_at:new Date().toISOString()},
+      {id:'Q-n2', status:'WAITING_APPROVAL', source:'portal', type:'claude_prompt', kind:'chat', target:'pi1',
+       summary:'클로드: @피원 확인해줘' + ${N}, created_at:new Date().toISOString()},
+      {id:'Q-n3', status:'RUNNING', source:'portal', type:'claude_prompt', kind:'ask', workspace:'gaegyebu',
+       summary:'클로드: 파일 하나만 고쳐라' + ${N}, created_at:new Date().toISOString()}
+    ]; renderOrders()`);
+    const fn = feed();
+    ok(fn.indexOf('워커 규칙') < 0 && fn.indexOf('npm test') < 0, '말풍선·요약에 [워커 규칙] 문구가 안 보인다');
+    ok(fn.indexOf('클로드: ') < 0, '대화 말풍선에 클로드: 접두사가 붙지 않는다');
+    ok(/자 ai 친구들 대답해봐라/.test(fn) && /확인해줘/.test(fn), '본문은 그대로 보인다');
+    ok(D13.run(`ordMsgText({kind:'ask', summary:'클로드: 파일 하나만 고쳐라' + ${N} + ' (파일 수정)'})`) === '파일 하나만 고쳐라',
+      '오더 본문도 규칙 문구·(파일 수정) 꼬리를 뗀다');
+    ok(D13.run(`ordStripNote('본문' + ${N})`) === '본문', 'strip 헬퍼는 문구만 뗀다');
+  }
 }
 
 console.log('W) 👥 큐·부이·키링 기본 탑재 · 서버 명부 공유 · 부분 사용량 보고');
