@@ -300,6 +300,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .chat-bubble{max-width:min(86%,560px);background:#fff;border:1px solid var(--border);border-radius:14px;
   padding:9px 12px;min-width:0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
 .chat-row.out .chat-bubble{background:var(--blue-l);border-color:#C7D7FE;border-bottom-right-radius:4px}
+.chat-bubble.side-in{border-bottom-left-radius:4px}
 .chat-bubble.in{border-bottom-left-radius:4px}
 .chat-bubble.warn{background:var(--gold-l);border-color:#FDE68A}
 .chat-bubble.bad{background:var(--red-l);border-color:#FECACA}
@@ -2103,12 +2104,15 @@ function ordWhoBadge(k){
   return `<span class="who ${ordWhoCls(k)}">${esc(d.icon + ' ' + d.name)}</span>`;
 }
 /** 오른쪽(나) 말풍선 — 내가 보낸 말 */
-function chatOut(it){
+/** 오른쪽(나) 말풍선 — 내가 보낸 말. left=true 면 **남이 보낸 말**이라 왼쪽에 그린다(2026-11-25 v28). */
+function chatOut(it, left){
   const s = ORD_STATUS[String(it.status || '').toUpperCase()] || {t: String(it.status || ''), c: 'c-off'};
   const tg = ordTargetLabel(ordTargetKey(it));
   const body = ordMsgText(it) || ordBody(it).t;
-  const to = ordIsMine(it) ? `<span class="chat-to">→ ${esc(tg.label)}</span>` : `<span class="chat-to">→ ${esc(tg.label)}</span>`;
-  return `<div class="chat-row out"><div class="chat-bubble">` +
+  const who = ordSenderLabel(ordSenderKey(it));
+  const to = `<span class="chat-to">→ ${esc(tg.label)}</span>`;
+  const av = left ? `<div class="chat-av">${esc(who.icon || '🤖')}</div>` : '';
+  return `<div class="chat-row ${left ? 'in' : 'out'}">${av}<div class="chat-bubble${left ? ' side-in' : ''}">` +
     `<div class="chat-meta">${ordWhoBadge(ordSenderKey(it))}${to}<span class="ord-chip ${s.c}">${esc(s.t)}</span>` +
     (it.auto_approved ? '<span class="ord-chip c-auto" title="이미 지시한 일반 코드 작업이라 승인 없이 실행해요">자동(위임)</span>' : '') +
     `<span class="ord-when">${esc(ordWhen(it.created_at))}</span></div>` +
@@ -2287,7 +2291,7 @@ function renderOrders(){
   items.forEach(it => {
     const d = ordChatDay(it.created_at);
     if(d && d !== day){ html += `<div class="chat-day">${esc(d)}</div>`; day = d; }
-    html += chatOut(it) + chatIn(it);
+    html += chatOut(it, !ordIsMine(it)) + chatIn(it);
   });
   box.innerHTML = html;
   try { if(box.scrollTop !== undefined) box.scrollTop = nearBottom ? (numOf(box.scrollHeight) || 0) : keepTop; } catch(e) {}

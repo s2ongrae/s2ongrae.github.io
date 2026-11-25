@@ -1162,6 +1162,10 @@ console.log('X) 🏷️ 말풍선 닉네임·이모지 · 부계정(*2·_2·pi3)
   ok((feed17().match(/chat-av/g) || []).length >= 5, '말풍선마다 아바타가 있다');
   ok(D17.run("ordSenderLabel('cue').name") === '큐' && D17.run("ordSenderLabel('cue').icon") === '🌀', '발신 라벨 = 닉네임·이모지');
   ok(D17.run("ordSenderLabel('portal').name") === '포털', '내 말(portal)은 포털 그대로');
+  // 비서가 낸 말은 오른쪽(내 말)이 아니라 **왼쪽**에 그린다(2026-11-25 v28)
+  ok(D17.run("ordIsMine({source:'cue'})") === false, '큐가 낸 말은 내 말이 아니다');
+  ok(/class="chat-row in"><div class="chat-av">🌀<\/div><div class="chat-bubble side-in">/.test(feed17()), '큐가 낸 말도 왼쪽 말풍선(🌀 아바타)');
+  ok(/class="chat-row in"><div class="chat-av">🔑<\/div><div class="chat-bubble side-in">/.test(feed17()), '키링이 낸 말도 왼쪽 말풍선(🔑)');
 
   // ② 부계정 비서 자동 합류 — 코드 수정 없이 베이스 닉네임·이모지를 따라간다
   const added = D17.run("agentAutoJoin(['cue2','vooy2','keyring2','pi3','keyring_2'])");
