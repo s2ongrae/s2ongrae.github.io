@@ -210,6 +210,16 @@ function roomUseState(pct){
   if(n < 30) return 'soon';
   return 'ok';
 }
+const ROOM_WS_LABEL = {'gaegyebu': '가계부', 'content-hub': '콘텐츠 허브', 'insurance-manager': '보험관리툴', 'smartstore-hub': '스마트스토어', 's2ongrae.github.io': '포털', 'hub-agent': '허브 에이전트 (노트북)'};
+function roomWsName(w){ return ROOM_WS_LABEL[w] || String(w || '기본'); }
+/** 보낼 작업 위치 — 저장값이 허용 목록에 있으면 그것, 없으면 hub-agent, 그것도 없으면 첫 번째 */
+function roomWsPick(list, saved){
+  const arr = (Array.isArray(list) ? list : []).map(String).filter(Boolean);
+  const s = String(saved || '');
+  if(s && arr.indexOf(s) >= 0) return s;
+  if(arr.indexOf('hub-agent') >= 0) return 'hub-agent';
+  return arr[0] || '';
+}
 const ROOM_USE_TXT = {danger: '위험', soon: '임박', ok: '정상', unknown: '미확인'};
 
 /** 본문 속 @이름 → 칩 (이미 esc() 한 문자열에만 적용) */
@@ -330,7 +340,8 @@ function roomOnlineCount(items, hb, now){
   const S = {
     items: [], at: '', sum: {}, hb: null, usage: {},
     busy: false, sending: false, err: '', sig: '', painted: false,
-    lastFetch: 0, statusAt: 0, usageAt: 0, chatOk: null
+    lastFetch: 0, statusAt: 0, usageAt: 0, chatOk: null,
+    wss: [], ws: lsGet('room_ws')
   };
   let pinned = true, toastTimer = null;
 
@@ -574,7 +585,13 @@ function roomOnlineCount(items, hb, now){
     lines.push('노트북 <b>' + (hb && roomNum(hb.min) !== null ? roomAgo(hb.min) : '신호 없음') + '</b>' +
       ' · 대기 <b>' + (c.pending || 0) + '</b> · 승인 <b>' + (c.waiting || 0) + '</b> · 실행 <b>' + (c.running || 0) + '</b>');
     lines.push('잔여 %는 포털·비서가 기록한 값이에요 (없으면 —). 위험 &lt;10% · 임박 &lt;30%');
-    $('dfoot').innerHTML = lines.map(l => '<div>' + l + '</div>').join('');
+    const cur = roomWsPick(S.wss, S.ws);
+    const wsOpts = (S.wss.length ? S.wss : ['hub-agent']).map(w =>
+      '<option value="' + esc(w) + '"' + (w === cur ? ' selected' : '') + '>' + esc(roomWsName(w)) + '</option>').join('');
+    $('dfoot').innerHTML = lines.map(l => '<div>' + l + '</div>').join('') +
+      '<div class="wsrow"><label for="d-ws">보내는 곳</label><select id="d-ws">' + wsOpts + '</select></div>';
+    const sel = $('d-ws');
+    if(sel) sel.onchange = () => { S.ws = sel.value; lsSet('room_ws', S.ws); toast('보내는 곳 — ' + roomWsName(S.ws)); };
   }
   function drawerOpen(){
     $('scrim').classList.add('on');
@@ -647,7 +664,8 @@ function roomOnlineCount(items, hb, now){
     try{
       const target = roomTargetFromText(text) || 'notebook';
       const payload = {prompt: text, mode: 'ask', kind: 'chat', target: target};
-      const d = await api('queue_enqueue', {type: 'claude_prompt', workspace: '', payload: payload, source: 'portal', client_id: 'portal'});
+      const ws = roomWsPick(S.wss, S.ws) || 'hub-agent';
+      const d = await api('queue_enqueue', {type: 'claude_prompt', workspace: ws, payload: payload, source: 'portal', client_id: 'portal'});
       if(!d || d.ok !== true){ toast('접수 실패 — ' + ((d && (d.error || d.code)) || '서버 확인')); return; }
       inp.value = '';
       onInput();
@@ -717,6 +735,7 @@ function roomOnlineCount(items, hb, now){
           timeout: Number(d.timeout) || 0, done: Number(d.done) || 0, failed: Number(d.failed) || 0
         };
         S.chatOk = (typeof d.chat === 'boolean') ? d.chat : null;
+        if(Array.isArray(d.workspaces) && d.workspaces.length) S.wss = d.workspaces.map(String).slice(0, 20);
         S.err = '';
         hideStrip();
       } else {

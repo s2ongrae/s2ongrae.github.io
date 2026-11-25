@@ -134,7 +134,7 @@ function coreTests() {
   const names = ['ROOM_AGENTS', 'ROOM_CHIPS', 'ROOM_ALIASES', 'roomAgentById', 'roomMentionMap', 'roomTargetFromText',
     'roomSenderKey', 'roomIsMine', 'roomTargetKey', 'roomTargetLabel', 'roomReplyKey', 'roomReplyWhoKey',
     'roomNeedsWorker', 'roomIsPlainReply', 'roomShowReply', 'roomMsgText', 'roomStatus', 'roomWhen', 'roomDay',
-    'roomAgo', 'roomUseState', 'roomMd', 'roomLinks', 'roomLastActivity', 'roomOnlineCount', 'esc'];
+    'roomAgo', 'roomUseState', 'roomMd', 'roomLinks', 'roomWsPick', 'roomWsName', 'roomLastActivity', 'roomOnlineCount', 'esc'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -223,7 +223,14 @@ function coreTests() {
   ok(C.roomMd('javascript:alert(1)').indexOf('<a ') < 0, 'javascript: 는 링크가 아님');
   ok(C.esc('"&\'<>') === '&quot;&amp;&#39;&lt;&gt;', 'esc 기본');
 
-  console.log('K) 최근 활동·온라인 수');
+  console.log('K) 보내는 곳(작업 위치) — 서버가 준 허용 목록 안에서만');
+  ok(C.roomWsPick(['gaegyebu', 'hub-agent'], 'gaegyebu') === 'gaegyebu', '저장한 곳이 허용 목록에 있으면 그대로');
+  ok(C.roomWsPick(['gaegyebu', 'hub-agent'], 'smartstore-hub') === 'hub-agent', '목록에 없는 저장값이면 hub-agent');
+  ok(C.roomWsPick(['gaegyebu'], '') === 'gaegyebu', 'hub-agent 가 없으면 첫 번째');
+  ok(C.roomWsPick([], 'gaegyebu') === '', '목록을 모를 때는 빈 값(보내기가 hub-agent 로 보충)');
+  ok(C.roomWsName('gaegyebu') === '가계부' && C.roomWsName('hub-agent').indexOf('허브') > -1, '작업 위치 한글 이름');
+
+  console.log('L) 최근 활동·온라인 수');
   const nowMs = Date.now();
   const items = [
     {id: '1', source: 'pi1', target: 'portal', kind: 'chat', status: 'DONE', created_at: new Date(nowMs - 5 * 60000).toISOString()},
@@ -238,7 +245,7 @@ function coreTests() {
   ok(C.roomOnlineCount(items, {heartbeat: {state: 'ok', min: 1}}, nowMs) === 2, '활동 비서 1명 + 노트북 하트비트 = 2');
   ok(C.roomOnlineCount([], {heartbeat: {state: 'unknown', min: null}}, nowMs) === 0, '신호 없으면 0명');
 
-  console.log('L) 비밀값 하드코딩 없음 (공개 저장소)');
+  console.log('M) 비밀값 하드코딩 없음 (공개 저장소)');
   const all = html + js + css + sw;
   ok(!/AKfycb[0-9A-Za-z_-]{20,}/.test(all), 'Apps Script 주소 없음');
   ok(!/AIza[0-9A-Za-z_-]{20,}/.test(all), '구글 API 키 없음');

@@ -310,6 +310,11 @@ input,textarea{font:inherit;color:inherit}
 .dfoot{flex:0 0 auto; padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line); background:var(--card2)}
 .dfoot .ln{font-size:11.5px; color:var(--sub); line-height:1.6; margin-bottom:8px}
 .dfoot .ln b{color:var(--txt)}
+.wsrow{display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:11.5px; font-weight:800; color:var(--sub)}
+.wsrow select{
+  flex:1; padding:8px 10px; border-radius:9px; border:1px solid var(--line2);
+  background:var(--card); color:var(--txt); font-size:12.5px; font-weight:700;
+}
 .dfoot .btns{display:flex; gap:8px}
 .dfoot .btns button{flex:1; padding:10px; border-radius:10px; font-size:12.5px; font-weight:800; background:var(--card); border:1px solid var(--line); color:var(--txt)}
 .dfoot .btns button.primary{background:var(--nav); color:#fff; border-color:var(--nav)}

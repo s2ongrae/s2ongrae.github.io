@@ -6,6 +6,8 @@
 
 - 포털 `#order-card`(비서 통합 회의실)와 **같은 큐**를 카톡처럼 보여 줍니다: `queue_list` · `usage_get` · `queue_status`
 - 보내기는 `queue_enqueue` (`type: claude_prompt`, `payload.kind: 'chat'`, `payload.target: @멘션`)
+- 서버가 `claude_prompt` 에 **작업 위치(workspace)** 를 요구해서, 편대 서랍 아래 「보내는 곳」에서 고릅니다.
+  기본은 `hub-agent`(없으면 서버가 준 목록의 첫 번째)이고, 고른 값은 이 기기에 저장됩니다.
 - 머리말의 `👥 9명 · 🟢 n` 을 누르면 **편대 서랍**: 9명 역할 한 줄 + 잔여 % + 최근 활동
 - 앱에서 승인·오더 실행은 하지 않습니다(대화 전용) — 승인은 포털 회의실에서.
 
