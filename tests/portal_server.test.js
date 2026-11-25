@@ -935,5 +935,122 @@ console.log('15) 📊 비서 사용량 (usage_get · usage_set) 과 피원·피�
   ok(post({action: 'agent_status', key: KS}).pi1.state === 'idle', '피원(pi1) 비트도 따로 남는다');
 }
 
+console.log('16) 👥 참여 비서 명부(agents_get·agent_save) · 부분 사용량 보고(usage_report) · 큐 자동 합류(sources_seen)');
+{
+  const KS = S.props.SECRET_KEY;
+  const folder = S.ROOT.folders.filter(x => x.name === '김성래포털')[0];
+  const agFile = () => folder.files.filter(x => x.name === '포털_비서목록.json')[0];
+  const agItems = () => post({action: 'agents_get', key: KS}).items;
+
+  // ① 처음엔 빈 명부 — 기본 참여자(피원·피투·큐·부이·키링)는 화면이 갖고 있다
+  let r = post({action: 'agents_get', key: KS});
+  ok(r.ok === true && Array.isArray(r.items) && r.items.length === 0, '처음엔 빈 명부');
+  ok(r.max === 24, '명부 상한(24명)을 알려준다');
+
+  // ② 화면 ＋추가 — 한 기기에서 넣은 비서가 다른 기기에서도 보인다
+  r = post({action: 'agent_save', key: KS, items: [{id: 'cue2', name: '큐2', icon: '🎯', group: '일일'}]});
+  ok(r.ok === true && r.saved === 1 && r.items.some(x => x.id === 'cue2' && x.name === '큐2'), '새 비서(cue2)가 명부에 들어간다');
+  ok(!!agFile(), '드라이브에 포털_비서목록.json 이 생긴다');
+  ok(agItems().length === 1 && agItems()[0].id === 'cue2', 'agents_get 로 같은 명부를 읽는다(다른 폰·PC)');
+
+  // ③ 기본 참여자는 서버에 쌓지 않는다(화면 AGENT_SEED 가 진짜)
+  r = post({action: 'agent_save', key: KS, items: [{id: 'cue', name: '큐'}, {id: 'keyring', name: '키링'}]});
+  ok(r.ok === true && agItems().length === 1, '기본 참여자(cue·keyring)는 파일에 쌓지 않는다');
+
+  // ④ 이름 변경은 at 이 더 최근인 쪽이 이긴다
+  const nowMs = Date.now();
+  post({action: 'agent_save', key: KS, items: [{id: 'cue2', name: '큐투', at: new Date(nowMs).toISOString()}]});
+  post({action: 'agent_save', key: KS, items: [{id: 'cue2', name: '옛이름', at: new Date(nowMs - 60000).toISOString()}]});
+  ok(agItems().filter(x => x.id === 'cue2')[0].name === '큐투', '오래된 이름은 덮지 않는다');
+  post({action: 'agent_save', key: KS, items: [{id: 'cue2', name: '큐2', at: new Date(nowMs + 60000).toISOString()}]});
+  ok(agItems().filter(x => x.id === 'cue2')[0].name === '큐2', '더 최근 이름은 덮는다');
+
+  // ⑤ 빼기
+  r = post({action: 'agent_save', key: KS, removed: ['cue2']});
+  ok(r.ok === true && r.removed === 1 && agItems().length === 0, '뺀 비서는 명부에서 사라진다');
+
+  // ⑥ 잘못된 값
+  ok(post({action: 'agent_save', key: KS, items: [{id: 'BAD ID!', name: 'x'}]}).ok === false, '규칙에 안 맞는 id 는 거절');
+  ok(post({action: 'agent_save', key: KS, items: []}).ok === false, '빈 요청은 거절');
+  ok(post({action: 'agents_get', key: 'wrong'}).ok === false, '키 없이는 명부도 못 읽는다');
+
+  // ⑦ 부분 사용량 보고 — 외부 비서가 자기 줄만 바꾼다
+  //    (15)절이 pi1 을 '지금+1분'으로 넣어 두었으니 그보다 뒤 시각으로 움직인다)
+  const t = n => new Date(nowMs + n * 1000).toISOString();
+  post({action: 'usage_set', key: KS, items: [{id: 'pi1', pct: 77, at: t(300)}, {id: 'cue', pct: 55, at: t(300)}]});
+  r = post({action: 'usage_report', key: KS, id: 'cue', pct: 12, note: '리서치 대기', at: t(360)});
+  ok(r.ok === true && r.saved === 1, 'usage_report 한 건으로 보고');
+  const ug = () => post({action: 'usage_get', key: KS}).items;
+  ok(ug().filter(x => x.id === 'cue')[0].pct === 12, 'cue 줄만 갱신된다');
+  ok(ug().filter(x => x.id === 'cue')[0].note === '리서치 대기', '한 줄 메모도 함께 남는다');
+  ok(ug().filter(x => x.id === 'pi1')[0].pct === 77, '다른 비서(pi1) 값은 건드리지 않는다');
+  post({action: 'usage_report', key: KS, id: 'cue', pct: 10, at: t(420)});
+  ok(ug().filter(x => x.id === 'cue')[0].note === '리서치 대기', '메모를 안 보내면 이전 메모가 남는다(부분 갱신)');
+  post({action: 'usage_report', key: KS, id: 'cue', pct: 9, note: '', at: t(480)});
+  ok(!ug().filter(x => x.id === 'cue')[0].note, '빈 메모를 보내면 지운다');
+  post({action: 'usage_report', key: KS, id: 'keyring', remain: 3, total: 10, status: 'soon', at: t(540)});
+  ok(ug().filter(x => x.id === 'keyring')[0].pct === 30, 'remain+total 은 남은 %로 환산한다');
+  ok(ug().filter(x => x.id === 'keyring')[0].status === 'soon', 'status 도 같이 남는다');
+  ok(post({action: 'usage_report', key: KS, id: 'cue', pct: 120}).ok === false, '120% 는 거절');
+  ok(post({action: 'usage_report', key: KS, id: 'BAD ID!', pct: 10}).ok === false, '규칙에 안 맞는 id 는 거절');
+  ok(post({action: 'usage_report', key: KS, note: 'id 없음'}).ok === false, 'id 도 items 도 없으면 거절');
+  ok(post({action: 'usage_get', key: KS}).ids.indexOf('keyring') >= 0, 'usage_get 의 ids 에 키링도 들어간다');
+
+  // ⑧ 큐에 처음 말을 건 비서(sources_seen) — 화면이 참여자로 자동 합류시킨다
+  const SHEET2 = 'SHEETidAgents001';
+  const HEAD2 = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const mkRow = (id, source, payload) => {
+    const row = new Array(HEAD2.length).fill('');
+    row[HEAD2.indexOf('id')] = id;
+    row[HEAD2.indexOf('created_at')] = '2026-11-25T18:00:00+09:00';
+    row[HEAD2.indexOf('source')] = source;
+    row[HEAD2.indexOf('type')] = 'claude_prompt';
+    row[HEAD2.indexOf('payload')] = payload;
+    row[HEAD2.indexOf('status')] = 'DONE';
+    return row;
+  };
+  S.addSheet(SHEET2, {'Command_Queue': [HEAD2.slice(0),
+    mkRow('Q-a1', 'portal', JSON.stringify({prompt: '안녕', mode: 'ask'})),
+    mkRow('Q-a2', 'cue', JSON.stringify({prompt: '연결 확인', mode: 'ask'})),
+    mkRow('Q-a3', 'vooy', JSON.stringify({prompt: '연결 확인', mode: 'ask'})),
+    mkRow('Q-a4', 'keyring', JSON.stringify({prompt: '연결 확인', mode: 'ask'})),
+    mkRow('Q-a5', 'cue2', JSON.stringify({prompt: '연결 확인', mode: 'ask'}))
+  ]});
+  S.props.QUEUE_SHEET_ID = SHEET2;
+  r = post({action: 'queue_list', key: KS, limit: 10});
+  ok(Array.isArray(r.sources_seen) && r.sources_seen.indexOf('cue') >= 0 && r.sources_seen.indexOf('vooy') >= 0 && r.sources_seen.indexOf('keyring') >= 0,
+    'sources_seen 에 큐·부이·키링이 온다');
+  ok(r.sources_seen.indexOf('portal') < 0, '내(portal) 말은 합류 후보가 아니다');
+  ok(r.sources_seen.indexOf('cue2') >= 0, '새 비서(cue2)도 큐에 말을 걸면 후보로 온다');
+  ok(JSON.stringify(r.targets) === JSON.stringify(['all', 'pi1', 'pi2', 'notebook', 'cue', 'vooy', 'keyring']),
+    'targets 목록에 큐·부이·키링이 들어간다');
+  ok(r.sources.indexOf('cue') >= 0 && r.sources.indexOf('keyring') >= 0, 'sources 목록에도 들어간다');
+
+  // ⑨ 본문에 @이름만 적어도 그 비서 앞으로 — 화면 칩과 같은 규칙(서버도 한 번 더 본다)
+  const enq = (prompt, extra) => post(Object.assign({action: 'queue_enqueue', key: KS, type: 'claude_prompt',
+    workspace: 'gaegyebu', source: 'portal', payload: {prompt: prompt, mode: 'ask'}}, extra || {}));
+  r = enq('@큐 이거 리서치해줘');
+  ok(r.ok === true && r.item.target === 'cue', '@큐 만 적어도 target=cue 로 간다');
+  r = enq('@키링 12월 3일 KTX 예약해줘');
+  ok(r.item.target === 'keyring', '@키링 → target=keyring');
+  r = enq('@부이 일정 비교해줘');
+  ok(r.item.target === 'vooy', '@부이 → target=vooy');
+  r = enq('@피투 이번 주 소재 뽑아줘');
+  ok(r.item.target === 'pi2', '@피투 → target=pi2');
+  r = enq('메일 a@b.com 으로 보내줘');
+  ok(!r.item.target, '주소 속 @ 는 멘션으로 보지 않는다');
+  r = enq('@큐2 그것도 봐줘');
+  ok(!r.item.target || r.item.target !== 'cue2', '명부에 없는 이름(cue2)은 기본 이름 규칙으로 안 잡힌다');
+  post({action: 'agent_save', key: KS, items: [{id: 'cue2', name: '큐2'}]});
+  r = enq('@큐2 그것도 봐줘');
+  ok(r.item.target === 'cue2', '명부에 올린 비서 이름(@큐2)도 대상으로 잡힌다');
+  r = enq('@전체 잠깐 모여봐');
+  ok(r.item.target === 'all', '@전체 → target=all');
+  r = enq('@피투야 봐줘', {payload: {prompt: '@피투야 봐줘', mode: 'ask', target: 'cue'}});
+  ok(r.item.target === 'cue', '명시한 target 이 있으면 본문 멘션보다 우선한다');
+}
+
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);
 process.exit(fail?1:0);

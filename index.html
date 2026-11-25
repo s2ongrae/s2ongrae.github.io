@@ -227,6 +227,9 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .who.w-pi1{background:#E7F8EF;color:#047857}
 .who.w-pi2{background:#F3E8FF;color:#6B21A8}
 .who.w-nb{background:#FFF3E0;color:#B45309}
+.who.w-cue{background:#CCFBF1;color:#0F766E}
+.who.w-vooy{background:#FFE4E6;color:#BE123C}
+.who.w-key{background:#E2E8F0;color:#334155}
 .who.w-me{background:var(--blue-l);color:var(--blue-d)}
 .chat-to{font-size:9.5px;color:var(--hint);font-weight:700}
 .mt{display:inline-block;border-radius:999px;padding:0 6px;font-size:11px;font-weight:800;
@@ -234,6 +237,9 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .mt-pi1{background:#E7F8EF;border-color:#A7F3D0;color:#047857}
 .mt-pi2{background:#F3E8FF;border-color:#E9D5FF;color:#6B21A8}
 .mt-notebook{background:#FFF3E0;border-color:#FDE68A;color:#B45309}
+.mt-cue{background:#CCFBF1;border-color:#99F6E4;color:#0F766E}
+.mt-vooy{background:#FFE4E6;border-color:#FECDD3;color:#BE123C}
+.mt-key{background:#E2E8F0;border-color:#CBD5E1;color:#334155}
 .mt-new{background:#E0F2FE;border-color:#BAE6FD;color:#075985}
 .mt-all{background:#EEF2FF;border-color:#C7D2FE;color:#3730A3}
 .who.w-new{background:#E0F2FE;color:#075985}
@@ -1118,6 +1124,10 @@ const ORD_DECIDING = {};
 const AGENT_SEED = [
   {id: 'pi1',        name: '피원',                 icon: '🤖', role: '비서', color: 'pi1', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '본계정 비서 (pi1)', status: 'agent.json'},
   {id: 'pi2',        name: '피투',                 icon: '🤖', role: '비서', color: 'pi2', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '부계정 비서 (pi2)', status: 'pi2.json'},
+  // 2026-11-25(v27) — 폰 부계정 비서 셋. 여기 한 줄씩 있으면 @멘션 칩·말풍선 배지·사용량 카드가 같이 생긴다.
+  {id: 'cue',        name: '큐',                   icon: '🎯', role: '비서', color: 'cue', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '리서치·외부 자동화 (cue)'},
+  {id: 'vooy',       name: '부이',                 icon: '🛟', role: '비서', color: 'vooy', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '일정·비교 정리 (vooy)'},
+  {id: 'keyring',    name: '키링',                 icon: '🔑', role: '비서', color: 'key', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '생활 예약·전화 보조 (keyring)'},
   {id: 'notebook',   name: '집 노트북',            icon: '🏠', role: '실행', color: 'nb',  quota: false, mention: true,  mentionAs: '노트북', group: '일일', reset: 'daily04', sub: 'hub-agent — 오더를 실제로 실행'},
   {id: 'claude',     name: '집 노트북 · Claude',    icon: '⚡', role: '엔진', color: 'nb',  quota: true,  mention: false, group: '일일', reset: 'daily04', sub: '1순위 엔진'},
   {id: 'agy',        name: '집 노트북 · 제미나이',   icon: '✨', role: '엔진', color: 'nb',  quota: true,  mention: false, group: '일일', reset: 'daily04', sub: '폴백 엔진'},
@@ -1128,20 +1138,29 @@ const AGENT_SEED = [
   {id: 'telegram',   name: '텔레그램',             icon: '✈️', role: '나',   color: 'me',  quota: false, mention: false}
 ];
 const AGENT_KEY = 'portal_agents_v1';
+const AGENT_MAX_CUSTOM = 24;                     // 서버(AG_MAX)와 같은 상한
 let AGENTS = [];
+let AG_SRV = null;                               // 서버 명부를 아는가(null=모름 · false=예전 배포)
+/** 이 기기에 저장된 추가 비서(예약 id·기본 참여자는 뺀다) */
+function agentCustom(){
+  let a = [];
+  try { a = JSON.parse(localStorage.getItem(AGENT_KEY) || '[]'); } catch(e) { a = []; }
+  return (Array.isArray(a) ? a : []).filter(x => x && /^[a-z0-9][a-z0-9_-]{0,11}$/.test(String(x.id || '')) && String(x.name || '').trim());
+}
+function agentCustomSave(list){
+  try { localStorage.setItem(AGENT_KEY, JSON.stringify((Array.isArray(list) ? list : []).slice(0, AGENT_MAX_CUSTOM))); } catch(e) {}
+  AGENTS = []; agentReload();
+}
 /** 저장된 추가 비서까지 합친 목록(캐시). */
 function agents(){
   if(AGENTS && AGENTS.length) return AGENTS;
   return agentReload();
 }
 function agentReload(){
-  let custom = [];
-  try { custom = JSON.parse(localStorage.getItem(AGENT_KEY) || '[]'); } catch(e) { custom = []; }
-  const clean = (Array.isArray(custom) ? custom : []).filter(a =>
-    a && /^[a-z0-9][a-z0-9_-]{0,11}$/.test(String(a.id || '')) && String(a.name || '').trim());
-  AGENTS = AGENT_SEED.concat(clean.slice(0, 12).map(a => ({
+  const clean = agentCustom();
+  AGENTS = AGENT_SEED.concat(clean.slice(0, AGENT_MAX_CUSTOM).map(a => ({
     id: String(a.id), name: String(a.name).slice(0, 16), icon: String(a.icon || '🤖').slice(0, 2),
-    role: '비서', color: 'new', quota: true, mention: true,
+    role: '비서', color: 'new', quota: true, mention: true, auto: !!a.auto,
     group: a.group === '주간' ? '주간' : '일일', reset: a.group === '주간' ? 'weekly' : 'daily04',
     sub: String(a.sub || '내가 추가한 비서').slice(0, 40), custom: true
   })));
@@ -1162,21 +1181,107 @@ function agentAdd(name, group, icon){
   const nm = String(name || '').trim().slice(0, 16);
   if(!nm) return null;
   const id = 'a' + Date.now().toString(36);
-  let custom = [];
-  try { custom = JSON.parse(localStorage.getItem(AGENT_KEY) || '[]'); } catch(e) { custom = []; }
-  custom = (Array.isArray(custom) ? custom : []).concat([{id: id, name: nm, icon: String(icon || '🤖').slice(0, 2), group: group === '주간' ? '주간' : '일일'}]);
-  try { localStorage.setItem(AGENT_KEY, JSON.stringify(custom.slice(0, 12))); } catch(e) {}
-  AGENTS = []; agentReload();
+  const at = new Date().toISOString();
+  agentCustomSave(agentCustom().concat([{id: id, name: nm, icon: String(icon || '🤖').slice(0, 2), group: group === '주간' ? '주간' : '일일', at: at}]));
+  agentPush([{id: id, name: nm, icon: String(icon || '🤖').slice(0, 2), group: group === '주간' ? '주간' : '일일', at: at}]);
   return id;
 }
 function agentRemove(id){
-  let custom = [];
-  try { custom = JSON.parse(localStorage.getItem(AGENT_KEY) || '[]'); } catch(e) { custom = []; }
-  custom = (Array.isArray(custom) ? custom : []).filter(a => a && a.id !== id);
-  try { localStorage.setItem(AGENT_KEY, JSON.stringify(custom)); } catch(e) {}
+  agentCustomSave(agentCustom().filter(a => a && a.id !== id));
   delete USE_DATA[id];
   useSaveLocal();
-  AGENTS = []; agentReload();
+  agentPush(null, [{id: id, at: new Date().toISOString()}]);   // 뺀 시각까지 같이 — 다른 기기가 확실히 지운다
+}
+/**
+ * 서버 명부와 이 기기 명부를 합친다 — id 가 같으면 at 이 더 최근인 이름이 이긴다.
+ * 어느 폰·PC 에서 ＋추가하거나 큐에 처음 말을 걸어도 여기가 한곳으로 모인다.
+ *  · removed(다른 기기가 뺀 기록)가 이 기기 값보다 최근이면 이 기기에서도 지운다.
+ */
+function agentMerge(list, removed){
+  let changed = false;
+  if(Array.isArray(removed) && removed.length){
+    const keep = agentCustom().filter(a => {
+      const hit = removed.filter(r => r && String(r.id || '').toLowerCase() === a.id)[0];
+      if(!hit) return true;
+      const rmAt = Date.parse(hit.at || '') || 0;
+      const at = Date.parse(a.at || '') || 0;
+      if(rmAt >= at){ changed = true; return false; }
+      return true;
+    });
+    if(changed) agentCustomSave(keep);
+  }
+  const by = {};
+  agentCustom().forEach(a => { by[a.id] = a; });
+  (Array.isArray(list) ? list : []).forEach(x => {
+    const id = String((x && x.id) || '').toLowerCase();
+    if(!/^[a-z0-9][a-z0-9_-]{0,11}$/.test(id)) return;
+    if(agentByIdSeed(id)) return;                       // 기본 참여자는 화면이 갖고 있다
+    const name = String((x && x.name) || id).trim().slice(0, 16) || id;
+    const at = String((x && x.at) || '');
+    const old = by[id];
+    if(old){
+      const oldAt = Date.parse(old.at || '') || 0, newAt = Date.parse(at) || 0;
+      if(newAt <= oldAt) return;
+      by[id] = Object.assign({}, old, {name: name, icon: String(x.icon || old.icon || '🤖').slice(0, 2),
+        group: x.group === '주간' ? '주간' : '일일', at: at, auto: !!x.auto});
+      changed = true;
+      return;
+    }
+    by[id] = {id: id, name: name, icon: String((x && x.icon) || '🤖').slice(0, 2),
+      group: x.group === '주간' ? '주간' : '일일', at: at, auto: !!x.auto};
+    changed = true;
+  });
+  if(changed){ agentCustomSave(Object.keys(by).map(k => by[k])); renderRoom(); renderUse(true); }
+  return changed;
+}
+function agentByIdSeed(id){ return AGENT_SEED.some(a => a.id === id); }
+/** 서버 명부 읽기 — 예전 배포면 조용히 이 기기 명부만 쓴다(토큰 0) */
+async function agentServerGet(){
+  if(!serverConfigured() || AG_SRV === false) return null;
+  try{
+    const d = await post({action: 'agents_get'});
+    if(!d || d.ok !== true){ if(d && /알 수 없는/.test(String(d.error || ''))) AG_SRV = false; return null; }
+    AG_SRV = true;
+    if(Array.isArray(d.items)) agentMerge(d.items, d.removed);
+    return d;
+  } catch(e){ return null; }
+}
+/** 서버 명부에 더하기(items)/빼기(removed) — 실패해도 화면은 그대로(다음에 다시 보낸다) */
+async function agentPush(items, removed){
+  if(!serverConfigured() || AG_SRV === false) return null;
+  const body = {action: 'agent_save'};
+  if(Array.isArray(items) && items.length) body.items = items;
+  if(Array.isArray(removed) && removed.length) body.removed = removed;
+  if(!body.items && !body.removed) return null;
+  try{
+    const d = await post(body);
+    if(d && d.ok === true){ AG_SRV = true; if(Array.isArray(d.items)) agentMerge(d.items, d.removed_items); }
+    else if(d && /알 수 없는/.test(String(d.error || ''))) AG_SRV = false;
+    return d;
+  } catch(e){ return null; }
+}
+/** 큐에 처음 말을 건 비서(sources_seen)를 참여자로 자동 합류 — 어느 기기에서든 @멘션으로 부를 수 있게 */
+const AGENT_KNOWN_NAMES = {cue: '큐', vooy: '부이', keyring: '키링', pi1: '피원', pi2: '피투'};
+function agentAutoJoin(ids){
+  const list = Array.isArray(ids) ? ids : [];
+  if(!list.length) return [];
+  const have = {};
+  agents().forEach(a => { have[a.id] = 1; });
+  const custom = agentCustom(), added = [], at = new Date().toISOString();
+  list.forEach(raw => {
+    const id = String(raw || '').trim().toLowerCase();
+    if(!/^[a-z0-9][a-z0-9_-]{0,11}$/.test(id) || have[id]) return;
+    if(['all', 'portal', 'phone', 'telegram', 'notebook'].indexOf(id) >= 0) return;
+    const nm = AGENT_KNOWN_NAMES[id] || id;
+    const rec = {id: id, name: nm, icon: '🤖', group: '일일', at: at, auto: true};
+    custom.push(rec); have[id] = 1; added.push(rec);
+  });
+  if(!added.length) return [];
+  agentCustomSave(custom);
+  agentPush(added, null);
+  renderRoom(); renderUse(true);
+  sync('👥 ' + added.map(a => a.name).join('·') + ' 이(가) 회의실에 합류했어요', 4200);
+  return added;
 }
 // 발신 후보 — 포털 + 멘션 가능한 비서(노트북은 실행자라 뺀다). 새 비서는 자동으로 들어온다.
 function ordSenderList(){
@@ -1465,6 +1570,8 @@ function ordSenderKey(it){
   if(s === 'notebook' || s === 'hub-agent' || s === 'nb') return 'notebook';
   if(s === 'telegram' || s === 'tg') return 'telegram';
   if(s === 'phone' || s === 'mobile') return 'phone';
+  // 2026-11-25(v27): 큐·부이·키링처럼 자기 ID 로 말하는 비서도 '나'로 보이지 않게
+  if(s && s !== 'portal' && agentById(s)) return s;
   return 'portal';
 }
 function ordSenderLabel(k){
@@ -1486,7 +1593,37 @@ function ordTargetLabel(k){
   if(a) return {id: a.id, label: '@' + (a.mentionAs || a.name), name: a.name, icon: a.icon};
   return {id: 'notebook', label: '@노트북', name: '집 노트북', icon: '🏠'};
 }
-/** 본문 속 @피원 · @피투 · @노트북 · @전체 → 하이라이트 칩 (이미 esc() 한 글자열에만 적용) */
+/**
+ * 본문에 적힌 @이름/@ID 로 대상 하나를 고른다 — 칩을 누르지 않고 "@큐 이거 봐줘" 라고 써도 큐에게 가게.
+ *  · 칩으로 고른 대상이 있으면 그게 우선이고, 본문에 다른 이름이 있으면 본문이 이긴다(글로 가리킨 쪽이 진짜 의도).
+ *  · 서버(Code.gs qqMentionOf_)도 같은 규칙으로 한 번 더 본다(외부 비서가 보낸 글).
+ */
+function ordTargetFromText(text){
+  const s = String(text == null ? '' : text);
+  if(s.indexOf('@') < 0) return '';
+  const map = {};
+  map['@전체'] = 'all';
+  agentMentions().forEach(a => { map['@' + (a.mentionAs || a.name)] = a.id; map['@' + a.id] = a.id; });
+  const labels = Object.keys(map).sort((a, b) => b.length - a.length);
+  for(let i = 0; i < s.length; i++){
+    if(s.charAt(i) !== '@') continue;
+    for(let j = 0; j < labels.length; j++){
+      const l = labels[j];
+      if(s.substr(i, l.length) !== l) continue;
+      if(/[A-Za-z0-9_-]/.test(s.charAt(i + l.length))) continue;
+      return map[l];
+    }
+  }
+  return '';
+}
+/** 대상 칩 설명 — 누가 언제 받는지(노트북은 바로, 나머지는 주기 체크 때) */
+function ordTargetTip(t){
+  if(t.id === 'all') return '모두에게 — 노트북이 먼저 받아요';
+  if(t.id === 'notebook') return '집 노트북 — 바로 실행해요';
+  if(t.id === 'pi1' || t.id === 'pi2') return t.name + ' — 다음 확인 때 읽어요';
+  return t.name + ' — 주기 체크 때 읽어요(바로 답은 노트북)';
+}
+/** 본문 속 @피원 · @피투 · @큐 · @노트북 · @전체 → 하이라이트 칩 (이미 esc() 한 글자열에만 적용) */
 function ordMentionHtml(s){
   const txt = String(s == null ? '' : s);
   const map = {};
@@ -1587,7 +1724,7 @@ function ordMentionRender(){
   const box = document.getElementById('ord-mentions');
   if(!box) return;
   box.innerHTML = '<span class="room-hint">대상</span>' + ordTargetList().map(t =>
-    `<button type="button" class="rm${ORD_TARGET === t.id ? ' on' : ''}" data-t="${esc(t.id)}" onclick="ordTargetSet(this)" title="${esc(t.name)} — 실행은 노트북(hub-agent)이 해요">${esc(t.icon + ' ' + t.label)}</button>`).join('');
+    `<button type="button" class="rm${ORD_TARGET === t.id ? ' on' : ''}" data-t="${esc(t.id)}" onclick="ordTargetSet(this)" title="${esc(ordTargetTip(t))}">${esc(t.icon + ' ' + t.label)}</button>`).join('');
 }
 function ordPresetRender(){
   const box = document.getElementById('ord-presets');
@@ -1788,18 +1925,18 @@ function renderUse(force){
       html += `<div class="use-grp">${esc(g)} ${defs.length}명</div><div class="use-grid">` + defs.map(useCard).join('') + '</div>';
     });
     body.innerHTML = html + (USE_ADD
-      ? `<div class="use-add-form"><input class="use-inp" id="use-new-name" placeholder="새 비서 이름 (예: 부이 · 큐)" maxlength="16" onkeydown="useAddKey(event)">
+      ? `<div class="use-add-form"><input class="use-inp" id="use-new-name" placeholder="새 비서 이름 (예: 큐2 · 키링2)" maxlength="16" onkeydown="useAddKey(event)">
            <select class="use-inp" id="use-new-group" aria-label="리셋 주기"><option value="일일">일일</option><option value="주간">주간</option></select>
            <button class="use-ok" onclick="useAddCommit()">추가</button>
            <button class="use-no" onclick="useAddCancel()">취소</button></div>`
-      : `<button class="use-add" onclick="useAddStart()">＋ 비서 추가 (부이 · 큐 …)</button>`);
+      : `<button class="use-add" onclick="useAddStart()">＋ 비서 추가 (부계정 비서…)</button>`);
   }
   const note = document.getElementById('use-note');
   if(note){
     const reported = useDefs().filter(d => useOf(d.id)).length;
     note.textContent = reported + '/' + useDefs().length + '개 보고 · ' +
       (USE_AT ? '이 기기 저장 ' + clockText(USE_AT) : '아직 입력 없음') +
-      ' · 위험 <10% · 임박 <30% · 남은 %는 직접 넣어요(토큰 0원)' +
+      ' · 위험 <10% · 임박 <30% · 직접 넣거나 비서가 usage_report 로 스스로 보고' +
       (USE_SRV === false ? ' · 서버 저장은 Apps Script 재배포 후' : '');
   }
   const sm = document.getElementById('room-use-sum');
@@ -1871,7 +2008,11 @@ async function usePush(ids){
   if(!serverConfigured() || USE_SRV === false) return;
   const items = (ids || Object.keys(USE_DATA)).map(id => {
     const x = useOf(id);
-    return x ? {id: id, pct: x.pct, at: x.at} : null;
+    if(!x) return null;
+    const o = {id: id, pct: x.pct, at: x.at};
+    if(x.note) o.note = x.note;
+    if(x.status) o.status = x.status;
+    return o;
   }).filter(Boolean);
   if(!items.length) return;
   try {
@@ -1901,19 +2042,25 @@ function useMerge(list){
     const cur = useOf(x.id);
     const curAt = Date.parse((cur && cur.at) || '') || 0;
     const newAt = Date.parse(at) || 0;
-    if(!cur || newAt > curAt){ USE_DATA[x.id] = {pct: pct, at: at}; changed = true; }
+    if(!cur || newAt > curAt){
+      const rec = {pct: pct, at: at};
+      // 비서가 남긴 한 줄 메모·상태도 같이 온다(없으면 지금 값 유지)
+      const note = (x.note === undefined || x.note === null) ? ((cur && cur.note) || '') : String(x.note).slice(0, 40);
+      const stt = (x.status === undefined || x.status === null) ? ((cur && cur.status) || '') : String(x.status).slice(0, 12);
+      if(note) rec.note = note;
+      if(stt) rec.status = stt;
+      USE_DATA[x.id] = rec; changed = true;
+    }
   });
   if(changed){ useSaveLocal(); renderUse(true); renderOrdersSafe(); }
   return changed;
 }
 
 /* ── 채팅 말풍선 ── */
-/** 참여자 색 — 말풍선·이름 배지 */
+/** 참여자 색 — 말풍선·이름 배지(명부의 color). 모르는 사람은 me */
 function ordWhoCls(k){
-  if(k === 'pi1') return 'w-pi1';
-  if(k === 'pi2') return 'w-pi2';
-  if(k === 'notebook') return 'w-nb';
-  return 'w-me';
+  const a = agentById(k);
+  return 'w-' + ((a && a.color) || 'me');
 }
 function ordWhoBadge(k){
   const d = ordSenderLabel(k);
@@ -2110,6 +2257,7 @@ function applyOrderList(d){
   ORD_SUM = {pending: numOf(d.pending), running: numOf(d.running), waiting: numOf(d.waiting),
     timeout: numOf(d.timeout), done: numOf(d.done), failed: numOf(d.failed)};
   if(typeof d.chat === 'boolean') ORD_CHAT_OK = d.chat;      // 서버가 kind:'chat' 을 아는가
+  if(Array.isArray(d.sources_seen) && d.sources_seen.length) agentAutoJoin(d.sources_seen);   // 큐에 처음 말을 건 비서 합류
   if(Array.isArray(d.workspaces) && d.workspaces.length) ORD_WSS = d.workspaces.slice(0, 20);
   fillOrderWs();
   const sig = ordSig(ORD_ITEMS);
@@ -2179,8 +2327,9 @@ async function sendOrder(){
   try{
     sync('보내는 중...', 0);
     const engine = ordEngine();
+    const target = ordTargetFromText(text) || ORD_TARGET;      // 글로 적은 @큐 도 그 비서 앞으로
     const payload = {prompt: text, mode: mode === 'edit' ? 'edit' : 'ask'};
-    if(ORD_TARGET) payload.target = ORD_TARGET;
+    if(target) payload.target = target;
     if(mode === 'chat') payload.kind = 'chat';
     // auto 는 서버에 보내지 않는다(기본값) — 예전 서버에서도 오더 모양이 그대로다.
     if(engine !== 'auto') payload.engine = engine;
@@ -2200,7 +2349,7 @@ async function sendOrder(){
       : (mode === 'chat' ? '보냈어요 — 노트북이 답할게요'
         : (mode === 'edit' ? (autoOk ? '자동 승인으로 접수됨 ✓' : '승인 대기로 접수됨 ✓') : '오더 접수됨 ✓'));
     sync(head + (engine !== 'auto' ? ' · 엔진 ' + ordEngineName(engine) : '') +
-      (ORD_TARGET !== 'notebook' ? ' · ' + ordTargetLabel(ORD_TARGET).label : ''), 4000);
+      (target !== 'notebook' ? ' · ' + ordTargetLabel(target).label : ''), 4000);
   } finally { ORD_SEND_BUSY = false; ordSendLock(false); }
   await loadOrders();
 }
@@ -3642,6 +3791,7 @@ ordWhoLoad(); useLoad();
 ordRecentLoad(); ordRecentRender(); ordTyped();
 ordModeRender(); renderUse(true); renderRoom();
 if(serverConfigured()) useServerGet().then(() => { renderUse(true); }).catch(() => {});
+if(serverConfigured()) agentServerGet().then(() => { renderRoom(); }).catch(() => {});
 GH_DATA = ghCached();                                    // 이 기기에 남은 GitHub 기록(5분 캐시)
 AGENT_DATA = agentCached();                              // 피클이 남긴 마지막 상태
 monRender();

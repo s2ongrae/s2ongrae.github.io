@@ -58,6 +58,9 @@ function doPost(e) {
       case 'agent_beat':        return out(agentBeat_(body));      // ⌨️ 노트북 직접작업 상태
       case 'usage_get':         return out(usageGet());           // 📊 비서 사용량(읽기)
       case 'usage_set':         return out(usageSet_(body));      // 📊 비서 사용량(남은 % 기록)
+      case 'usage_report':      return out(usageSet_(body));      // 📊 외부 비서의 자기 보고(usage_set 과 같은 곳)
+      case 'agents_get':        return out(agentListGet());       // 👥 참여 비서 명부(읽기)
+      case 'agent_save':        return out(agentSave_(body));     // 👥 참여 비서 명부(추가·이름 변경·제거)
       default:                  return out({ ok: false, error: '알 수 없는 요청이에요.' });
     }
   } catch (err) {
@@ -649,16 +652,20 @@ function agentStatus() {
 //  · 파일: 드라이브 김성래포털/포털_비서사용량.json = {v, updated_at, items:{pi1:{pct,at}, …}}
 //  · 칸은 정해진 비서만(US_IDS). pct 는 0~100, at 은 그 값이 사실이던 시각(ISO).
 //    같은 비서를 여러 기기에서 넣으면 at 이 더 최근인 쪽이 이긴다(merge).
-//  · 비밀번호·고객정보 같은 건 여기에 들어오지 않는다(숫자와 시각뿐).
+//  · 비밀번호·고객정보 같은 건 여기에 들어오지 않는다(숫자·시각·짧은 메모뿐).
+//  · 2026-11-25(v27): 외부 비서가 **자기 줄만** 보고할 수 있게 열었다.
+//    `{action:'usage_report', key, id:'cue', pct:42, note:'리서치 대기'}` 한 번이면 cue 줄만 바뀐다(부분 갱신).
+//    `pct` 대신 `remain`(+`total`)도 받는다. `note`·`status` 는 보낸 칸만 바꾸고, 빈 문자열이면 지운다.
 // ═══════════════════════════════════════════════════════════════
 const US_FILE = '포털_비서사용량.json';
-const US_IDS = ['pi1', 'pi2', 'claude', 'agy', 'freellmapi', 'pc'];
+const US_IDS = ['pi1', 'pi2', 'cue', 'vooy', 'keyring', 'claude', 'agy', 'freellmapi', 'pc'];
 // 화면에서 추가한 비서(부이·큐 등)도 같은 규칙이면 저장한다 — GAS 재배포 없이 늘어난다.
 const US_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
 function usIdOk_(id) { return US_IDS.indexOf(id) >= 0 || US_ID_RE.test(id); }
-const US_MAX = 12;
+const US_MAX = 24;                       // 부계정 비서까지 늘어나도 담기게
+const US_NOTE_MAX = 40;
 
-/** 파일을 읽어 {items:{id:{pct,at}}} 로. 없거나 깨졌으면 빈 장부. */
+/** 파일을 읽어 {items:{id:{pct,at,note?,status?}}} 로. 없거나 깨졌으면 빈 장부. */
 function usageRead_() {
   const out = { v: 1, updated_at: '', items: {} };
   try {
@@ -674,7 +681,12 @@ function usageRead_() {
       if (!usIdOk_(k) || !isObj(items[k])) return;
       const pct = Number(items[k].pct);
       if (!isFinite(pct) || pct < 0 || pct > 100) return;
-      out.items[k] = { pct: Math.round(pct * 10) / 10, at: clip(items[k].at, 40) };
+      const rec = { pct: Math.round(pct * 10) / 10, at: clip(items[k].at, 40) };
+      const note = clip(items[k].note, US_NOTE_MAX);
+      if (note) rec.note = note;
+      const st = clip(items[k].status, 12);
+      if (st) rec.status = st;
+      out.items[k] = rec;
     });
   } catch (err) {
     Logger.log('usage_get: ' + String((err && err.message) || err));
@@ -682,28 +694,64 @@ function usageRead_() {
   return out;
 }
 
-/** 화면이 쓰는 모양 — {items:[{id,pct,at}], at, reported} */
+/** 저장 모양 → 화면 모양(빈 note·status 는 넣지 않는다) */
+function usPublic_(items) {
+  return Object.keys(items).map(function (id) {
+    const x = items[id];
+    const o = { id: id, pct: x.pct, at: x.at };
+    if (x.note) o.note = x.note;
+    if (x.status) o.status = x.status;
+    return o;
+  });
+}
+
+/** 화면이 쓰는 모양 — {items:[{id,pct,at,note?,status?}], at, reported} */
 function usageGet() {
   const d = usageRead_();
-  const items = Object.keys(d.items).map(function (id) { return { id: id, pct: d.items[id].pct, at: d.items[id].at }; });
+  const items = usPublic_(d.items);
   return { ok: true, at: d.updated_at || '', items: items, reported: items.length, ids: US_IDS.slice() };
 }
 
-/** 남은 % 를 기록한다 — 같은 비서는 at 이 더 최근인 값만 덮어쓴다. */
+/**
+ * 들어온 한 칸을 검사해 저장 모양으로. note·status 는 **보내지 않으면 null**(이전 값 유지).
+ *  · pct 가 없고 remain 이 있으면 그걸 남은 %로 본다(remain+total 이면 비율로 환산).
+ */
+function usItemOf_(x, now) {
+  if (!isObj(x)) return null;
+  const id = String(x.id || '').trim().toLowerCase();
+  if (!usIdOk_(id)) throw qqErr_('bad_request', '모르는 비서예요: ' + clip(id, 20));
+  let pct = Number(x.pct);
+  if ((!isFinite(pct) || x.pct === undefined || x.pct === null || x.pct === '') &&
+      x.remain !== undefined && x.remain !== null && x.remain !== '') {
+    const remain = Number(x.remain);
+    const total = Number(x.total);
+    pct = (isFinite(total) && total > 0) ? (remain / total) * 100 : remain;
+  }
+  if (!isFinite(pct) || pct < 0 || pct > 100) throw qqErr_('bad_request', 'pct 는 0~100 사이 숫자여야 해요.');
+  const at = String(x.at || '').trim();
+  const out = {
+    id: id, pct: Math.round(pct * 10) / 10,
+    at: isFinite(Date.parse(at)) ? clip(at, 40) : now,
+    note: null, status: null
+  };
+  if (x.note !== undefined && x.note !== null) out.note = clip(String(x.note).replace(/\s+/g, ' ').trim(), US_NOTE_MAX);
+  if (x.status !== undefined && x.status !== null) out.status = clip(String(x.status).trim().toLowerCase(), 12);
+  return out;
+}
+
+/** 남은 % 를 기록한다 — 같은 비서는 at 이 더 최근인 값만 덮어쓴다(다른 비서 줄은 그대로). */
 function usageSet_(body) {
-  const list = Array.isArray(body && body.items) ? body.items : [];
+  const b = isObj(body) ? body : {};
+  // items[] 로 여러 비서를 한 번에(화면), 또는 id 하나만(외부 비서의 자기 보고)
+  const list = Array.isArray(b.items) ? b.items : (b.id ? [b] : []);
   if (!list.length) throw qqErr_('bad_request', 'items 가 필요해요.');
   const now = new Date().toISOString();
   const incoming = {};
   list.slice(0, US_MAX).forEach(function (x) {
-    if (!isObj(x)) return;
-    const id = String(x.id || '').trim().toLowerCase();
-    if (!usIdOk_(id)) throw qqErr_('bad_request', '모르는 비서예요: ' + clip(id, 20));
-    const pct = Number(x.pct);
-    if (!isFinite(pct) || pct < 0 || pct > 100) throw qqErr_('bad_request', 'pct 는 0~100 사이 숫자여야 해요.');
-    const at = String(x.at || '').trim();
-    incoming[id] = { pct: Math.round(pct * 10) / 10, at: isFinite(Date.parse(at)) ? clip(at, 40) : now };
+    const it = usItemOf_(x, now);
+    if (it) incoming[it.id] = it;
   });
+  if (!Object.keys(incoming).length) throw qqErr_('bad_request', 'items 가 필요해요.');
   return qqLock_(function () {
     const cur = usageRead_();
     let saved = 0;
@@ -711,14 +759,157 @@ function usageSet_(body) {
       const old = cur.items[id];
       const oldAt = old ? (Date.parse(old.at) || 0) : 0;
       const newAt = Date.parse(incoming[id].at) || 0;
-      if (!old || newAt >= oldAt) { cur.items[id] = incoming[id]; saved++; }
+      if (old && newAt < oldAt) return;          // 더 오래된 보고는 무시
+      const rec = { pct: incoming[id].pct, at: incoming[id].at };
+      const note = incoming[id].note === null ? ((old && old.note) || '') : incoming[id].note;
+      const st = incoming[id].status === null ? ((old && old.status) || '') : incoming[id].status;
+      if (note) rec.note = note;
+      if (st) rec.status = st;
+      cur.items[id] = rec; saved++;
     });
     const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
     const folder = fo.hasNext() ? fo.next() : DriveApp.createFolder(PORTAL_FOLDER);
     const js = JSON.stringify({ v: 1, updated_at: now, items: cur.items });
     const it = folder.getFilesByName(US_FILE);
     if (it.hasNext()) it.next().setContent(js); else folder.createFile(US_FILE, js, 'application/json');
-    return { ok: true, at: now, saved: saved, items: Object.keys(cur.items).map(function (id) { return { id: id, pct: cur.items[id].pct, at: cur.items[id].at }; }) };
+    return { ok: true, at: now, saved: saved, ids: US_IDS.slice(), items: usPublic_(cur.items) };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 👥 비서 참여자 명부 (2026-11-25) — 어느 폰·PC 에서 열어도 같은 @멘션·말풍선
+//
+//  · 기본 참여자(피원·피투·노트북·큐·부이·키링)는 화면(AGENT_SEED)이 이미 갖고 있다.
+//    여기에는 **화면에서 ＋추가한 비서**와 **큐에 처음 말을 건 비서**(자동 합류)만 쌓인다.
+//  · 파일: 드라이브 김성래포털/포털_비서목록.json = {v, updated_at, items:{id:{name,icon,group,at,auto}}}
+//  · id 규칙은 시트 한 칸에 안전한 값(영소문자·숫자·_·- 12자). 예약 id(AG_RESERVED)는 저장하지 않는다.
+//  · 이름 길이 16자·최대 24명. 같은 id 는 at 이 더 최근인 이름이 이긴다(두 기기가 서로 덮지 않게).
+// ═══════════════════════════════════════════════════════════════
+const AG_FILE = '포털_비서목록.json';
+const AG_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
+const AG_MAX = 24;
+const AG_NAME_MAX = 16;
+const AG_RESERVED = ['all', 'portal', 'phone', 'telegram', 'notebook', 'pi1', 'pi2', 'cue', 'vooy', 'keyring'];
+
+/** 명부 파일을 읽어 {items, removed} 로. 없거나 깨졌으면 빈 명부. */
+function agentRead_() {
+  const out = { v: 1, updated_at: '', items: {}, removed: {} };
+  try {
+    const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    if (!fo.hasNext()) return out;
+    const it = fo.next().getFilesByName(AG_FILE);
+    if (!it.hasNext()) return out;
+    const d = JSON.parse(it.next().getBlob().getDataAsString());
+    if (!isObj(d)) return out;
+    out.updated_at = clip(d.updated_at, 40);
+    const items = isObj(d.items) ? d.items : {};
+    Object.keys(items).forEach(function (k) {
+      const id = String(k || '').toLowerCase();
+      if (!AG_ID_RE.test(id) || AG_RESERVED.indexOf(id) >= 0 || !isObj(items[k])) return;
+      const name = clip(items[k].name, AG_NAME_MAX).trim();
+      if (!name) return;
+      out.items[id] = {
+        name: name, icon: clip(items[k].icon || '🤖', 2),
+        group: items[k].group === '주간' ? '주간' : '일일',
+        at: clip(items[k].at, 40), auto: !!items[k].auto
+      };
+    });
+    // 뺀 기록(30일) — 다른 기기도 "내가 뺀 비서"를 다시 그리지 않게
+    const rm = isObj(d.removed) ? d.removed : {};
+    Object.keys(rm).forEach(function (k) {
+      const id = String(k || '').toLowerCase();
+      const at = clip(rm[k], 40);
+      if (!AG_ID_RE.test(id) || !isFinite(Date.parse(at))) return;
+      out.removed[id] = at;
+    });
+  } catch (err) {
+    Logger.log('agents_get: ' + String((err && err.message) || err));
+  }
+  return out;
+}
+
+/** 명부 → 화면 모양 [{id,name,icon,group,at,auto?}] */
+function agentPublic_(items) {
+  return Object.keys(items).map(function (id) {
+    const x = items[id];
+    const o = { id: id, name: x.name, icon: x.icon, group: x.group, at: x.at };
+    if (x.auto) o.auto = true;
+    return o;
+  });
+}
+
+function agentListGet() {
+  const d = agentRead_();
+  const items = agentPublic_(d.items);
+  const removed = Object.keys(d.removed).map(function (id) { return { id: id, at: d.removed[id] }; });
+  return { ok: true, at: d.updated_at || '', items: items, removed: removed, count: items.length, max: AG_MAX };
+}
+
+  /**
+ * 참여 비서를 더하거나 뺀다.
+ *  · items[] 또는 id 하나(=이름 붙여 추가), removed[](id 문자열 또는 {id,at}) 로 뺀다.
+ *  · 예약 id(기본 참여자)는 저장하지 않고 조용히 건너뛴다 — 화면이 이미 안다.
+ */
+function agentSave_(body) {
+  const b = isObj(body) ? body : {};
+  const list = Array.isArray(b.items) ? b.items : (b.id ? [b] : []);
+  const removed = Array.isArray(b.removed) ? b.removed.slice(0, AG_MAX) : [];
+  if (!list.length && !removed.length) throw qqErr_('bad_request', 'items 또는 removed 가 필요해요.');
+  const now = new Date().toISOString();
+  const incoming = {};
+  list.slice(0, AG_MAX).forEach(function (x) {
+    if (!isObj(x)) return;
+    const id = String(x.id || '').trim().toLowerCase();
+    if (AG_RESERVED.indexOf(id) >= 0) return;
+    if (!AG_ID_RE.test(id)) throw qqErr_('bad_request', '비서 id 규칙에 안 맞아요: ' + clip(id, 20));
+    const name = clip(x.name, AG_NAME_MAX).trim() || id;
+    const at = String(x.at || '').trim();
+    incoming[id] = {
+      name: name, icon: clip(x.icon || '🤖', 2),
+      group: x.group === '주간' ? '주간' : '일일',
+      at: isFinite(Date.parse(at)) ? clip(at, 40) : now, auto: !!x.auto
+    };
+  });
+  const drop = [];
+  removed.forEach(function (v) {
+    const id = String((isObj(v) ? v.id : v) || '').trim().toLowerCase();
+    if (!AG_ID_RE.test(id) || AG_RESERVED.indexOf(id) >= 0) return;
+    const at = String((isObj(v) && v.at) || '').trim();
+    drop.push({ id: id, at: isFinite(Date.parse(at)) ? clip(at, 40) : now });
+  });
+  return qqLock_(function () {
+    const cur = agentRead_();
+    let saved = 0;
+    Object.keys(incoming).forEach(function (id) {
+      const old = cur.items[id];
+      const oldAt = old ? (Date.parse(old.at) || 0) : 0;
+      const newAt = Date.parse(incoming[id].at) || 0;
+      if (!old || newAt >= oldAt) { cur.items[id] = incoming[id]; saved++; }
+    });
+    drop.forEach(function (x) {
+      delete cur.items[x.id];
+      cur.removed[x.id] = x.at;                     // 다른 기기에서도 다시 그리지 않게 기록(최근 50건)
+    });
+    // 뺀 기록이 너무 많아지면 지난 것부터 지운다
+    const rmIds = Object.keys(cur.removed);
+    if (rmIds.length > 50) {
+      rmIds.sort(function (a, b2) { return (Date.parse(cur.removed[b2]) || 0) - (Date.parse(cur.removed[a]) || 0); });
+      rmIds.slice(50).forEach(function (id) { delete cur.removed[id]; });
+    }
+    // 너무 많으면 최근에 이름이 붙은 것부터 남긴다
+    const keys = Object.keys(cur.items);
+    if (keys.length > AG_MAX) {
+      keys.sort(function (a, b2) { return (Date.parse(cur.items[b2].at) || 0) - (Date.parse(cur.items[a].at) || 0); });
+      keys.slice(AG_MAX).forEach(function (id) { delete cur.items[id]; });
+    }
+    const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    const folder = fo.hasNext() ? fo.next() : DriveApp.createFolder(PORTAL_FOLDER);
+    const js = JSON.stringify({ v: 1, updated_at: now, items: cur.items, removed: cur.removed });
+    const it = folder.getFilesByName(AG_FILE);
+    if (it.hasNext()) it.next().setContent(js); else folder.createFile(AG_FILE, js, 'application/json');
+    const items = agentPublic_(cur.items);
+    const removedOut = Object.keys(cur.removed).map(function (id) { return { id: id, at: cur.removed[id] }; });
+    return { ok: true, at: now, saved: saved, removed: drop.length, items: items, removed_items: removedOut, count: items.length };
   });
 }
 
@@ -772,10 +963,12 @@ const QQ_WS_DEFAULT = 'gaegyebu,content-hub,insurance-manager,smartstore-hub,s2o
 // 오더를 낸 곳(source) — 이 화면은 portal, 피원은 pi1, 피투는 pi2.
 //  부이(vooy)·큐(cue) 처럼 나중에 붙는 비서도 **GAS 재배포 없이** 이름을 쓸 수 있게 규칙으로 검사한다.
 //  (영소문자·숫자·_·- 12자 — 시트 한 칸에 안전한 값)
-const QQ_SOURCES = ['portal', 'pi1', 'pi2'];
+const QQ_SOURCES = ['portal', 'pi1', 'pi2', 'cue', 'vooy', 'keyring'];   // 2026-11-25 큐·부이·키링 합류
 const QQ_AGENT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
 // 대상(target, @멘션) — 누구에게 시키는가. all=전체, notebook=집 노트북(기본 실행자).
-const QQ_TARGETS = ['all', 'pi1', 'pi2', 'notebook'];
+const QQ_TARGETS = ['all', 'pi1', 'pi2', 'notebook', 'cue', 'vooy', 'keyring'];
+// @이름 → 대상 id. 본문에만 @큐 처럼 적어도 그 비서 앞으로 가게 한다(화면 칩과 같은 규칙).
+const QQ_TARGET_NAMES = { '전체': 'all', '피원': 'pi1', '피투': 'pi2', '노트북': 'notebook', '큐': 'cue', '부이': 'vooy', '키링': 'keyring' };
 /** source 값 → 시트에 남길 이름. 규칙에 맞으면 그대로, 아니면 portal. */
 function qqSourceOf_(v) {
   const t = String(v == null ? '' : v).trim().toLowerCase();
@@ -787,6 +980,35 @@ function qqTargetOf_(p) {
   const t = String((isObj(p) && p.target) || '').trim().toLowerCase();
   if (t === 'all' || QQ_TARGETS.indexOf(t) >= 0) return t;
   return QQ_AGENT_ID_RE.test(t) ? t : '';
+}
+/**
+ * 본문의 @이름만 적혀 있어도 대상 하나를 고른다("@큐 이거 봐줘") — 화면의 @멘션 칩과 같은 규칙.
+ *  · 이름은 QQ_TARGET_NAMES(기본 참여자) + 명부(포털_비서목록.json)의 이름/ID. 긴 이름부터 본다.
+ *  · 뒤에 영숫자가 붙으면 멘션이 아니다(@피원님이 → 허용, @피원a → 아님).
+ *  · 명부를 읽다 실패해도 오더는 그대로 간다(빈 결과).
+ */
+function qqMentionOf_(text) {
+  const s = String(text == null ? '' : text);
+  if (s.indexOf('@') < 0) return '';
+  const map = {};
+  Object.keys(QQ_TARGET_NAMES).forEach(function (nm) { map['@' + nm] = QQ_TARGET_NAMES[nm]; });
+  QQ_TARGETS.forEach(function (id) { if (id !== 'all') map['@' + id] = id; });
+  try {
+    const items = agentRead_().items;
+    Object.keys(items).forEach(function (id) { map['@' + items[id].name] = id; map['@' + id] = id; });
+  } catch (err) { /* 명부를 못 읽어도 기본 이름으로 충분 */ }
+  const labels = Object.keys(map).sort(function (a, b) { return b.length - a.length; });
+  for (let i = 0; i < s.length; i++) {
+    if (s.charAt(i) !== '@') continue;
+    for (let j = 0; j < labels.length; j++) {
+      const l = labels[j];
+      if (s.substr(i, l.length) !== l) continue;
+      const next = s.charAt(i + l.length);
+      if (/[A-Za-z0-9_-]/.test(next)) continue;
+      return map[l];
+    }
+  }
+  return '';
 }
 const QQ_LIST_DEFAULT = 15;
 const QQ_LIST_MAX = 20;
@@ -1096,7 +1318,7 @@ function qqPayloadOf_(type, p) {
   // 2026-11-25 통합 회의실 — kind='chat' 이면 노트북이 코드가 아니라 '답장'을 만든다(같은 claude_prompt 큐).
   // target 은 @멘션(누구에게). 둘 다 노트북 lib/chat.js 가 읽는다. 모르는 값은 싣지 않는다.
   if (isObj(p) && String(p.kind || '').toLowerCase() === 'chat') out.kind = 'chat';
-  const target = qqTargetOf_(p);
+  const target = qqTargetOf_(p) || qqMentionOf_(prompt);
   if (target && target !== 'notebook') out.target = target;
   return JSON.stringify(out);
 }
@@ -1505,12 +1727,20 @@ function queueList(body) {
     }
     items.push(it);
   }
+  // 2026-11-25(v27): 큐에 한 번이라도 말을 건 비서는 화면이 자동으로 참여자 명부에 합류시킨다.
+  //   서버는 읽기만 하고(명부 쓰기는 agent_save), 여기서는 "누가 말했는지"만 알려 준다.
+  const srcSeen = [];
+  for (let i = rows.length - 1; i >= 0 && srcSeen.length < 12; i--) {
+    const s = String(rows[i].source == null ? '' : rows[i].source).trim().toLowerCase();
+    if (!QQ_AGENT_ID_RE.test(s) || s === 'portal' || srcSeen.indexOf(s) >= 0) continue;
+    srcSeen.push(s);
+  }
   return {
     ok: true, at: qqNow_(), items: items, count: items.length,
     pending: c.pending, waiting: c.waiting, running: c.running, timeout: c.timeout,
     review: c.review, done: c.done, failed: c.failed,
     workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES), engines: QQ_ENGINES.slice(),
-    chat: true, targets: QQ_TARGETS.slice(), sources: QQ_SOURCES.slice(),
+    chat: true, targets: QQ_TARGETS.slice(), sources: QQ_SOURCES.slice(), sources_seen: srcSeen,
     approval_ttl_min: Math.round(QQ_APPROVAL_TTL_MS / 60000)
   };
 }

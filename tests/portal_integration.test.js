@@ -914,7 +914,7 @@ console.log('V) 💬 비서 통합 회의실 — 카톡 타임라인·@멘션·�
   // ② 참여자·대상 칩은 레지스트리에서 나온다
   const ment = D13.el('ord-mentions').innerHTML;
   ok(/@전체/.test(ment) && /@피원/.test(ment) && /@피투/.test(ment) && /@노트북/.test(ment), '@전체·@피원·@피투·@노트북 대상 칩');
-  ok(D13.run('ordTargetList().length') === 4, '대상 목록 = 전체 + 참여 비서 3');
+  ok(D13.run('ordTargetList().length') === 7, '대상 목록 = 전체 + 참여 비서 6(피원·피투·큐·부이·키링·노트북)');
   ok(/블로그 초안/.test(D13.el('ord-presets').innerHTML) && /상태 확인/.test(D13.el('ord-presets').innerHTML), '빠른 오더 프리셋 버튼');
   D13.run('ordPreset({dataset:{i:"0"}})');
   ok(/블로그 초안|대전 로컬 맛집/.test(D13.el('ord-inp').value), '프리셋을 누르면 입력칸이 채워진다(자동 전송 없음)');
@@ -991,30 +991,142 @@ console.log('V) 💬 비서 통합 회의실 — 카톡 타임라인·@멘션·�
   ok(D13.run('useOf("pi1").pct') === 40, '더 오래된 값은 무시한다');
 
   // ⑧ 비서 슬롯 추가 — 한 곳(레지스트리)만 늘리면 카드·멘션·배지가 같이 늘어난다
+  //    (부이·큐·키링은 이제 기본 참여자라 '부이2' 로 시험한다)
   D13.run('useAddStart()');
-  D13.el('use-new-name').value = '부이';
+  D13.el('use-new-name').value = '부이2';
   D13.run('useAddCommit()');
-  ok(D13.run('agentMentions().some(a=>a.name==="부이")') === true, '새 비서가 참여자 목록에 들어간다');
-  ok(D13.run('useDefs().some(d=>d.name==="부이")') === true, '사용량 카드 목록에도 들어간다');
+  ok(D13.run('agentMentions().some(a=>a.name==="부이2")') === true, '새 비서가 참여자 목록에 들어간다');
+  ok(D13.run('useDefs().some(d=>d.name==="부이2")') === true, '사용량 카드 목록에도 들어간다');
   D13.run('renderRoom()');
-  ok(/@부이/.test(D13.el('ord-mentions').innerHTML), '@부이 멘션 칩이 자동으로 생긴다');
-  ok(/부이/.test(D13.el('use-grid').innerHTML), '사용량 카드도 자동으로 생긴다');
-  const vooy = D13.run("agentMentions().filter(a=>a.name==='부이')[0].id");
-  ok(/^a[0-9a-z]+$/.test(vooy), '추가한 비서 id 는 시트 규칙에 맞는 값(a…)');
-  D13.run(`ORD_TARGET='${vooy}'`);
-  D13.el('ord-inp').value = '@부이 내일 일정 봐줘';
+  ok(/@부이2/.test(D13.el('ord-mentions').innerHTML), '@부이2 멘션 칩이 자동으로 생긴다');
+  ok(/부이2/.test(D13.el('use-grid').innerHTML), '사용량 카드도 자동으로 생긴다');
+  const vooy2 = D13.run("agentMentions().filter(a=>a.name==='부이2')[0].id");
+  ok(/^a[0-9a-z]+$/.test(vooy2), '추가한 비서 id 는 시트 규칙에 맞는 값(a…)');
+  D13.run(`ORD_TARGET='${vooy2}'`);
+  D13.el('ord-inp').value = '@부이2 내일 일정 봐줘';
   await D13.run('sendOrder()');
   be = lastBody13('queue_enqueue');
-  ok(be.payload.target === vooy, '새 비서에게도 오더가 간다(payload.target)');
+  ok(be.payload.target === vooy2, '새 비서에게도 오더가 간다(payload.target)');
   D13.run('renderOrders()');
-  ok(new RegExp('mt-' + vooy).test(D13.el('ord-list').innerHTML) || /mt-new/.test(D13.el('ord-list').innerHTML), '새 비서 멘션도 칩으로 그린다');
-  D13.run(`agentRemove('${vooy}'); renderRoom()`);
-  ok(!/@부이/.test(D13.el('ord-mentions').innerHTML) && D13.run('agentMentions().some(a=>a.name==="부이")') === false, '뺀 비서는 목록에서 사라진다');
+  ok(new RegExp('mt-' + vooy2).test(D13.el('ord-list').innerHTML) || /mt-new/.test(D13.el('ord-list').innerHTML), '새 비서 멘션도 칩으로 그린다');
+  D13.run(`agentRemove('${vooy2}'); renderRoom()`);
+  ok(!/@부이2/.test(D13.el('ord-mentions').innerHTML) && D13.run('agentMentions().some(a=>a.name==="부이2")') === false, '뺀 비서는 목록에서 사라진다');
 
   // ⑨ 말풍선 속 값도 이스케이프
   D13.run(`ORD_ITEMS = [{id:'Q-x', status:'DONE', source:'pi1', type:'claude_prompt', kind:'chat', summary:'<img src=x>@피원', result:'<script>x</script>', created_at:new Date().toISOString()}]; renderOrders()`);
   ok(feed().indexOf('<img') < 0 && feed().indexOf('<script') < 0 && feed().indexOf('&lt;img') >= 0, '말풍선 글자도 그대로 그리지 않는다');
   ok(/class="mt mt-pi1"/.test(feed()), '이스케이프한 뒤에도 @피원 칩은 살아 있다');
+}
+
+console.log('W) 👥 큐·부이·키링 기본 탑재 · 서버 명부 공유 · 부분 사용량 보고');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const S14 = mk();
+  const nowMs = Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, status, x) => {
+    const r = [id, created, 'portal', 'claude_prompt', 'gaegyebu', '{}', status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  S14.props.QUEUE_SHEET_ID = 'SHEETidCueRoom001';
+  S14.addSheet('SHEETidCueRoom001', {'Command_Queue': [HEAD.slice(0)].concat([
+    row('Q-c1', at(nowMs - 6 * 60000), 'DONE', {source: 'cue', workspace: 'gaegyebu',
+      payload: JSON.stringify({prompt: '@포털 연결 확인했어요 — 리서치 대기', mode: 'ask', kind: 'chat', target: 'portal'}),
+      finished_at: at(nowMs - 5 * 60000), result: '연결 OK. 리서치 대기 중'}),
+    row('Q-c2', at(nowMs - 9 * 60000), 'DONE', {source: 'keyring', workspace: 'gaegyebu',
+      payload: JSON.stringify({prompt: '@전체 예약 확인했어요', mode: 'ask', kind: 'chat', target: 'all'}),
+      finished_at: at(nowMs - 8 * 60000), result: 'KTX 예약 1건 확인'})
+  ])});
+  const D14 = makeDevice(S14);
+  D14.config();
+  await D14.run('loadOrders()');
+  const feed14 = () => D14.el('ord-list').innerHTML;
+  const lastBody14 = a => {
+    for (let i = D14.calls.length - 1; i >= 0; i--) { const b = JSON.parse(D14.calls[i].opts.body); if (b.action === a) return b; }
+    return null;
+  };
+
+  // ① 기본 참여자로 큐·부이·키링이 들어 있다
+  const ment = D14.el('ord-mentions').innerHTML;
+  ok(/@큐/.test(ment) && /@부이/.test(ment) && /@키링/.test(ment), '대상 칩에 @큐·@부이·@키링이 기본으로 있다');
+  ok(D14.run("['cue','vooy','keyring'].every(id=>!!agentById(id))"), '명부(AGENT_SEED)에 cue·vooy·keyring 이 있다');
+  ok(D14.run("['cue','vooy','keyring'].every(id=>useDefs().some(d=>d.id===id))"), '사용량 카드에도 셋 다 있다');
+  ok(D14.run('ordTargetList().length') === 7, '대상 목록 = 전체 + 6명(피원·피투·큐·부이·키링·노트북)');
+  ok(D14.run("ordSenderList().some(a=>a.id==='cue') && !ordSenderList().some(a=>a.id==='notebook')"), '발신 후보에는 큐가 있고 노트북은 뺀다');
+  ok(/큐|부이|키링/.test(D14.el('use-grid').innerHTML), '사용량판에 큐·부이·키링 카드가 그려진다');
+  ok(/나와의|위험/.test(D14.el('use-sum').innerHTML) && D14.run('useDefs().length') === 9, '사용량 줄 9개(피원·피투·큐·부이·키링·엔진3·회사PC)');
+
+  // ② 큐·키링이 낸 말은 '나'가 아니라 왼쪽 말풍선 + 전용 배지
+  ok(/who w-cue/.test(feed14()) && /who w-key/.test(feed14()), '큐(w-cue)·키링(w-key) 전용 배지');
+  ok(D14.run("ordIsMine({source:'cue'})") === false && D14.run("ordIsMine({source:'portal'})") === true,
+    '큐가 보낸 말은 오른쪽(내 말)로 그리지 않는다');
+  ok(D14.run("ordSenderKey({source:'keyring'})") === 'keyring', 'source=keyring 은 키링으로 읽는다');
+  ok(/class="mt mt-cue"/.test(D14.run("ordMentionHtml('@큐 리서치 대기 중')")), '본문의 @큐 도 큐 색 멘션 칩');
+  ok(/class="mt mt-key"/.test(D14.run("ordMentionHtml('@키링 예약 확인')")), '본문의 @키링 도 키링 색 멘션 칩');
+
+  // ③ 본문에 적은 @이름으로 대상이 정해진다(칩을 안 눌러도)
+  ok(D14.run("ordTargetFromText('@큐 이거 봐줘')") === 'cue', '@큐 → cue');
+  ok(D14.run("ordTargetFromText('@키링 3시 예약')") === 'keyring', '@키링 → keyring');
+  ok(D14.run("ordTargetFromText('@부이 비교해줘')") === 'vooy', '@부이 → vooy');
+  ok(D14.run("ordTargetFromText('메일 a@b.com')") === '', '주소 속 @ 는 멘션이 아니다');
+  D14.run("ordTargetSet({dataset:{t:'notebook'}})");
+  D14.el('ord-inp').value = '@큐 내일 리서치 하나만 봐줘';
+  await D14.run('sendOrder()');
+  let be = lastBody14('queue_enqueue');
+  ok(be.payload.target === 'cue', '칩이 @노트북이어도 글로 적은 @큐 가 이긴다');
+  D14.run("ordTargetSet({dataset:{t:'notebook'}})");
+
+  // ④ ＋추가한 비서가 서버(agent_save)에 올라가고, 다른 기기가 같은 명부를 받는다
+  D14.el('use-new-name').value = '큐2';
+  D14.run('useAddStart(); useAddCommit()');
+  await new Promise(r => setTimeout(r, 30));
+  const addB = lastBody14('agent_save');
+  ok(addB && addB.items && addB.items[0].name === '큐2' && /^a[0-9a-z]+$/.test(addB.items[0].id), '＋추가가 agent_save 로 서버에 간다');
+  const D15 = makeDevice(S14);
+  D15.config();
+  await D15.run('agentServerGet()');
+  ok(D15.run("agentMentions().some(a=>a.name==='큐2')"), '다른 기기(새 폰)도 큐2 를 받는다');
+  D15.run('renderRoom()');
+  ok(/@큐2/.test(D15.el('ord-mentions').innerHTML), '다른 기기에도 @큐2 칩이 생긴다');
+  ok(JSON.parse(D15.store.get('portal_agents_v1') || '[]').some(a => a.name === '큐2'), '다른 기기 localStorage 에도 남는다');
+
+  // ⑤ 한 기기에서 뺐으면 다른 기기에서도 사라진다
+  const cue2id = D14.run("agentMentions().filter(a=>a.name==='큐2')[0].id");
+  D14.run(`agentRemove('${cue2id}')`);
+  await new Promise(r => setTimeout(r, 30));
+  const rmB = lastBody14('agent_save');
+  ok(rmB && (rmB.removed || []).some(x => (typeof x === 'string' ? x : x.id) === cue2id), '🗑 빼기도 agent_save(removed)로 서버에 간다');
+  await D15.run('agentServerGet()');
+  ok(!D15.run("agentMentions().some(a=>a.name==='큐2')"), '다른 기기에서도 뺀 비서가 사라진다');
+
+  // ⑥ 큐에 처음 말을 건 새 비서는 자동 합류(sources_seen) — 어느 기기에서도 @멘션
+  ok(D14.run("agentAutoJoin(['cue2','bad id!','portal','notebook']).length") === 1, '새 비서만 골라 합류한다(이상한 값·내 말·노트북 제외)');
+  ok(D14.run("agentMentions().some(a=>a.id==='cue2')") === true, '합류한 비서가 참여자가 된다');
+  ok(lastBody14('agent_save').items.some(x => x.id === 'cue2'), '합류도 서버에 남긴다');
+  await D15.run('agentServerGet()');
+  ok(D15.run("agentMentions().some(a=>a.id==='cue2')"), '다른 기기도 합류한 비서를 받는다');
+
+  // ⑦ 비서가 보고한 사용량(부분 갱신)이 화면에 반영된다 — 메모까지
+  D14.run("useMerge([{id:'cue',pct:12,at:new Date(Date.now()+60000).toISOString(),note:'리서치 대기'}])");
+  ok(D14.run("useOf('cue').pct") === 12 && D14.run("useOf('cue').note") === '리서치 대기', 'cue 줄만 12%·메모로 바뀐다');
+  ok(D14.run("useSummary().soon") >= 1, '임박(<30%)로 센다');
+  D14.run('renderUse(true)');
+  ok(/리서치 대기/.test(D14.el('use-grid').innerHTML), '카드에 비서가 남긴 한 줄 메모가 보인다');
+  ok(/usage_report/.test(D14.el('use-note').textContent || ''), '입력 없이도 비서가 스스로 보고한다고 안내');
+  D14.run("useMerge([{id:'cue',pct:80,at:new Date(Date.now()-60000).toISOString(),note:'옛 메모'}])");
+  ok(D14.run("useOf('cue').pct") === 12 && D14.run("useOf('cue').note") === '리서치 대기', '오래된 보고는 무시한다');
+
+  // ⑧ 예전 배포(agents_get 모름)면 조용히 서버를 더 부르지 않는다(이 기기 명부만)
+  const n0 = D14.calls.length;
+  D14.run('AG_SRV = false');
+  const noAg = await D14.run('agentServerGet()');
+  ok(noAg === null && D14.calls.length === n0, '예전 배포로 판명되면 agents_get 을 다시 부르지 않는다');
+  ok(D14.run("agentMentions().some(a=>a.id==='cue')") === true, '그래도 큐·부이·키링은 그대로 쓸 수 있다');
+  D14.run('AG_SRV = null');
 }
 
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);

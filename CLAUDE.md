@@ -67,8 +67,8 @@
 `#order-card` 하나가 `# 비서-통합-회의실` 이다(예전 「🤖 노트북 오더함」을 그 안에 품고 있다 — 같은 DOM id 유지).
 - **머리말**: 참여 비서 수(`#room-people`) · 사용량 요약 · ⟳(목록) · 🔄(관제·사용량까지).
 - **📊 비서 사용량**(`#room-use` details): 비서별 남은 % 게이지 · 리셋 남은 시간(일일 04:00 · 주간 월 09:00) · `잔여 입력` ·
-  `＋ 비서 추가`/🗑. 값은 이 기기 `localStorage.portal_use_v1` 이 기본이고, 서버가 알면 `usage_set` 으로 Drive
-  `김성래포털/포털_비서사용량.json` 에도 남긴다(at 이 더 최근인 값이 이김). **토큰 0원.**
+  `＋ 비서 추가`/🗑. 값은 이 기기 `localStorage.portal_use_v1` 이 기본이고, 서버가 알면 `usage_set`/`usage_report` 로 Drive
+  `김성래포털/포털_비서사용량.json` 에도 남긴다(at 이 더 최근인 값이 이김). **사람이 안 넣어도 비서가 자기 줄을 보고한다**(v27 — 아래). **토큰 0원.**
 - **타임라인**: 오더 하나가 말풍선 두 개다 — 오른쪽(`chat-row out`) = 보낸 말, 왼쪽(`chat-row in`) = 비서의 진행·승인·답장·결과.
   `ordVisible()` 필터(상태: 전체/진행/승인/끝남 · 발신: 전체/피원/피투/포털)를 거쳐 **오래된 것 위 → 새 것 아래**로 그린다.
 - **입력바**: 프리셋(`ORD_PRESETS`, 채우기만) · 대상 칩(`@전체 @피원 @피투 @노트북`) · 모드(💬대화 / 📦오더 / ✏️수정 — 체크박스 `#ord-edit-mode` 와 같은 값을 본다) · 발신 select.
@@ -77,14 +77,27 @@
 - **참여자 레지스트리(`AGENT_SEED`)**: 새 비서(부이·큐 …)는 배열에 **한 줄**만 넣으면 사용량 카드·@멘션 칩·말풍선 배지가 같이 늘어난다.
   화면에서 `＋ 비서 추가` 로 넣은 비서는 `localStorage.portal_agents_v1` 에 쌓이고 id 는 `a<base36>`(시트 규칙: 영소문자·숫자·_·- 12자).
   서버도 `QQ_AGENT_ID_RE`·`US_ID_RE` 로 같은 규칙을 받으므로 **GAS 재배포 없이** 새 이름이 동작한다.
+- **큐·부이·키링 기본 탑재(2026-11-25, v27)**: `AGENT_SEED` 에 `cue`(🎯 큐) · `vooy`(🛟 부이) · `keyring`(🔑 키링)이 들어 있다.
+  전용 색(`w-cue`·`w-vooy`·`w-key`, `mt-cue`·`mt-vooy`·`mt-key`)이라 말풍선 배지·@멘션 칩이 피원·피투와 구분된다.
+  `ordWhoCls` 는 이제 명부의 `color` 를 그대로 쓰고, `ordSenderKey` 는 등록된 비서가 낸 말을 '나(portal)'로 바꾸지 않는다.
+- **명부 서버 공유(2026-11-25, v27)**: `agents_get`/`agent_save` — 드라이브 `김성래포털/포털_비서목록.json`.
+  `＋추가`·`🗑 빼기` 가 서버에 오르고, 앱을 열 때 `agentServerGet()` 이 합친다(id 같으면 `at` 최신 이름이 이김).
+  빼기는 `removed:[{id, at}]` 로 **뺀 시각**까지 남겨 다른 기기에서도 다시 그려지지 않는다(최근 50건).
+  **자동 합류**: `queue_list.sources_seen`(최근 400행의 발신자, portal 제외)에 처음 보이는 비서는 `agentAutoJoin` 이 참여자로 넣고 서버에도 올린다 — `cue2`·`keyring2` 처럼 나중에 붙는 부계정 비서도 어느 폰에서든 `@멘션` 된다.
+  기본 참여자(예약 id)는 서버 파일에 쌓지 않는다(화면 `AGENT_SEED` 가 진짜). 예전 배포면 `AG_SRV=false` 로 조용히 이 기기 명부만 쓴다.
+- **@멘션 → 대상**: 칩을 누르지 않고 본문에 `@큐`·`@키링`·`@부이2` 라고 써도 그 비서 앞으로 간다(`ordTargetFromText`, 서버도 `qqMentionOf_` 로 한 번 더).
+  명시한 `payload.target` 이 있으면 그게 우선이고, `@전체` 는 `all` 이다. 이메일 속 `@` 는 멘션으로 보지 않는다.
 - **서버(Code.gs)**: `queue_list` 가 `source·kind·target` 을 돌려주고 `chat:true`·`targets`·`sources` 를 알린다.
   `queue_enqueue` 는 `source`(화이트리스트+규칙)와 `payload.kind/target` 을 기록한다. `queue_list target=pi1|pi2` = 내 멘션만.
   **`target` 필터 성능(2026-11-25, v26)**: 행마다 `qqItem_`(payload 파싱 + 가림 정규식 + 스크립트 속성 읽기 4~5회)을 만들면
   400행에서 실측 **57초** → GAS 30초 타임아웃. 그래서 `queueList` 는 이제 `qqRowTarget_(r)` 로 **payload 문자열에서 `"target"` 만 싸게 보고**
   매칭(또는 `all`) 행에만 `qqItem_` 을 만든다. 값의 최종 판정은 늘 `qqItem_`(스캔 상한 `QQ_SCAN_ROWS` 400행). `target` 없는 줄 = `notebook`.
-  `agent_beat target=pi1|pi2` → `agent_status.pi1/pi2`. 새 액션 `usage_get`/`usage_set`.
+  `agent_beat target=pi1|pi2` → `agent_status.pi1/pi2`. 새 액션 `usage_get`/`usage_set`/`usage_report`/`agents_get`/`agent_save`.
+- **사용량 자동 보고(2026-11-25, v27)**: 외부 비서는 `{"action":"usage_report","key":…,"id":"cue","pct":42,"note":"리서치 대기","status":"ok"}` **한 번**으로 자기 줄만 바꾼다(upsert).
+  `pct` 대신 `remain`(+`total`)도 받고, `note`(40자)·`status` 는 **보낸 칸만** 바뀐다(안 보내면 이전 값, 빈 문자열이면 지움). 다른 비서 줄은 건드리지 않는다.
+  집 노트북 도구 `hub-agent/notebook-agent/tools/report-usage.js` 가 엔진 한도 쿨다운(`engine-cooldown.json`)을 0%·danger·"해제 시각" 메모로 올린다(별도 프로그램 — 데몬 재시작 불필요, `.env` 에 `PORTAL_GAS_URL`·`PORTAL_API_KEY` 필요).
 - **피투 상태 파일**: `status/pi2.json`(피원은 지금처럼 `status/agent.json`). 카드 6칸 = 직접·허브·회사PC·피원·피투·오더 큐.
-- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS).
+- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)**.
 
 ## 🤖 노트북 오더함 (2026-11-15)
 
@@ -130,7 +143,7 @@
 ## 서버 (Code.gs)
 
 - POST 전용, 모든 요청에 비밀 키. `doGet` 은 안내 문구만.
-- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태 + `direct`·`pc` 비트 + `beat_targets`), `queue_list` / `queue_enqueue` / `queue_decide`(오더함), `agent_beat`(기기 상태 비트 — `target:'direct'|'pc'`, `stale_min` 5~240, `source`).
+- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태 + `direct`·`pc` 비트 + `beat_targets`), `queue_list` / `queue_enqueue` / `queue_decide`(오더함), `agent_beat`(기기 상태 비트 — `target:'direct'|'pc'`, `stale_min` 5~240, `source`), `usage_get` / `usage_set` / `usage_report`(📊 비서 사용량), `agents_get` / `agent_save`(👥 참여 비서 명부).
 - **`agent_beat`(2026-11-18)**: `target` 이 없으면 `direct` — 예전 `$PROFILE free` 함수와 그대로 호환된다. 파일은 `포털_agent_직접.json` / `포털_agent_pc.json` 두 장(같은 스키마·이력 8건·`qqMask_` 가림). `agent_status` 는 둘을 `direct`·`pc` 블록으로 내려주고 `beat_targets` 로 **이 배포가 pc 를 아는지** 알려준다(화면이 재배포 안내를 고를 때 씀).
 - **오더함은 `work/hub-agent/gas/CommandQueue.gs` 와 100% 호환**이어야 한다: 같은 22칸(`CQ_COLS`), 같은 상태값(`PENDING`·`WAITING_APPROVAL`·`RUNNING`·`DONE`·`FAILED`·`REJECTED`·`EXPIRED`·`TIMEOUT_REVIEW`), 같은 `Audit_Log` 11칸, 같은 payload 해시(canonical JSON 의 SHA-256 — 워커 `lib/approval.js` 와 같은 값). 바꿀 때는 양쪽을 같이 고친다.
 - 오더함 화이트리스트는 `git_pull`·`toss_sync`·`claude_prompt` 셋뿐(`QQ_TYPES`). `git_push`·`smartstore_api_relay` 는 포털에서 접수하지 않는다. 작업 위치는 `QUEUE_WORKSPACES`(선택, 없으면 `gaegyebu,content-hub,insurance-manager,smartstore-hub`).
