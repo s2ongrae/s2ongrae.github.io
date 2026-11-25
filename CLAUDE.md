@@ -142,6 +142,9 @@
   · **권한 주의(2026-11-25 실측)**: `UrlFetchApp` 은 `script.external_request` 승인이 있어야 돈다. 승인이 빠지면 웹훅은 조용히 실패하고 오더만 정상 접수된다.
     진단은 GET `webhook_last`(비서별 마지막 응답 코드)·GET `auth_link`(빠진 권한의 승인 URL). 이 프로젝트는 2026-11-25 승인 완료.
 - **피투 상태 파일**: `status/pi2.json`(피원은 지금처럼 `status/agent.json`). 카드 6칸 = 직접·허브·회사PC·피원·피투·오더 큐.
+- **화면 리뉴얼(2026-11-25, v35)**: 머리말(`room-title-wrap` + `#ord-count`) · 접이식 **비서 사용량**(`#room-use`, 요약 숫자는 머리말 `#room-use-sum` 한 곳에서만 — `.use-sum` 은 테스트가 내용을 보므로 남겨 두고 숨긴다) · **역할표**(`#room-roles`/`#role-table`, `renderRoles()` — 명부만 고치면 카드·멘션·표가 같이 바뀐다) · 타임라인(`room-chat` 안 `#ord-list`) · 입력바(`#room-tools` + `#room-plus`).
+  폰(≤700px)은 빠른 오더·대상 칸을 `#room-plus`(＋)로 접고(`aria-expanded`), 입력바만 `position:sticky` 로 붙는다 — 카드는 `overflow:clip` 이라 `room-chat` 이 스크롤 컨테이너가 되지 않는다(`overflow:hidden` 으로 바꾸면 sticky 가 죽는다).
+  **깨면 안 되는 계약(테스트가 문자열로 본다)**: `class="order-card room-card"` · `<details class="room-use"` · `chat-row in/out` · `chat-av` · `chat-bubble side-in` · `chat-day` · `mt mt-…` · `who w-…` · `#room-people`·`#ord-presets`·`#ord-mentions`·`#ord-mode`·`#ord-who`.
 - 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · **17)절(GET 읽기·claim/done·mentions·reply_to·duty)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)** · **X)절(닉네임·이모지 머리·부계정 자동 이름·담당 표시)** · **10)절(외부 비서 웹훅 — 발사 조건·무한루프·본문 규격·실패 격리)**.
 
 ## 🤖 노트북 오더함 (2026-11-15)

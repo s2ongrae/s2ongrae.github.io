@@ -910,6 +910,10 @@ console.log('V) 💬 비서 통합 회의실 — 카톡 타임라인·@멘션·�
   ok((D13.el('room-people').textContent || '').indexOf('명') >= 0, '참여 비서 수가 머리말에 보인다');
   let sum = D13.el('use-sum').innerHTML;
   ok(/위험/.test(sum) && /임박/.test(sum) && /정상/.test(sum) && /미확인/.test(sum), '사용량 요약(위험·임박·정상·미확인)');
+  // 2026-11-25 v34 리뉴얼 — 남는 말은 표로, 폰 입력바는 ＋로 접는다
+  ok(/id="room-roles"/.test(html) && /id="role-table"/.test(html), '역할표(누가 무엇을 맡나) 패널이 있다');
+  ok((D13.el('role-table').innerHTML.match(/class="role-row"/g) || []).length === 6, '역할표에 참여 비서 6명이 그려진다');
+  ok(/총괄 조율/.test(D13.el('role-table').innerHTML) && /id="room-plus"/.test(html), '역할표에 담당이 보이고, 폰 입력바에 도구 열기 버튼이 있다');
 
   // ② 참여자·대상 칩은 레지스트리에서 나온다
   const ment = D13.el('ord-mentions').innerHTML;
