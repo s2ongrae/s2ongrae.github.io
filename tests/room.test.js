@@ -136,7 +136,9 @@ function coreTests() {
   const names = ['ROOM_AGENTS', 'ROOM_CHIPS', 'ROOM_ALIASES', 'roomAgentById', 'roomMentionMap', 'roomTargetFromText',
     'roomSenderKey', 'roomIsMine', 'roomTargetKey', 'roomTargetLabel', 'roomReplyKey', 'roomReplyWhoKey',
     'roomNeedsWorker', 'roomIsPlainReply', 'roomShowReply', 'roomMsgText', 'roomStatus', 'roomWhen', 'roomDay',
-    'roomAgo', 'roomUseState', 'roomMd', 'roomLinks', 'roomWsPick', 'roomWsName', 'roomJosa', 'roomLastActivity', 'roomOnlineCount', 'esc'];
+    'roomAgo', 'roomUseState', 'roomMd', 'roomLinks', 'roomWsPick', 'roomWsName', 'roomJosa', 'roomLastActivity', 'roomOnlineCount', 'esc',
+    'ROOM_USE_TXT', 'ROOM_USE_ALIVE_MIN', 'roomResetOf', 'roomCycleStart', 'roomUseFresh', 'roomResetAt', 'roomResetText',
+    'roomSignalOf', 'roomSignalsFrom', 'roomSignalMin', 'roomSignalLive', 'roomStateOf', 'roomUseView', 'roomUseSummary'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -254,7 +256,89 @@ function coreTests() {
   ok(C.roomOnlineCount(items, {heartbeat: {state: 'ok', min: 1}}, nowMs) === 2, '활동 비서 1명 + 노트북 하트비트 = 2');
   ok(C.roomOnlineCount([], {heartbeat: {state: 'unknown', min: null}}, nowMs) === 0, '신호 없으면 0명');
 
-  console.log('M) 비밀값 하드코딩 없음 (공개 저장소)');
+  console.log('M) 사용량 표시 — 포털 PR #4 정책(리셋 경계·가동 신호·비공개)');
+  {
+    const now = new Date(2026, 10, 25, 22, 30).getTime();        // 2026-11-25(수) 22:30
+    const at = (y, mo, d, h, mi) => new Date(y, mo, d, h, mi).toISOString();
+    ok(C.ROOM_USE_TXT.na === '비공개', '상태 글에 비공개가 있음');
+    ok(C.ROOM_USE_ALIVE_MIN === 24 * 60, '가동 신호 유효 시간 24시간');
+    ok(C.roomResetOf('pi1') === 'daily04' && C.roomResetOf('pc') === 'weekly', '일일 04:00 · 회사 PC만 주간');
+
+    // 이번 주기 경계
+    ok(C.roomCycleStart('pi1', now) === new Date(2026, 10, 25, 4, 0).getTime(), '일일 주기 시작 = 오늘 04:00');
+    ok(C.roomCycleStart('pi1', new Date(2026, 10, 25, 3, 30).getTime()) === new Date(2026, 10, 24, 4, 0).getTime(),
+      '04:00 전이면 어제 04:00');
+    ok(C.roomCycleStart('pc', now) === new Date(2026, 10, 23, 9, 0).getTime(), '주간 주기 시작 = 이번 주 월요일 09:00');
+    ok(C.roomCycleStart('pc', new Date(2026, 10, 23, 8, 0).getTime()) === new Date(2026, 10, 16, 9, 0).getTime(),
+      '월요일 09:00 전이면 지난 월요일');
+    ok(C.roomResetAt('pi1', now) === new Date(2026, 10, 26, 4, 0).getTime(), '다음 일일 리셋 = 내일 04:00');
+    ok(C.roomResetAt('pc', now) === new Date(2026, 10, 30, 9, 0).getTime(), '다음 주간 리셋 = 월요일 09:00');
+    ok(C.roomResetText('pi1', now) === '리셋 5시간 30분 후', '리셋까지 남은 시간 문구');
+
+    // 지난 값은 무효
+    ok(C.roomUseFresh('pi1', {pct: 85, at: at(2026, 10, 25, 5, 0)}, now) === true, '04:00 이후 보고는 이번 주기');
+    ok(C.roomUseFresh('pi1', {pct: 85, at: at(2026, 10, 25, 3, 59)}, now) === false, '04:00 전 보고는 지난 주기');
+    ok(C.roomUseFresh('pi1', {pct: 85}, now) === false, '시각 없는 기록은 믿지 않음');
+    ok(C.roomUseFresh('pc', {pct: 40, at: at(2026, 10, 23, 8, 0)}, now) === false, '주간은 월요일 09:00 전 보고를 지난 값으로');
+    ok(C.roomUseFresh('pc', {pct: 40, at: at(2026, 10, 23, 10, 0)}, now) === true, '주간은 월요일 09:00 이후 보고를 이번 주기로');
+
+    // 상태 파일 → 신호
+    const srv = {
+      updated_at: at(2026, 10, 25, 19, 30), agent: {state: 'idle'},
+      pi2: {updated_at: at(2026, 10, 25, 19, 0), agent: {state: 'working'}},
+      pc: {updated_at: at(2026, 10, 25, 18, 0), state: 'working'}
+    };
+    ok(C.roomSignalOf(srv, 'pi1').at === at(2026, 10, 25, 19, 30), '서버 agent_status → pi1 신호');
+    ok(C.roomSignalOf(srv, 'pi2').state === 'working', '서버 pi2 블록 → pi2 신호');
+    ok(C.roomSignalOf({pi2: {updated_at: at(2026, 10, 25, 18, 0), state: 'working'}}, 'pi2').state === 'working',
+      'agent_beat 의 평평한 pi2 비트도 읽음');
+    ok(C.roomSignalOf(srv, 'pc').at === at(2026, 10, 25, 18, 0), '서버 pc 비트 → pc 신호');
+    ok(C.roomSignalOf(srv, 'cue') === null, '상태 파일이 없는 비서는 신호 없음');
+    const filePi2 = {version: 1, updated_at: at(2026, 10, 25, 17, 20), agent: {state: 'idle'}};
+    ok(C.roomSignalsFrom(filePi2, 'pi2').pi2.at === at(2026, 10, 25, 17, 20), 'status/pi2.json 한 사람 모양 → pi2 신호');
+    ok(C.roomSignalsFrom(filePi2, 'server').pi2 === undefined, '한 사람 모양을 서버 모양으로 읽지 않음');
+    ok(C.roomSignalMin(C.roomSignalOf(srv, 'pi1'), now) === 180, '신호 3시간 전');
+    ok(C.roomSignalLive({at: at(2026, 10, 24, 22, 31)}, now) === true, '23시간 59분 전 신호는 살아 있음');
+    ok(C.roomSignalLive({at: at(2026, 10, 24, 22, 29)}, now) === false, '24시간 넘은 신호는 가동 중이라 하지 않음');
+    ok(C.roomSignalLive(null, now) === false, '신호가 없으면 살아 있지 않음');
+
+    // 카드 하나의 상태 = 숫자 → 신호 → 미확인
+    const livePi2 = C.roomSignalOf(srv, 'pi2');
+    ok(C.roomStateOf('pi1', {pct: 5, at: at(2026, 10, 25, 12, 0)}, null, now) === 'danger', '이번 주기 숫자가 있으면 그 숫자로');
+    ok(C.roomStateOf('pi2', {pct: 90, at: at(2026, 10, 25, 3, 0)}, livePi2, now) === 'na', '지난 값 + 가동 신호 → 비공개');
+    ok(C.roomStateOf('pi2', {pct: 90, at: at(2026, 10, 25, 3, 0)}, {at: at(2026, 10, 20, 9, 0)}, now) === 'unknown',
+      '지난 값 + 오래된 신호 → 미확인');
+    ok(C.roomStateOf('cue', null, null, now) === 'unknown', '아무 기록도 없으면 미확인');
+    ok(C.roomStateOf('cue', {pct: 20, at: at(2026, 10, 25, 20, 0)}, null, now) === 'soon', '임박 <30');
+
+    // 화면 문구 — 숫자를 지어내지 않고, 지운 값은 지웠다고 말한다
+    const vOk = C.roomUseView('pi1', {pct: 85, at: at(2026, 10, 25, 22, 20)}, null, now);
+    ok(vOk.label === '잔여 85%' && vOk.state === 'ok', '이번 주기 숫자는 잔여 N%');
+    ok(vOk.note.indexOf('보고 10분 전') === 0, '언제 보고된 값인지 함께');
+    const vNa = C.roomUseView('pi2', null, livePi2, now);
+    ok(vNa.label === '잔여 비공개' && vNa.state === 'na' && vNa.pct === null, '신호만 있으면 잔여 비공개(숫자 없음)');
+    ok(vNa.note === '작업 중 · 신호 3시간 30분 전', '가동 중 문구와 신호 시각');
+    const vNaStale = C.roomUseView('pi2', {pct: 90, at: at(2026, 10, 25, 3, 0)}, livePi2, now);
+    ok(vNaStale.label === '잔여 비공개' && vNaStale.note.indexOf('지난 값 90% 지움') > -1,
+      '지난 값이 있어도 지웠다고 함께 말함(숫자를 다시 보여지 않음)');
+    const vStale = C.roomUseView('pi1', {pct: 85, at: at(2026, 10, 25, 3, 0)}, null, now);
+    ok(vStale.label === '— 새 보고 대기' && vStale.pct === null, '지난 값은 화면에서 내림');
+    ok(vStale.note.indexOf('지난 값 85%는 지웠어요') > -1, '지운 값을 말해 줌');
+    ok(vStale.stale === true, '지난 값 표시');
+    ok(C.roomUseView('cue', null, null, now).label === '— 미확인', '아무 신호 없으면 미확인');
+
+    // 요약 — 포털과 같은 다섯 칸
+    const c = C.roomUseSummary(['pi1', 'pi2', 'cue', 'vooy'],
+      {pi1: {pct: 50, at: at(2026, 10, 25, 12, 0)}, pi2: {pct: 90, at: at(2026, 10, 25, 3, 0)}, cue: {pct: 5, at: at(2026, 10, 25, 12, 0)}},
+      {pi2: livePi2}, now);
+    ok(c.ok === 1 && c.na === 1 && c.danger === 1 && c.unknown === 1, '숫자·지난 값·신호·미확인을 각각 셈');
+    ok(['danger', 'soon', 'ok', 'na', 'unknown'].every(k => C.ROOM_USE_TXT[k]), '다섯 상태 모두 문구가 있음');
+    ok(/\.pill\.na/.test(css) && /\.fill\.na/.test(css), '비공개 알약·막대 스타일이 있음');
+    ok(/(새 보고 대기)/.test(js) && /(가동 중)/.test(js), '지난 값·가동 중 문구가 화면 코드에 있음');
+    ok(/room_sig_cache/.test(js) && /status\/agent\.json/.test(js) && /status\/pi2\.json/.test(js), '가동 신호는 저장소 상태 파일에서도 읽음');
+  }
+
+  console.log('N) 비밀값 하드코딩 없음 (공개 저장소)');
   const all = html + js + css + sw;
   ok(!/AKfycb[0-9A-Za-z_-]{20,}/.test(all), 'Apps Script 주소 없음');
   ok(!/AIza[0-9A-Za-z_-]{20,}/.test(all), '구글 API 키 없음');

@@ -290,6 +290,7 @@ input,textarea{font:inherit;color:inherit}
 .pill.danger{color:var(--bad)} .pill.danger i{background:var(--bad)}
 .pill.soon{color:var(--warn)} .pill.soon i{background:var(--warn)}
 .pill.ok{color:var(--ok)} .pill.ok i{background:var(--ok)}
+.pill.na{color:var(--sub)} .pill.na i{background:#94A3B8}
 .pill.unknown i{background:var(--hint)}
 .dlist{flex:1; overflow-y:auto; padding:0 10px 10px}
 .ag{display:flex; gap:10px; padding:10px; border-radius:12px}
@@ -305,8 +306,13 @@ input,textarea{font:inherit;color:inherit}
 .bar .track{flex:1; display:block; height:6px; border-radius:3px; background:var(--line); overflow:hidden}
 .bar .fill{display:block; height:100%; border-radius:3px; background:var(--ok)}
 .bar .fill.soon{background:var(--warn)} .bar .fill.danger{background:var(--bad)}
+.bar .fill.na{background:repeating-linear-gradient(135deg, var(--hint) 0 3px, transparent 3px 6px)}
 .bar .pct{font-size:10.8px; font-weight:800; color:var(--sub); font-variant-numeric:tabular-nums; min-width:44px; text-align:right}
 .bar .pct.none{color:var(--hint); font-weight:700}
+.bar .pct.na{color:var(--hint); font-weight:700; min-width:0}
+.bar .pct.stale{color:var(--warn); font-weight:700}
+.bar .pct.solo{flex:1; min-width:0; text-align:left}
+.ag-m{font-size:10.6px; font-weight:700; color:var(--hint); line-height:1.45; margin-top:3px; word-break:keep-all}
 .dfoot{flex:0 0 auto; padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px)); border-top:1px solid var(--line); background:var(--card2)}
 .dfoot .ln{font-size:11.5px; color:var(--sub); line-height:1.6; margin-bottom:8px}
 .dfoot .ln b{color:var(--txt)}
