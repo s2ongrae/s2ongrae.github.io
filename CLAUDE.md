@@ -62,6 +62,27 @@
 - **시트 시각은 '노트북 생존'의 근거가 아니다(2026-11-18 개정)**: 노트북 `heartbeat.json` 은 노트북 디스크에만 있어서, `HEARTBEAT_FILE_ID` 가 없으면 `queue_status` 는 `heartbeat:{state:'unknown', source:'sheet', approx:true, reason:'no_heartbeat', min, at}` 로 답한다. 화면은 노트북 배지를 **회색 '신호 없음'** 으로 두고 시트 활동을 '오더를 넣은 흔적'으로만 title·보조줄에 적는다. 피클이 오더를 넣기만 해도 초록이 되던 거짓 안심을 없앴다(실전점검 2026-11-18 P0).
 - **검토 필요(REVIEW_NEEDED) 카드**: 차단 사유·변경 요약·바뀐 파일·브랜치와 compare 링크에 더해 `[⧉ 병합 1줄 복사]` 버튼(`ordMergeCmd` → `git fetch && git merge origin/auto-review/<id>`)을 둔다. 브랜치 칸이 비면 오더 id 로 만들고, `main` 같은 다른 브랜치는 받지 않는다. 클립보드는 https 에서만 동작하므로 실패하면 임시 입력칸 선택 복사 → 안내 순서로 떨어진다.
 
+## 💬 비서 통합 회의실 (2026-11-25) — 오더함이 카톡방이 됐다
+
+`#order-card` 하나가 `# 비서-통합-회의실` 이다(예전 「🤖 노트북 오더함」을 그 안에 품고 있다 — 같은 DOM id 유지).
+- **머리말**: 참여 비서 수(`#room-people`) · 사용량 요약 · ⟳(목록) · 🔄(관제·사용량까지).
+- **📊 비서 사용량**(`#room-use` details): 비서별 남은 % 게이지 · 리셋 남은 시간(일일 04:00 · 주간 월 09:00) · `잔여 입력` ·
+  `＋ 비서 추가`/🗑. 값은 이 기기 `localStorage.portal_use_v1` 이 기본이고, 서버가 알면 `usage_set` 으로 Drive
+  `김성래포털/포털_비서사용량.json` 에도 남긴다(at 이 더 최근인 값이 이김). **토큰 0원.**
+- **타임라인**: 오더 하나가 말풍선 두 개다 — 오른쪽(`chat-row out`) = 보낸 말, 왼쪽(`chat-row in`) = 비서의 진행·승인·답장·결과.
+  `ordVisible()` 필터(상태: 전체/진행/승인/끝남 · 발신: 전체/피원/피투/포털)를 거쳐 **오래된 것 위 → 새 것 아래**로 그린다.
+- **입력바**: 프리셋(`ORD_PRESETS`, 채우기만) · 대상 칩(`@전체 @피원 @피투 @노트북`) · 모드(💬대화 / 📦오더 / ✏️수정 — 체크박스 `#ord-edit-mode` 와 같은 값을 본다) · 발신 select.
+- **대화(kind='chat')**: `claude_prompt` + `payload.kind='chat'` + `target`. 노트북(`hub-agent lib/chat.js`)이 코드가 아니라
+  "이렇게 하겠습니다" 답장을 `result` 에 쓴다. 같은 큐·같은 시트 규격이라 **Queue 타입 추가 없음**.
+- **참여자 레지스트리(`AGENT_SEED`)**: 새 비서(부이·큐 …)는 배열에 **한 줄**만 넣으면 사용량 카드·@멘션 칩·말풍선 배지가 같이 늘어난다.
+  화면에서 `＋ 비서 추가` 로 넣은 비서는 `localStorage.portal_agents_v1` 에 쌓이고 id 는 `a<base36>`(시트 규칙: 영소문자·숫자·_·- 12자).
+  서버도 `QQ_AGENT_ID_RE`·`US_ID_RE` 로 같은 규칙을 받으므로 **GAS 재배포 없이** 새 이름이 동작한다.
+- **서버(Code.gs)**: `queue_list` 가 `source·kind·target` 을 돌려주고 `chat:true`·`targets`·`sources` 를 알린다.
+  `queue_enqueue` 는 `source`(화이트리스트+규칙)와 `payload.kind/target` 을 기록한다. `queue_list target=pi1|pi2` = 내 멘션만.
+  `agent_beat target=pi1|pi2` → `agent_status.pi1/pi2`. 새 액션 `usage_get`/`usage_set`.
+- **피투 상태 파일**: `status/pi2.json`(피원은 지금처럼 `status/agent.json`). 카드 6칸 = 직접·허브·회사PC·피원·피투·오더 큐.
+- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터) · 15)절(사용량·pi 비트) · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS).
+
 ## 🤖 노트북 오더함 (2026-11-15)
 
 - 페이지 맨 아래 `「🤖 노트북 오더함」` 카드 하나로 **오더 접수 → 승인/거절 → 결과 확인**을 포털 안에서 끝낸다(텔레그램·슬랙 없이). 오더는 `Command_Queue` 시트에 쌓이고 노트북(`hub-agent` 워커)이 집어 가 실행한다.

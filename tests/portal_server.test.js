@@ -733,7 +733,7 @@ console.log('12) 💻 회사 PC 비트(agent_beat target=pc) — 비공개 레�
   r = post({action:'agent_status', key:K6});
   ok(r.ok===true && r.pc && r.pc.state==='working' && r.pc.project==='smartstore', 'agent_status 에 pc 블록이 붙는다');
   ok(r.direct && r.direct.project==='portal', 'direct 블록도 그대로');
-  ok(JSON.stringify(r.beat_targets)===JSON.stringify(['direct','pc']), 'beat_targets 로 이 배포가 pc 를 아는지 알려준다');
+  ok(JSON.stringify(r.beat_targets)===JSON.stringify(['direct','pc','pi1','pi2']), 'beat_targets 로 이 배포가 pc·피원(pi1)·피투(pi2) 를 아는지 알려준다');
 
   // ③ stale_min — 커밋 알림은 120분, 값은 5~240 으로 자른다
   r = post({action:'agent_beat', key:K6, target:'pc', state:'working', source:'commit', stale_min:120, project:'smartstore', task:'커밋'});
@@ -793,6 +793,106 @@ console.log('13) 💻 회사 PC 1줄 리포터(tools/pc-beat.ps1) — 키 없는
   ok(mask('key 0123456789abcdef0123456789abcdef').indexOf('0123456789abcdef') < 0, '키 모양(32자 hex)은 가림');
   ok(mask('상품 상세페이지 수정 4건') === '상품 상세페이지 수정 4건', '보통 작업명은 그대로');
   ok(mask('x'.repeat(100)).length === 100, '가림은 길이를 늘리지 않는다(자르기는 서버가 60자로)');
+}
+
+console.log('14) 💬 회의실 — 발신(source)·대상(target)·대화(kind) 가 큐에 남는다');
+{
+  const K9 = S.props.SECRET_KEY;
+  const SHEET = 'SHEETidRoomQueue001';
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  S.addSheet(SHEET, {'Command_Queue': [HEAD.slice(0)]});
+  S.props.QUEUE_SHEET_ID = SHEET;
+  const qrows = () => S.books[SHEET]['Command_Queue'];
+  const col = (row, n) => row[HEAD.indexOf(n)];
+  const last = () => qrows()[qrows().length - 1];
+
+  // ① 발신자 — pi1 · pi2 · 새 비서(vooy) · 이상한 값은 portal
+  let r = post({action: 'queue_enqueue', key: K9, type: 'git_pull', workspace: 'gaegyebu', payload: {}, source: 'pi1'});
+  ok(r.ok === true && col(last(), 'source') === 'pi1', 'source=pi1 이 시트에 그대로 남는다(피원이 낸 오더)');
+  r = post({action: 'queue_enqueue', key: K9, type: 'git_pull', workspace: 'gaegyebu', payload: {}, source: 'pi2'});
+  ok(col(last(), 'source') === 'pi2', 'source=pi2 도 남는다(피투)');
+  r = post({action: 'queue_enqueue', key: K9, type: 'git_pull', workspace: 'gaegyebu', payload: {}, source: 'vooy'});
+  ok(col(last(), 'source') === 'vooy', '새 비서(vooy)도 재배포 없이 그 이름으로 남는다');
+  r = post({action: 'queue_enqueue', key: K9, type: 'git_pull', workspace: 'gaegyebu', payload: {}, source: 'BAD SPACE!'});
+  ok(col(last(), 'source') === 'portal', '규칙에 안 맞는 source 는 portal 로');
+  r = post({action: 'queue_enqueue', key: K9, type: 'git_pull', workspace: 'gaegyebu', payload: {}});
+  ok(col(last(), 'source') === 'portal', 'source 가 없으면 portal');
+
+  // ② 대화(kind=chat) + 대상(target) — 같은 claude_prompt 큐에 실린다
+  r = post({action: 'queue_enqueue', key: K9, type: 'claude_prompt', workspace: 'gaegyebu', source: 'pi1',
+    payload: {prompt: '@피투 이번 주 블로그 소재 뽑아줘', mode: 'ask', kind: 'chat', target: 'pi2'}});
+  ok(r.ok === true && r.item.status === 'PENDING', '대화 메시지는 승인 없이 PENDING');
+  ok(r.item.kind === 'chat' && r.item.target === 'pi2', 'kind=chat · target=pi2 가 목록에 돌아온다');
+  ok(col(last(), 'type') === 'claude_prompt', '시트 type 은 claude_prompt 그대로(노트북 호환)');
+  const pl = JSON.parse(col(last(), 'payload'));
+  ok(pl.kind === 'chat' && pl.target === 'pi2' && pl.mode === 'ask' && /블로그 소재/.test(pl.prompt), 'payload 에 kind·target 이 실린다');
+  r = post({action: 'queue_enqueue', key: K9, type: 'claude_prompt', workspace: 'gaegyebu',
+    payload: {prompt: '보통 오더', mode: 'ask', kind: 'nope', target: 'NOPE!'}});
+  ok(!r.item.kind && !r.item.target, '모르는 kind·target 은 싣지 않는다');
+
+  // ③ @멘션 필터 — 내 앞으로 온 말만
+  const mine = post({action: 'queue_list', key: K9, target: 'pi2', limit: 20});
+  ok(mine.items.every(x => x.target === 'pi2' || x.target === 'all'), 'target=pi2 로 부르면 내 멘션만 온다');
+  ok(mine.items.length >= 1 && mine.items.some(x => /블로그 소재/.test(x.summary)), '그 메시지가 목록에 있다');
+  const all = post({action: 'queue_list', key: K9, limit: 20});
+  ok(all.items.length > mine.items.length, '필터 없이 부르면 전체');
+  ok(all.chat === true, '이 배포가 대화(kind=chat)와 대상(target)을 안다고 알려준다');
+
+  // ④ 발신별 건수 — 화면 필터가 쓰는 source 가 목록에 실린다
+  const seen = {};
+  all.items.forEach(x => { seen[x.source] = (seen[x.source] || 0) + 1; });
+  ok(seen.pi1 >= 1 && seen.pi2 >= 1 && seen.portal >= 1 && seen.vooy >= 1, 'source 별로 셀 수 있다(pi1·pi2·portal·vooy)');
+}
+
+console.log('15) 📊 비서 사용량 (usage_get · usage_set) 과 피원·피투 상태 비트');
+{
+  const KS = S.props.SECRET_KEY;
+  const folder = S.ROOT.folders.filter(x => x.name === '김성래포털')[0];
+  const usFile = () => folder.files.filter(x => x.name === '포털_비서사용량.json')[0];
+
+  let r = post({action: 'usage_get', key: KS});
+  ok(r.ok === true && Array.isArray(r.items) && r.items.length === 0, '처음엔 빈 장부');
+
+  const now = new Date().toISOString();
+  r = post({action: 'usage_set', key: KS, items: [{id: 'pi1', pct: 95, at: now}, {id: 'pi2', pct: 12.5, at: now}]});
+  ok(r.ok === true && r.saved === 2, '남은 % 두 개를 저장');
+  ok(!!usFile(), '드라이브에 포털_비서사용량.json 이 생긴다');
+  r = post({action: 'usage_get', key: KS});
+  const by = {}; r.items.forEach(x => { by[x.id] = x.pct; });
+  ok(by.pi1 === 95 && by.pi2 === 12.5, '저장한 값이 그대로 읽힌다');
+
+  // 더 최근 값이 이긴다(여러 기기)
+  const older = new Date(Date.now() - 3600000).toISOString();
+  r = post({action: 'usage_set', key: KS, items: [{id: 'pi1', pct: 50, at: older}]});
+  ok(r.ok === true && post({action: 'usage_get', key: KS}).items.filter(x => x.id === 'pi1')[0].pct === 95,
+    '시각(at)이 더 오래된 값은 무시한다(기기 두 대가 서로 덮지 않게)');
+  const newer = new Date(Date.now() + 60000).toISOString();
+  post({action: 'usage_set', key: KS, items: [{id: 'pi1', pct: 66, at: newer}]});
+  ok(post({action: 'usage_get', key: KS}).items.filter(x => x.id === 'pi1')[0].pct === 66, '더 최근 값은 덮어쓴다');
+
+  // 새 비서(vooy)도 같은 규칙이면 저장된다 — GAS 재배포 없이
+  r = post({action: 'usage_set', key: KS, items: [{id: 'vooy', pct: 40, at: new Date().toISOString()}]});
+  ok(r.ok === true, '추가한 비서(vooy)도 저장된다');
+  ok(post({action: 'usage_get', key: KS}).items.some(x => x.id === 'vooy' && x.pct === 40), 'vooy 값이 읽힌다');
+
+  // 잘못된 값은 거절
+  ok(post({action: 'usage_set', key: KS, items: [{id: 'pi1', pct: 120}]}).ok === false, 'pct 120 은 거절');
+  ok(post({action: 'usage_set', key: KS, items: [{id: 'pi1', pct: -1}]}).ok === false, 'pct -1 은 거절');
+  ok(post({action: 'usage_set', key: KS, items: [{id: 'BAD ID!', pct: 10}]}).ok === false, '규칙에 안 맞는 id 는 거절');
+  ok(post({action: 'usage_set', key: KS, items: []}).ok === false, '빈 items 는 거절');
+
+  // ⑤ 피원(pi1)·피투(pi2) 상태 비트 — 저장소 파일이 없어도 지금 작업이 보인다
+  r = post({action: 'agent_beat', key: KS, target: 'pi2', state: 'working', project: 'portal', task: '회의실 개편'});
+  ok(r.ok === true && r.target === 'pi2', 'agent_beat target=pi2 를 받는다');
+  const f2 = folder.files.filter(x => x.name === '포털_agent_pi2.json')[0];
+  ok(!!f2 && JSON.parse(f2.content).agent.task === '회의실 개편', '포털_agent_pi2.json 에 따로 쌓인다');
+  r = post({action: 'agent_status', key: KS});
+  ok(r.pi2 && r.pi2.state === 'working' && r.pi2.project === 'portal', 'agent_status 에 pi2 블록이 붙는다');
+  ok(JSON.stringify(r.beat_targets) === JSON.stringify(['direct', 'pc', 'pi1', 'pi2']), 'beat_targets 에 pi1·pi2 가 들어간다');
+  r = post({action: 'agent_beat', key: KS, target: 'pi1', state: 'idle'});
+  ok(post({action: 'agent_status', key: KS}).pi1.state === 'idle', '피원(pi1) 비트도 따로 남는다');
 }
 
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);

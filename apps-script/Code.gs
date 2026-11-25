@@ -56,6 +56,8 @@ function doPost(e) {
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
       case 'queue_decide':      return out(queueDecide(body));    // 🤖 오더함 — 승인/거절
       case 'agent_beat':        return out(agentBeat_(body));      // ⌨️ 노트북 직접작업 상태
+      case 'usage_get':         return out(usageGet());           // 📊 비서 사용량(읽기)
+      case 'usage_set':         return out(usageSet_(body));      // 📊 비서 사용량(남은 % 기록)
       default:                  return out({ ok: false, error: '알 수 없는 요청이에요.' });
     }
   } catch (err) {
@@ -630,12 +632,94 @@ function agentStatus() {
     // ⌨️ 기기 상태 비트 — 노트북 '직접(free)'·회사 PC. 있으면 블록으로 함께 준다(없거나 깨져도 예외 없이)
     const bDirect = agentBeatRead_('direct'); if (bDirect) res.direct = bDirect;
     const bPc = agentBeatRead_('pc'); if (bPc) res.pc = bPc;
+    const bPi1 = agentBeatRead_('pi1'); if (bPi1) res.pi1 = bPi1;
+    const bPi2 = agentBeatRead_('pi2'); if (bPi2) res.pi2 = bPi2;
     res.beat_targets = AB_TARGETS.slice(0);      // 예전 배포와 구분(화면이 재배포 안내를 고를 때 씀)
   } catch (err) {
     Logger.log('agent_status: ' + String((err && err.message) || err));
     res.note = '상태 파일을 읽지 못했어요';
   }
   return res;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 📊 비서 사용량 (2026-11-25) — 남은 % 를 적어 두는 작은 장부
+//
+//  · 화면은 이 기기(localStorage)에 먼저 저장하고, 서버가 알면 여기에도 남긴다(토큰 0원).
+//  · 파일: 드라이브 김성래포털/포털_비서사용량.json = {v, updated_at, items:{pi1:{pct,at}, …}}
+//  · 칸은 정해진 비서만(US_IDS). pct 는 0~100, at 은 그 값이 사실이던 시각(ISO).
+//    같은 비서를 여러 기기에서 넣으면 at 이 더 최근인 쪽이 이긴다(merge).
+//  · 비밀번호·고객정보 같은 건 여기에 들어오지 않는다(숫자와 시각뿐).
+// ═══════════════════════════════════════════════════════════════
+const US_FILE = '포털_비서사용량.json';
+const US_IDS = ['pi1', 'pi2', 'claude', 'agy', 'freellmapi', 'pc'];
+// 화면에서 추가한 비서(부이·큐 등)도 같은 규칙이면 저장한다 — GAS 재배포 없이 늘어난다.
+const US_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
+function usIdOk_(id) { return US_IDS.indexOf(id) >= 0 || US_ID_RE.test(id); }
+const US_MAX = 12;
+
+/** 파일을 읽어 {items:{id:{pct,at}}} 로. 없거나 깨졌으면 빈 장부. */
+function usageRead_() {
+  const out = { v: 1, updated_at: '', items: {} };
+  try {
+    const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    if (!fo.hasNext()) return out;
+    const it = fo.next().getFilesByName(US_FILE);
+    if (!it.hasNext()) return out;
+    const d = JSON.parse(it.next().getBlob().getDataAsString());
+    if (!isObj(d)) return out;
+    out.updated_at = clip(d.updated_at, 40);
+    const items = isObj(d.items) ? d.items : {};
+    Object.keys(items).forEach(function (k) {
+      if (!usIdOk_(k) || !isObj(items[k])) return;
+      const pct = Number(items[k].pct);
+      if (!isFinite(pct) || pct < 0 || pct > 100) return;
+      out.items[k] = { pct: Math.round(pct * 10) / 10, at: clip(items[k].at, 40) };
+    });
+  } catch (err) {
+    Logger.log('usage_get: ' + String((err && err.message) || err));
+  }
+  return out;
+}
+
+/** 화면이 쓰는 모양 — {items:[{id,pct,at}], at, reported} */
+function usageGet() {
+  const d = usageRead_();
+  const items = Object.keys(d.items).map(function (id) { return { id: id, pct: d.items[id].pct, at: d.items[id].at }; });
+  return { ok: true, at: d.updated_at || '', items: items, reported: items.length, ids: US_IDS.slice() };
+}
+
+/** 남은 % 를 기록한다 — 같은 비서는 at 이 더 최근인 값만 덮어쓴다. */
+function usageSet_(body) {
+  const list = Array.isArray(body && body.items) ? body.items : [];
+  if (!list.length) throw qqErr_('bad_request', 'items 가 필요해요.');
+  const now = new Date().toISOString();
+  const incoming = {};
+  list.slice(0, US_MAX).forEach(function (x) {
+    if (!isObj(x)) return;
+    const id = String(x.id || '').trim().toLowerCase();
+    if (!usIdOk_(id)) throw qqErr_('bad_request', '모르는 비서예요: ' + clip(id, 20));
+    const pct = Number(x.pct);
+    if (!isFinite(pct) || pct < 0 || pct > 100) throw qqErr_('bad_request', 'pct 는 0~100 사이 숫자여야 해요.');
+    const at = String(x.at || '').trim();
+    incoming[id] = { pct: Math.round(pct * 10) / 10, at: isFinite(Date.parse(at)) ? clip(at, 40) : now };
+  });
+  return qqLock_(function () {
+    const cur = usageRead_();
+    let saved = 0;
+    Object.keys(incoming).forEach(function (id) {
+      const old = cur.items[id];
+      const oldAt = old ? (Date.parse(old.at) || 0) : 0;
+      const newAt = Date.parse(incoming[id].at) || 0;
+      if (!old || newAt >= oldAt) { cur.items[id] = incoming[id]; saved++; }
+    });
+    const fo = DriveApp.getFoldersByName(PORTAL_FOLDER);
+    const folder = fo.hasNext() ? fo.next() : DriveApp.createFolder(PORTAL_FOLDER);
+    const js = JSON.stringify({ v: 1, updated_at: now, items: cur.items });
+    const it = folder.getFilesByName(US_FILE);
+    if (it.hasNext()) it.next().setContent(js); else folder.createFile(US_FILE, js, 'application/json');
+    return { ok: true, at: now, saved: saved, items: Object.keys(cur.items).map(function (id) { return { id: id, pct: cur.items[id].pct, at: cur.items[id].at }; }) };
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -685,6 +769,25 @@ const QQ_PROP_WS = 'QUEUE_WORKSPACES';            // (선택) 허용 워크스�
 //   auto 는 claude → agy → freellmapi 순으로 넘어간다(워커가 판단).
 const QQ_ENGINES = ['auto', 'claude', 'agy', 'freellmapi'];
 const QQ_WS_DEFAULT = 'gaegyebu,content-hub,insurance-manager,smartstore-hub,s2ongrae.github.io';
+// 오더를 낸 곳(source) — 이 화면은 portal, 피원은 pi1, 피투는 pi2.
+//  부이(vooy)·큐(cue) 처럼 나중에 붙는 비서도 **GAS 재배포 없이** 이름을 쓸 수 있게 규칙으로 검사한다.
+//  (영소문자·숫자·_·- 12자 — 시트 한 칸에 안전한 값)
+const QQ_SOURCES = ['portal', 'pi1', 'pi2'];
+const QQ_AGENT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
+// 대상(target, @멘션) — 누구에게 시키는가. all=전체, notebook=집 노트북(기본 실행자).
+const QQ_TARGETS = ['all', 'pi1', 'pi2', 'notebook'];
+/** source 값 → 시트에 남길 이름. 규칙에 맞으면 그대로, 아니면 portal. */
+function qqSourceOf_(v) {
+  const t = String(v == null ? '' : v).trim().toLowerCase();
+  if (QQ_SOURCES.indexOf(t) >= 0) return t;
+  return QQ_AGENT_ID_RE.test(t) ? t : 'portal';
+}
+/** target 값 → 규칙에 맞으면 그대로(없으면 빈 문자열 = 노트북) */
+function qqTargetOf_(p) {
+  const t = String((isObj(p) && p.target) || '').trim().toLowerCase();
+  if (t === 'all' || QQ_TARGETS.indexOf(t) >= 0) return t;
+  return QQ_AGENT_ID_RE.test(t) ? t : '';
+}
 const QQ_LIST_DEFAULT = 15;
 const QQ_LIST_MAX = 20;
 const QQ_SCAN_ROWS = 400;                          // 목록·중복 확인용으로 아래에서 읽는 줄 수
@@ -920,7 +1023,10 @@ function qqItem_(r) {
     duration_ms: r.duration_ms === '' || r.duration_ms == null ? null : Number(r.duration_ms),
     exit_code: r.exit_code === '' || r.exit_code == null ? null : Number(r.exit_code),
     attempts: Number(r.attempts || 0),
-    result: qqMask_(r.result, 200),
+    // 누가 낸 오더인가(portal · pi1 · pi2) — 회의실 말풍선 색·필터가 이 값을 쓴다.
+    source: clip(String(r.source == null ? '' : r.source).trim().toLowerCase(), 20),
+    // 채팅 답장은 길어서 조금 더 보여 준다(워커 result 상한 500자).
+    result: qqMask_(r.result, 500),
     error: qqMask_(r.error, 200),
     approval_by: clip(r.approval_by, 20),
     branch: clip(r.branch, 120),
@@ -931,6 +1037,9 @@ function qqItem_(r) {
     auto_approved: String(r.approval_by == null ? '' : r.approval_by).trim().toLowerCase() === 'auto',
     approval_expires_at: clip(r.approval_expires_at, 40),
     expires_in_ms: st === 'WAITING_APPROVAL' && isFinite(expMs) ? Math.max(0, expMs - Date.now()) : null,
+    // 대화(kind='chat')와 @멘션(target) — 예전 줄에는 없으니 빈 값으로 내려간다.
+    kind: clip(String(p.kind == null ? '' : p.kind).toLowerCase(), 12),
+    target: clip(String(p.target == null ? '' : p.target).toLowerCase(), 12),
     summary: qqSummary_(type, p),
     needs_decision: st === 'WAITING_APPROVAL'
   };
@@ -963,6 +1072,11 @@ function qqPayloadOf_(type, p) {
   // AI 엔진(auto · claude · agy · freellmapi) — auto 는 굳이 싣지 않는다(워커 기본값과 같은 뜻).
   const engine = qqEngineOf_(p);
   if (engine !== 'auto') out.engine = engine;
+  // 2026-11-25 통합 회의실 — kind='chat' 이면 노트북이 코드가 아니라 '답장'을 만든다(같은 claude_prompt 큐).
+  // target 은 @멘션(누구에게). 둘 다 노트북 lib/chat.js 가 읽는다. 모르는 값은 싣지 않는다.
+  if (isObj(p) && String(p.kind || '').toLowerCase() === 'chat') out.kind = 'chat';
+  const target = qqTargetOf_(p);
+  if (target && target !== 'notebook') out.target = target;
   return JSON.stringify(out);
 }
 /**
@@ -1351,13 +1465,25 @@ function queueList(body) {
     else if (st === 'DONE') c.done++;
     else if (st === 'FAILED') c.failed++;
   }
+  // target=pi1|pi2 로 부르면 "내 앞으로 온 말"만 — 피원·피투가 자기 멘션을 찾을 때 쓴다.
+  const wantTarget = String((body && body.target) || '').trim().toLowerCase();
+  const targetFilter = !!wantTarget && wantTarget !== 'notebook' && wantTarget !== 'all' &&
+    (QQ_TARGETS.indexOf(wantTarget) >= 0 || QQ_AGENT_ID_RE.test(wantTarget));
   const items = [];
-  for (let i = rows.length - 1; i >= 0 && items.length < limit; i--) items.push(qqItem_(rows[i]));
+  for (let i = rows.length - 1; i >= 0 && items.length < limit; i--) {
+    const it = qqItem_(rows[i]);
+    if (targetFilter) {
+      const tg = it.target || 'notebook';
+      if (tg !== wantTarget && tg !== 'all') continue;
+    }
+    items.push(it);
+  }
   return {
     ok: true, at: qqNow_(), items: items, count: items.length,
     pending: c.pending, waiting: c.waiting, running: c.running, timeout: c.timeout,
     review: c.review, done: c.done, failed: c.failed,
     workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES), engines: QQ_ENGINES.slice(),
+    chat: true, targets: QQ_TARGETS.slice(), sources: QQ_SOURCES.slice(),
     approval_ttl_min: Math.round(QQ_APPROVAL_TTL_MS / 60000)
   };
 }
@@ -1415,7 +1541,8 @@ function queueEnqueue(body) {
       }
     }
     const row = {
-      id: qqMakeId_(nowMs), created_at: qqIso_(nowMs), source: 'portal', type: type, workspace: workspace,
+      // source = 누가 낸 오더인가(portal·pi1·pi2·vooy·cue …). 모르는 모양이면 portal.
+      id: qqMakeId_(nowMs), created_at: qqIso_(nowMs), source: qqSourceOf_(body && (body.source || body.client_id)), type: type, workspace: workspace,
       payload: payload, status: needsApproval ? 'WAITING_APPROVAL' : 'PENDING', attempts: 0,
       claimed_at: '', claimed_by: '', finished_at: '', duration_ms: '', exit_code: '', result: '', error: '', detail: '',
       risk_level: risk, approval_expires_at: needsApproval ? qqIso_(nowMs + QQ_APPROVAL_TTL_MS) : '',
@@ -1512,8 +1639,9 @@ function queueDecide(body) {
 //    (커밋 간격은 30분~2시간이라 25분으로 두면 작업 중에도 계속 '미확인'이 뜬다).
 //  · 이 파일에는 비밀도, 사람 이름·전화번호도 남기지 않는다(작업명은 qqMask_ 로 가림).
 // ═══════════════════════════════════════════════════════════════
-const AB_TARGETS = ['direct', 'pc'];
-const AB_FILE = { direct: '포털_agent_직접.json', pc: '포털_agent_pc.json' };
+const AB_TARGETS = ['direct', 'pc', 'pi1', 'pi2'];
+// 피원(pi1)·피투(pi2)는 저장소 파일(status/…)을 못 쓸 때 agent_beat 로 "지금 작업"만 남길 수 있다.
+const AB_FILE = { direct: '포털_agent_직접.json', pc: '포털_agent_pc.json', pi1: '포털_agent_pi1.json', pi2: '포털_agent_pi2.json' };
 const AD_FILE = AB_FILE.direct;              // 예전 이름 그대로(다른 곳에서 씀)
 const AB_STALE_DEFAULT = 30, AB_STALE_LOW = 5, AB_STALE_HIGH = 240;
 const AB_KEEP = 8;                           // 보관하는 이력 줄 수

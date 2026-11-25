@@ -187,6 +187,154 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .memo-icon-btn:hover{background:rgba(0,0,0,.12)}
 .memo-empty{text-align:center;padding:32px 0;color:var(--muted);font-size:13px}
 
+/* ── 💬 비서 통합 회의실 (2026-11-25) — 오더(CommandQueue)를 카톡처럼 주고받는 한 창구 ── */
+.room-card.order-card{padding:0;overflow:hidden}
+.room-head{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
+  padding:13px 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#fff,#F8FAFF);min-width:0}
+.room-title{display:flex;align-items:center;gap:7px;min-width:0;font-size:14.5px;font-weight:800;color:var(--text)}
+.room-hash{color:var(--blue);font-weight:900}
+.room-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room-people{white-space:nowrap;flex-shrink:0}
+.room-body{padding:12px 18px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.room-sub{font-size:11px;color:var(--hint);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.room-use{background:var(--bg);border:1px solid var(--border);border-radius:12px;min-width:0}
+.room-use>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;
+  font-size:12px;font-weight:700;color:var(--text2);flex-wrap:wrap}
+.room-use>summary::-webkit-details-marker{display:none}
+.room-use-t{white-space:nowrap}
+.room-use-s{margin-left:auto;font-size:10.5px;color:var(--hint);font-weight:600;white-space:nowrap}
+.room-use-c{color:var(--hint);font-size:11px;transition:transform .15s}
+.room-use[open] .room-use-c{transform:rotate(180deg)}
+.use-wrap{padding:0 12px 12px}
+.use-sum{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.use-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px;font-size:10.5px;
+  font-weight:700;background:#fff;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.use-pill i{width:7px;height:7px;border-radius:50%;background:var(--hint);display:inline-block;flex-shrink:0}
+.use-pill.danger{color:#991B1B;border-color:#FECACA;background:var(--red-l)}
+.use-pill.danger i{background:var(--red)}
+.use-pill.soon{color:#92400E;border-color:#FDE68A;background:var(--gold-l)}
+.use-pill.soon i{background:var(--gold)}
+.use-pill.ok{color:#047857;border-color:#BBF7D0;background:var(--green-l)}
+.use-pill.ok i{background:var(--green)}
+.use-body{min-width:0}
+.use-grp{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.3px;margin:10px 2px 6px}
+.use-grp:first-child{margin-top:2px}
+.ord-opt{background:var(--bg);border:1px solid var(--border);border-radius:10px;min-width:0}
+.ord-opt>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:var(--text2)}
+.ord-opt>summary::-webkit-details-marker{display:none}
+.ord-opt .ord-quick{padding:0 12px 10px;margin-bottom:0}
+.who{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:800}
+.who.w-pi1{background:#E7F8EF;color:#047857}
+.who.w-pi2{background:#F3E8FF;color:#6B21A8}
+.who.w-nb{background:#FFF3E0;color:#B45309}
+.who.w-me{background:var(--blue-l);color:var(--blue-d)}
+.chat-to{font-size:9.5px;color:var(--hint);font-weight:700}
+.mt{display:inline-block;border-radius:999px;padding:0 6px;font-size:11px;font-weight:800;
+  background:#fff;border:1px solid var(--border2);color:var(--blue-d)}
+.mt-pi1{background:#E7F8EF;border-color:#A7F3D0;color:#047857}
+.mt-pi2{background:#F3E8FF;border-color:#E9D5FF;color:#6B21A8}
+.mt-notebook{background:#FFF3E0;border-color:#FDE68A;color:#B45309}
+.mt-new{background:#E0F2FE;border-color:#BAE6FD;color:#075985}
+.mt-all{background:#EEF2FF;border-color:#C7D2FE;color:#3730A3}
+.who.w-new{background:#E0F2FE;color:#075985}
+.chat-bubble.ok{border-color:#BBF7D0;background:var(--green-l)}
+.use-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:8px;min-width:0}
+.use-dev{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 11px;min-width:0}
+.use-dev.soon{border-color:#FDE68A;background:var(--gold-l)}
+.use-dev.danger{border-color:#FECACA;background:var(--red-l)}
+.use-top{display:flex;align-items:center;gap:5px;min-width:0}
+.use-name{font-size:11px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.use-badge{margin-left:auto;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;
+  background:var(--bg);color:var(--muted);white-space:nowrap;flex-shrink:0}
+.use-dev.ok .use-badge{background:var(--green-l);color:#047857}
+.use-dev.soon .use-badge{background:#FEF3C7;color:#92400E}
+.use-dev.danger .use-badge{background:#FEE2E2;color:#991B1B}
+.use-pct{font-size:19px;font-weight:900;color:var(--text);line-height:1.25;margin-top:4px;font-variant-numeric:tabular-nums}
+.use-pct span{font-size:10px;font-weight:700;color:var(--hint);margin-left:2px}
+.use-dev.unknown .use-pct{font-size:12.5px;color:var(--hint);font-weight:800}
+.use-bar{height:6px;border-radius:999px;background:#E9EEF9;overflow:hidden;margin-top:5px}
+.use-bar i{display:block;height:100%;border-radius:999px;background:var(--green);transition:width .3s}
+.use-dev.soon .use-bar i{background:var(--gold)}
+.use-dev.danger .use-bar i{background:var(--red)}
+.use-meta{font-size:9.5px;color:var(--hint);line-height:1.55;margin-top:5px;overflow-wrap:anywhere}
+.use-act{margin-top:6px;width:100%;background:#fff;border:1px solid var(--border2);border-radius:7px;padding:4px 8px;
+  font-size:10.5px;font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit}
+.use-act:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.use-edit{display:flex;gap:4px;margin-top:6px;align-items:center;min-width:0}
+.use-inp{flex:1;min-width:0;border:1px solid var(--blue);border-radius:7px;padding:3px 6px;font-size:11px;font-family:inherit}
+.use-ok,.use-no{border-radius:6px;padding:3px 7px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;
+  border:1px solid var(--border);flex-shrink:0}
+.use-ok{background:var(--blue);color:#fff;border-color:var(--blue)}
+.use-no{background:#fff;color:var(--muted)}
+.use-note{font-size:10px;color:var(--hint);line-height:1.55;margin-top:8px}
+.use-del{margin-top:4px;width:100%;background:none;border:1px dashed var(--border2);border-radius:7px;padding:3px 8px;
+  font-size:10px;font-weight:700;color:var(--hint);cursor:pointer;font-family:inherit}
+.use-del:hover{color:var(--red);border-color:#FECACA}
+.use-add{margin-top:9px;width:100%;background:#fff;border:1px dashed var(--border2);border-radius:9px;padding:7px 10px;
+  font-size:11px;font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit}
+.use-add:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.use-add-form{display:flex;gap:5px;margin-top:9px;flex-wrap:wrap;align-items:center}
+.use-add-form .use-inp{flex:1 1 140px;border-color:var(--border2);padding:6px 8px;font-size:11.5px}
+.use-add-form select.use-inp{flex:0 0 78px}
+
+/* 채팅 타임라인 · 입력바 */
+.room-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
+.room-filters .rf-sep{width:1px;height:15px;background:var(--border);margin:0 2px;flex-shrink:0}
+.rf{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 11px;font-size:10.5px;
+  font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap}
+.rf.on{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
+.rf:hover{border-color:var(--border2)}
+.room-feed{display:flex;flex-direction:column;gap:9px;max-height:520px;overflow-y:auto;padding:12px;
+  background:#F7F9FE;border:1px solid var(--border);border-radius:12px;min-width:0}
+.chat-row{display:flex;gap:6px;align-items:flex-end;min-width:0;max-width:100%}
+.chat-row.out{justify-content:flex-end}
+.chat-av{width:26px;height:26px;border-radius:50%;background:#fff;border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.chat-bubble{max-width:min(86%,560px);background:#fff;border:1px solid var(--border);border-radius:14px;
+  padding:9px 12px;min-width:0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.chat-row.out .chat-bubble{background:var(--blue-l);border-color:#C7D7FE;border-bottom-right-radius:4px}
+.chat-bubble.in{border-bottom-left-radius:4px}
+.chat-bubble.warn{background:var(--gold-l);border-color:#FDE68A}
+.chat-bubble.bad{background:var(--red-l);border-color:#FECACA}
+.chat-bubble.sys{background:#fff;border-style:dashed;color:var(--muted)}
+.chat-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:10px;color:var(--hint);margin-bottom:4px;min-width:0}
+.chat-meta b{font-size:10.5px;color:var(--text2);font-weight:800}
+.chat-meta .ord-when{margin-left:auto;font-size:9.5px;color:var(--hint);white-space:nowrap}
+.chat-text{font-size:12.5px;color:var(--text2);line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.chat-text.err{color:var(--red)}
+.chat-text b{color:var(--text)}
+.chat-acts{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.chat-a{background:#fff;border:1px solid var(--border);border-radius:7px;padding:4px 9px;font-size:10.5px;
+  font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
+.chat-a:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.chat-day{align-self:center;font-size:9.5px;color:var(--hint);background:#EAF0FB;border-radius:999px;padding:2px 10px}
+.chat-typing{display:inline-flex;align-items:center;gap:4px;color:var(--hint);font-size:11px}
+.chat-typing i{width:5px;height:5px;border-radius:50%;background:var(--hint);display:inline-block;animation:monPulse 1.2s ease-in-out infinite}
+.chat-typing i:nth-child(2){animation-delay:.2s}.chat-typing i:nth-child(3){animation-delay:.4s}
+.chat-quote{font-size:10px;color:var(--muted);background:var(--bg);border-left:3px solid var(--border2);
+  border-radius:0 6px 6px 0;padding:4px 8px;margin-bottom:6px;overflow-wrap:anywhere}
+.room-compose{border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.room-presets,.room-mentions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
+.room-hint{font-size:10px;color:var(--hint);font-weight:800;margin-right:1px;white-space:nowrap}
+.rp{border:1px dashed var(--border2);background:#fff;border-radius:999px;padding:4px 10px;font-size:10.5px;
+  color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
+.rp:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
+.rm{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 11px;font-size:11px;
+  font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap}
+.rm.on{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
+.room-inp-row{display:flex;gap:8px;align-items:flex-end;min-width:0}
+.room-inp-row .ord-inp{flex:1;min-width:0;border-radius:18px;min-height:46px;padding:11px 15px}
+.room-send{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:none;background:var(--blue);color:#fff;
+  font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1}
+.room-send:hover{background:var(--blue-d)}
+.room-send:disabled{background:var(--border2);cursor:default}
+.ord-who{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:4px 7px;font-size:10.5px;
+  font-family:inherit;color:var(--text2);max-width:130px;min-width:0}
+.ord-mode{display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden;flex-shrink:0}
+.ord-mode button{border:none;background:#fff;font-family:inherit;font-size:10.5px;font-weight:700;color:var(--muted);
+  padding:4px 9px;cursor:pointer;white-space:nowrap}
+.ord-mode button.on{background:var(--blue-l);color:var(--blue-d)}
+
 /* ── 🤖 노트북 오더함 ── */
 .order-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
 .ord-head-right{display:flex;align-items:center;gap:10px;min-width:0}
@@ -406,6 +554,13 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .mon-main{-webkit-line-clamp:2}
   .mon-sub{display:none}
   .mon-feed{max-height:none}
+  .use-grid{grid-template-columns:1fr 1fr}
+  .use-pct{font-size:17px}
+  .room-feed{max-height:none}
+  .chat-bubble{max-width:92%}
+  .room-body{padding:12px}
+  .room-head{padding:11px 12px}
+  .room-inp-row .ord-inp{font-size:13px}
   #mon-note{display:none}          /* 확인 시각은 카드 안에 있어요 — 제목이 두 줄로 깨지지 않게 */
   .mon-card .section-title{white-space:nowrap}
   /* 상태등은 폰에서 한 줄로 (넘치면 옆으로 밀어서) — 헤더가 화면을 먹지 않게 */
@@ -512,7 +667,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
     <div class="mon-filters" id="mon-filters">
       <span class="mon-filters-h">🕒 통합 이력</span>
       <button class="mon-f on" data-f="all" onclick="monFilter(this)">전체</button>
-      <button class="mon-f" data-f="pk" onclick="monFilter(this)">🤖 피클</button>
+      <button class="mon-f" data-f="pk" onclick="monFilter(this)">🤖 피원</button>
       <button class="mon-f" data-f="hub" onclick="monFilter(this)">🏠 허브</button>
       <button class="mon-f" data-f="nd" onclick="monFilter(this)">⌨️ 직접</button>
       <button class="mon-f" data-f="pc" onclick="monFilter(this)">💻 회사 PC</button></div>
@@ -530,15 +685,38 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
     <div class="mon-note" id="mon-foot"></div>
   </div>
 
-  <!-- ④ 🤖 노트북 오더함 (오더 접수 · 승인/거절 · 결과 타임라인) -->
-  <div class="order-card" id="order-card">
-    <div class="section-head">
-      <div class="section-title">🤖 노트북 오더함 <span class="badge badge-blue" id="ord-count"></span></div>
+  <!-- ④ 💬 비서 통합 회의실 — 오더(CommandQueue)를 카톡처럼 주고받는 한 창구 -->
+  <div class="order-card room-card" id="order-card">
+    <div class="room-head">
+      <div class="room-title">
+        <span class="room-hash">#</span><span class="room-name">비서-통합-회의실</span>
+        <span class="badge badge-blue room-people" id="room-people"></span>
+      </div>
       <div class="ord-head-right">
         <span class="ord-hint" id="ord-state"></span>
+        <button class="ord-refresh" onclick="monRefresh(true)" title="기기·사용량·오더를 한 번에 새로고침" aria-label="전체 새로고침">🔄</button>
         <button class="ord-refresh" onclick="loadOrders()" title="오더 목록 새로고침" aria-label="새로고침">⟳</button>
       </div>
     </div>
+    <div class="room-body">
+    <div class="room-sub">🤖 노트북 오더함 · CommandQueue 시트와 같은 큐를 씁니다 <span class="badge badge-blue" id="ord-count"></span></div>
+
+    <!-- 📊 비서 사용량 — 접기/펼치기. 잔여 %는 이 기기에 저장(0원), 서버가 알면 함께 저장 -->
+    <details class="room-use" id="room-use" ontoggle="useToggle()">
+      <summary>
+        <span class="room-use-t">📊 비서 사용량</span>
+        <span class="room-use-s" id="room-use-sum">아직 기록 없음</span>
+        <span class="room-use-c">▾</span>
+      </summary>
+      <div class="use-wrap">
+        <div class="use-sum" id="use-sum"></div>
+        <div class="use-body" id="use-grid"></div>
+        <div class="use-note" id="use-note"></div>
+      </div>
+    </details>
+
+    <details class="ord-opt" id="ord-opt">
+      <summary>⚙️ 오더 설정 — 작업 위치 · AI 엔진 · 빠른 실행</summary>
     <div class="ord-quick">
       <select class="ord-ws" id="ord-ws" aria-label="작업 위치" title="어느 저장소에서 할 일인지"></select>
       <select class="ord-ws ord-engine" id="ord-engine" aria-label="AI 엔진" onchange="ordEngineSave()" title="AI 엔진 — 자동이면 정품 Claude → 제미나이 agy → FreeLLMAPI 순으로 넘어갑니다">
@@ -550,6 +728,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       <button class="ord-btn" onclick="quickOrder('git_pull')" title="노트북이 git pull --ff-only 로 코드를 최신화">🔄 코드 최신화</button>
       <button class="ord-btn" onclick="quickOrder('toss_sync')" title="토스증권 → 가계부 동기화">📈 토스 동기화</button>
     </div>
+    </details>
     <details class="ord-help" id="ord-help">
       <summary>💡 뭘 시킬 수 있나 — 눌러서 바로 쓰기 <span class="ord-help-caret">▶</span></summary>
       <div class="ord-help-body">
@@ -571,6 +750,13 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
           <button class="ord-ex" onclick="ordExample(this)" data-fill="이번 주 공모주 일정 중 청약 가능한 것만 정리해줘">이번 주 공모주 일정</button>
         </div>
         <div class="ord-help-sec">
+          <div class="ord-help-h">💬 그냥 말 걸기 (대화)</div>
+          <button class="ord-ex" onclick="ordExample(this)" data-fill="지금 큐에 뭐가 밀려 있는지 3줄로 알려줘">지금 상황 3줄로</button>
+          <button class="ord-ex" onclick="ordExample(this)" data-fill="오늘 뭐부터 하면 좋을지 순서만 정해줘 — 돈 되는 것부터">오늘 순서 정하기</button>
+          <div class="ord-help-note">말을 걸면 노트북이 <b>"이렇게 하겠습니다"</b> 하고 답장해요. 실행이 필요하면 답장에서 오더로 바로 넘길 수 있어요.</div>
+          <div class="ord-help-note">@피원·@피투 를 고르면 그 비서 몫으로 큐에 남아요(외부 웹훅이 없어 바로 답은 못 하고, 그 비서가 열어볼 때 처리해요).</div>
+        </div>
+        <div class="ord-help-sec">
           <div class="ord-help-h">✏️ 파일 수정 (일부는 승인)</div>
           <button class="ord-ex act" onclick="ordExample(this)" data-fill="README 오타와 깨진 링크를 확인해서 고쳐줘" data-edit="1">README 오타·링크 고치기</button>
           <button class="ord-ex act" onclick="ordExample(this)" data-fill="테스트가 실패하는 부분의 원인을 찾아서 고치고, 고친 내용을 요약해줘" data-edit="1">테스트 실패 원인 찾아 고치기</button>
@@ -580,18 +766,32 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
         </div>
       </div>
     </details>
-    <div class="ord-compose">
+    <div class="room-filters" id="ord-filters"></div>
+    <div class="room-feed ord-list" id="ord-list"><div class="ord-empty">첫 말을 걸면 여기에 카톡처럼 쌓여요</div></div>
+    <div class="ord-pause" id="ord-paused"></div>
+
+    <div class="room-compose">
       <div class="ord-recent" id="ord-recent" style="display:none"></div>
-      <textarea class="ord-inp" id="ord-inp" rows="2" placeholder="노트북에 시킬 일을 메모하듯 적으세요 (예: 가계부 11월 지출 점검해줘)"
-        onkeydown="ordKey(event)" oninput="ordTyped()"></textarea>
+      <div id="ord-quote"></div>
+      <div class="room-presets" id="ord-presets"></div>
+      <div class="room-mentions" id="ord-mentions"></div>
+      <div class="room-inp-row">
+        <textarea class="ord-inp" id="ord-inp" rows="1" placeholder="하고 싶은 말을 그냥 적으세요 (예: 이번 주 블로그 소재 좀 뽑아줘)"
+          onkeydown="ordKey(event)" oninput="ordTyped()"></textarea>
+        <button class="room-send" id="ord-send" onclick="sendOrder()" title="보내기 (Enter)" aria-label="보내기">↑</button>
+      </div>
       <div class="ord-foot">
-        <label class="ord-edit"><input type="checkbox" id="ord-edit-mode"> 파일 수정 허용</label>
+        <span class="ord-mode" id="ord-mode">
+          <button type="button" data-m="chat" onclick="ordModeSet('chat')">💬 대화</button>
+          <button type="button" data-m="ask" onclick="ordModeSet('ask')">📦 오더</button>
+          <button type="button" data-m="edit" onclick="ordModeSet('edit')">✏️ 수정</button>
+        </span>
+        <label class="ord-edit"><input type="checkbox" id="ord-edit-mode" onchange="ordModeFromBox()"> 파일 수정 허용</label>
+        <select class="ord-who" id="ord-who" onchange="ordWhoSave()" title="이 메시지를 누구 이름으로 넣을지 (발신자)"></select>
         <span class="ord-chars" id="ord-chars"></span>
-        <button class="add-btn" id="ord-send" onclick="sendOrder()">오더 보내기</button>
       </div>
     </div>
-    <div class="ord-pause" id="ord-paused"></div>
-    <div class="ord-list" id="ord-list"><div class="ord-empty">오더를 불러오면 여기에 메모처럼 쌓여요</div></div>
+    </div>
   </div>
 </div>
 
@@ -903,6 +1103,123 @@ let ORD_SEND_BUSY = false, ORD_RECENT = [], ORD_CD_TIMER = null, ORD_GROW_PENDIN
 const ORD_POLL = {timer: null, started: 0, calls: 0, paused: false};
 const ORD_DECIDING = {};
 
+/* ── 발신·대상 (2026-11-25) — 피원(pi1)·피투(pi2)·포털이 같은 오더함을 쓴다 ── */
+// source 칸: 누가 이 오더를 냈는가. target: 누구에게 시키는가(@멘션).
+//  · 피원 = 본계정 비서(client_id pi1) · 피투 = 부계정 비서(pi2) · 포털 = 이 화면
+//  · 실행은 노트북(hub-agent)이 한다 — @피원·@피투는 "그 비서 몫으로 큐에 남긴다"는 표시다.
+// ── 참여자 레지스트리 (2026-11-25) ─────────────────────────────────
+//  새 비서는 **여기 한 줄**만 추가하면 사용량 카드 · @멘션 칩 · 말풍선 배지가 같이 늘어난다.
+//   예) {id:'vooy', name:'부이', icon:'🅥', quota:true, mention:true, group:'일일', reset:'daily04'}
+//  · id       : 시트 source·target 에 남는 값(영소문자·숫자·_·- 12자). 말풍선·필터가 이 값으로 구분한다.
+//  · quota    : 📊 사용량 카드에 보일지 · group: '일일'|'주간' · reset: 'daily04'|'weekly'
+//  · mention  : @멘션 칩에 보일지(대상으로 고를 수 있는 비서)
+//  · status   : 상태 카드가 읽을 공개 파일(status/agent.json · status/pi2.json)
+//  사용자가 화면에서 추가한 비서는 localStorage(portal_agents_v1)에 쌓여 이 목록 뒤에 붙는다.
+const AGENT_SEED = [
+  {id: 'pi1',        name: '피원',                 icon: '🤖', role: '비서', color: 'pi1', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '본계정 비서 (pi1)', status: 'agent.json'},
+  {id: 'pi2',        name: '피투',                 icon: '🤖', role: '비서', color: 'pi2', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '부계정 비서 (pi2)', status: 'pi2.json'},
+  {id: 'notebook',   name: '집 노트북',            icon: '🏠', role: '실행', color: 'nb',  quota: false, mention: true,  mentionAs: '노트북', group: '일일', reset: 'daily04', sub: 'hub-agent — 오더를 실제로 실행'},
+  {id: 'claude',     name: '집 노트북 · Claude',    icon: '⚡', role: '엔진', color: 'nb',  quota: true,  mention: false, group: '일일', reset: 'daily04', sub: '1순위 엔진'},
+  {id: 'agy',        name: '집 노트북 · 제미나이',   icon: '✨', role: '엔진', color: 'nb',  quota: true,  mention: false, group: '일일', reset: 'daily04', sub: '폴백 엔진'},
+  {id: 'freellmapi', name: '집 노트북 · FreeLLMAPI', icon: '🆓', role: '엔진', color: 'nb',  quota: true,  mention: false, group: '일일', reset: 'daily04', sub: '무료 게이트웨이'},
+  {id: 'pc',         name: '회사 PC · Claude Code', icon: '💻', role: '기기', color: 'pc',  quota: true,  mention: false, group: '주간', reset: 'weekly',  sub: '주간 한도'},
+  {id: 'portal',     name: '포털',                 icon: '🌐', role: '나',   color: 'me',  quota: false, mention: false},
+  {id: 'phone',      name: '폰',                   icon: '📱', role: '나',   color: 'me',  quota: false, mention: false},
+  {id: 'telegram',   name: '텔레그램',             icon: '✈️', role: '나',   color: 'me',  quota: false, mention: false}
+];
+const AGENT_KEY = 'portal_agents_v1';
+let AGENTS = [];
+/** 저장된 추가 비서까지 합친 목록(캐시). */
+function agents(){
+  if(AGENTS && AGENTS.length) return AGENTS;
+  return agentReload();
+}
+function agentReload(){
+  let custom = [];
+  try { custom = JSON.parse(localStorage.getItem(AGENT_KEY) || '[]'); } catch(e) { custom = []; }
+  const clean = (Array.isArray(custom) ? custom : []).filter(a =>
+    a && /^[a-z0-9][a-z0-9_-]{0,11}$/.test(String(a.id || '')) && String(a.name || '').trim());
+  AGENTS = AGENT_SEED.concat(clean.slice(0, 12).map(a => ({
+    id: String(a.id), name: String(a.name).slice(0, 16), icon: String(a.icon || '🤖').slice(0, 2),
+    role: '비서', color: 'new', quota: true, mention: true,
+    group: a.group === '주간' ? '주간' : '일일', reset: a.group === '주간' ? 'weekly' : 'daily04',
+    sub: String(a.sub || '내가 추가한 비서').slice(0, 40), custom: true
+  })));
+  return AGENTS;
+}
+function agentById(id){
+  const k = String(id || '').toLowerCase();
+  const list = agents();
+  for(let i = 0; i < list.length; i++) if(list[i].id === k) return list[i];
+  return null;
+}
+/** 사용량 카드에 보일 비서들 */
+function agentQuotas(){ return agents().filter(a => a.quota); }
+/** @멘션으로 고를 수 있는 참여자(전체 제외) */
+function agentMentions(){ return agents().filter(a => a.mention); }
+/** 화면에서 비서를 추가한다 — 이름만 받고 id 는 기계적으로 만든다(한글 id 는 시트 규칙에 안 맞아요) */
+function agentAdd(name, group, icon){
+  const nm = String(name || '').trim().slice(0, 16);
+  if(!nm) return null;
+  const id = 'a' + Date.now().toString(36);
+  let custom = [];
+  try { custom = JSON.parse(localStorage.getItem(AGENT_KEY) || '[]'); } catch(e) { custom = []; }
+  custom = (Array.isArray(custom) ? custom : []).concat([{id: id, name: nm, icon: String(icon || '🤖').slice(0, 2), group: group === '주간' ? '주간' : '일일'}]);
+  try { localStorage.setItem(AGENT_KEY, JSON.stringify(custom.slice(0, 12))); } catch(e) {}
+  AGENTS = []; agentReload();
+  return id;
+}
+function agentRemove(id){
+  let custom = [];
+  try { custom = JSON.parse(localStorage.getItem(AGENT_KEY) || '[]'); } catch(e) { custom = []; }
+  custom = (Array.isArray(custom) ? custom : []).filter(a => a && a.id !== id);
+  try { localStorage.setItem(AGENT_KEY, JSON.stringify(custom)); } catch(e) {}
+  delete USE_DATA[id];
+  useSaveLocal();
+  AGENTS = []; agentReload();
+}
+// 발신 후보 — 포털 + 멘션 가능한 비서(노트북은 실행자라 뺀다). 새 비서는 자동으로 들어온다.
+function ordSenderList(){
+  const out = [{id: 'portal', name: '포털', icon: '🌐', color: 'me'}];
+  agentMentions().forEach(a => { if(a.id !== 'notebook') out.push(a); });
+  return out;
+}
+function ordTargetList(){
+  const out = [{id: 'all', label: '@전체', name: '전체 비서', icon: '👥'}];
+  agentMentions().forEach(a => out.push({id: a.id, label: '@' + (a.mentionAs || a.name), name: a.name, icon: a.icon}));
+  return out;
+}
+function useDefs(){ return agentQuotas(); }
+const ORD_WHO_KEY = 'portal_ord_who';
+const ORD_TARGET_KEY = 'portal_ord_target';
+const ORD_MODE_KEY = 'portal_ord_mode';
+let ORD_SENDER = 'portal', ORD_TARGET = 'notebook', ORD_MODE = 'chat';
+let ORD_WHO = 'all';        // 발신 필터(all · pi1 · pi2 · portal)
+let ORD_FILTER = 'all';     // 상태 필터(all · live · wait · done)
+let ORD_CHAT_OK = null;     // 서버가 kind:'chat' 을 아는가(null=모름 · false=예전 배포)
+let ORD_REPLY_TO = '';      // 답글 원문 요약(보낼 때 인용으로 붙어요)
+const ORD_PRESETS = [
+  {icon: '📝', label: '블로그 초안', fill: '이번 주 대전 로컬 맛집 하나 골라서 네이버 블로그 초안 써줘 — 2줄 호흡·구어체로'},
+  {icon: '🎞️', label: '숏폼 렌더', fill: '메리 쇼츠 한 편 렌더까지 가자 — 원본은 inbox 폴더에 있어'},
+  {icon: '🛒', label: '품절 점검', fill: '묘한살림 상품 중에 품절·가격 이상한 것만 집어서 알려줘'},
+  {icon: '📊', label: '상태 확인', fill: '지금 큐 상황과 노트북이 마지막으로 한 일을 3줄로 알려줘'},
+  {icon: '🧾', label: '할 일 뽑기', fill: '이번 주 할 일 후보 5개만 뽑아줘 — 돈 되는 것부터'}
+];
+
+/* ── 📊 비서 사용량 (2026-11-25) — 남은 % 를 직접 넣어 기록한다(토큰 0원) ── */
+// 피클 크레딧은 매일 04:00 리셋(메모리 기준). 회사 PC 는 주간 한도라 월요일 09:00 으로 센다.
+const USE_KEY = 'portal_use_v1';
+const USE_DEFS = [
+  {id: 'pi1',       name: '피원',                 icon: '🤖', group: '일일', reset: 'daily04', sub: '본계정 비서 (pi1)'},
+  {id: 'pi2',       name: '피투',                 icon: '🤖', group: '일일', reset: 'daily04', sub: '부계정 비서 (pi2)'},
+  {id: 'claude',    name: '집 노트북 · Claude',    icon: '⚡', group: '일일', reset: 'daily04', sub: '1순위 엔진'},
+  {id: 'agy',       name: '집 노트북 · 제미나이',   icon: '✨', group: '일일', reset: 'daily04', sub: '폴백 엔진'},
+  {id: 'freellmapi',name: '집 노트북 · FreeLLMAPI',icon: '🆓', group: '일일', reset: 'daily04', sub: '무료 게이트웨이'},
+  {id: 'pc',        name: '회사 PC · Claude Code', icon: '💻', group: '주간', reset: 'weekly',  sub: '주간 한도'}
+];
+const USE_STATE_TXT = {danger: '위험', soon: '임박', ok: '정상', unknown: '미확인'};
+let USE_DATA = {}, USE_AT = '', USE_EDIT = '', USE_SRV = null;
+
 function ordWsName(id){ return ORD_WS_LABEL[id] || id || '작업 위치 없음'; }
 function ordEngineName(id){ return ORD_ENGINE_LABEL[id] || id || '자동'; }
 /** 고른 엔진(auto · claude · agy · freellmapi). 모르는 값이면 auto. */
@@ -1010,7 +1327,8 @@ function ordSendLock(on){
   const b = document.getElementById('ord-send');
   if(!b) return;
   b.disabled = !!on;
-  b.textContent = on ? '보내는 중...' : '오더 보내기';
+  b.textContent = on ? '⏳' : '↑';
+  b.title = on ? '보내는 중...' : '보내기 (Enter)';
 }
 
 /** 승인 만료까지 남은 시간 — 받은 시각(ORD_FETCH_AT)+expires_in_ms 로 절대 시각을 기억해요. */
@@ -1128,9 +1446,577 @@ function renderOrderHead(){
     cnt.textContent = parts.length ? parts.join(' · ') : (ORD_ITEMS.length ? '최근 ' + ORD_ITEMS.length + '건' : '');
   }
   if(stt) stt.textContent = ORD_AT ? ('최근 확인 ' + clockText(ORD_AT) + (ordActive() ? ' · 자동 갱신 중' : '')) : '';
+  renderRoom();
   monRender();
 }
-/** 도움말 예시를 눌렀을 때 — 입력칸을 채우기만 하고 보내지는 않아요(사용자가 확인하고 보냄). */
+/* ══════════════════════════════════════════════════════════
+ * 💬 비서 통합 회의실 — 발신·대상·사용량·채팅 타임라인 (2026-11-25)
+ *  · 오더 하나가 채팅 두 줄이 된다: 오른쪽 = 보낸 말, 왼쪽 = 비서(노트북)의 답·진행·결과.
+ *  · 보낸 사람(source)으로 색을 나눈다. 피원(pi1) 초록 · 피투(pi2) 보라 · 노트북 주황 · 나는 오른쪽.
+ *  · @피원 · @피투 · @노트북 · @전체 멘션은 본문에서 칩으로 보인다(대상은 payload.target).
+ *  · 남은 %는 직접 넣어 기록한다(로컬 저장이 기본, 서버가 알면 Drive 에도 — 토큰 0원).
+ * ══════════════════════════════════════════════════════════ */
+
+/** 시트의 source → 발신자 키 */
+function ordSenderKey(it){
+  const s = String((it && it.source) || '').toLowerCase();
+  if(s === 'pi1' || s === 'pickle-pi1' || s === 'pickle' || s === 'pk') return 'pi1';
+  if(s === 'pi2' || s === 'pickle-pi2') return 'pi2';
+  if(s === 'notebook' || s === 'hub-agent' || s === 'nb') return 'notebook';
+  if(s === 'telegram' || s === 'tg') return 'telegram';
+  if(s === 'phone' || s === 'mobile') return 'phone';
+  return 'portal';
+}
+function ordSenderLabel(k){
+  const a = agentById(k) || agentById('portal') || {name: '포털', icon: '🌐', color: 'me'};
+  return {name: a.name, icon: a.icon, cls: a.color};
+}
+/** 상대(왼쪽)에서 말하는 비서인가 — 나(포털·폰·텔레그램)는 오른쪽 */
+function ordIsMine(it){ const k = ordSenderKey(it); return k === 'portal' || k === 'phone' || k === 'telegram'; }
+function ordTargetKey(it){
+  const t = String((it && it.target) || '').toLowerCase();
+  if(t === 'all') return 'all';
+  if(agentById(t)) return t;
+  return 'notebook';       // 예전 배포·git_pull·toss_sync 는 노트북이 한다
+}
+function ordTargetLabel(k){
+  const id = String(k || 'notebook');
+  if(id === 'all') return {id: 'all', label: '@전체', name: '전체 비서', icon: '👥'};
+  const a = agentById(id);
+  if(a) return {id: a.id, label: '@' + (a.mentionAs || a.name), name: a.name, icon: a.icon};
+  return {id: 'notebook', label: '@노트북', name: '집 노트북', icon: '🏠'};
+}
+/** 본문 속 @피원 · @피투 · @노트북 · @전체 → 하이라이트 칩 (이미 esc() 한 글자열에만 적용) */
+function ordMentionHtml(s){
+  const txt = String(s == null ? '' : s);
+  const map = {};
+  map['@전체'] = 'all';
+  agentMentions().forEach(a => { map['@' + (a.mentionAs || a.name)] = a.id; map['@' + a.id] = a.id; });
+  const labels = Object.keys(map).sort((a, b) => b.length - a.length);
+  if(!labels.length) return txt;
+  let out = '', i = 0;
+  while(i < txt.length){
+    const hit = labels.filter(l => txt.substr(i, l.length) === l).sort((a, b) => b.length - a.length)[0];
+    if(hit){
+      const next = txt.charAt(i + hit.length);
+      // 이름 뒤에 글자가 붙으면(예: @피원님) 멘션이 아니다 — 다만 한글 조사는 붙는 게 자연스러워 허용
+      if(!/[A-Za-z0-9_-]/.test(next)){
+        const id = map[hit];
+        const cls = id === 'all' ? 'all' : (agentById(id) ? (agentById(id).color || 'new') : 'nb');
+        out += `<span class="mt mt-${cls}">${hit}</span>`;
+        i += hit.length;
+        continue;
+      }
+    }
+    out += txt.charAt(i);
+    i++;
+  }
+  return out;
+}
+/** 오더 한 줄의 본문(내가 보낸 말) — 서버가 주는 한 줄 요약에서 머리말을 덜어낸다 */
+function ordMsgText(it){
+  let s = String((it && it.summary) || '');
+  s = s.replace(/^프롬프트:\s*/, '');
+  s = s.replace(/\s*\(파일 수정\)\s*$/, '');
+  s = s.replace(/\s*·\s*엔진\s+[A-Za-z]+$/, '');
+  return s;
+}
+function ordIsChat(it){ return String((it && it.kind) || '').toLowerCase() === 'chat'; }
+/** 답장·결과가 달린 시각 */
+function ordReplyAt(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  const done = st === 'DONE' || st === 'FAILED' || st === 'REJECTED' || st === 'EXPIRED' || st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW';
+  if(done) return it.finished_at || ordReplyAt2(it);
+  return it.beat_at || it.started_at || it.claimed_at || it.created_at || '';
+}
+function ordReplyAt2(it){ return it.started_at || it.claimed_at || it.created_at || ''; }
+function ordChatDay(iso){
+  const t = Date.parse(String(iso || ''));
+  if(!isFinite(t)) return '';
+  const d = new Date(t);
+  const today = monToday();
+  const ymd = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  if(ymd === today) return '오늘';
+  const y = new Date(Date.now() - 86400000);
+  const ymdY = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
+  if(ymd === ymdY) return '어제';
+  return (d.getMonth() + 1) + '월 ' + d.getDate() + '일';
+}
+
+/* ── 입력바: 대상(@멘션) · 발신 · 모드 · 프리셋 ── */
+function ordTargetSet(btn){
+  const v = btn && btn.dataset ? String(btn.dataset.t || '') : '';
+  ORD_TARGET = ordTargetLabel(v).id;
+  try { localStorage.setItem(ORD_TARGET_KEY, ORD_TARGET); } catch(e) {}
+  ordMentionRender();
+  sync('대상 ' + ordTargetLabel(ORD_TARGET).label + ' — 실행은 노트북이 해요', 3000);
+}
+function ordWhoSave(){
+  const sel = document.getElementById('ord-who');
+  const v = sel && typeof sel.value === 'string' ? sel.value : '';
+  if(ordSenderList().some(x => x.id === v)) ORD_SENDER = v;
+  try { localStorage.setItem(ORD_WHO_KEY, ORD_SENDER); } catch(e) {}
+  const lab = ordSenderLabel(ORD_SENDER);
+  sync('이제 ' + lab.icon + ' ' + lab.name + ' 이름으로 말해요', 3000);
+}
+function ordModeSet(m){
+  ORD_MODE = ['chat', 'ask', 'edit'].indexOf(m) >= 0 ? m : 'chat';
+  const box = document.getElementById('ord-edit-mode');
+  if(box) box.checked = ORD_MODE === 'edit';
+  try { localStorage.setItem(ORD_MODE_KEY, ORD_MODE); } catch(e) {}
+  ordModeRender();
+  if(ORD_MODE === 'chat') sync('대화 모드 — 노트북이 "이렇게 하겠습니다" 하고 답해요', 3200);
+  else if(ORD_MODE === 'ask') sync('오더 모드 — 큐에 넣고 결과까지 받아요(파일은 안 고침)', 3200);
+  else sync('수정 모드 — 파일을 고치는 오더는 승인이 필요할 수 있어요', 3600);
+}
+function ordModeFromBox(){
+  const box = document.getElementById('ord-edit-mode');
+  ordModeSet(box && box.checked ? 'edit' : 'chat');
+}
+function ordModeRender(){
+  const box = document.getElementById('ord-mode');
+  if(!box || !box.querySelectorAll) return;
+  const btns = box.querySelectorAll('button');
+  for(let i = 0; i < btns.length; i++){
+    const b = btns[i];
+    const on = b && b.dataset && b.dataset.m === ORD_MODE;
+    if(b && b.classList) b.classList[on ? 'add' : 'remove']('on');
+  }
+}
+function ordMentionRender(){
+  const box = document.getElementById('ord-mentions');
+  if(!box) return;
+  box.innerHTML = '<span class="room-hint">대상</span>' + ordTargetList().map(t =>
+    `<button type="button" class="rm${ORD_TARGET === t.id ? ' on' : ''}" data-t="${esc(t.id)}" onclick="ordTargetSet(this)" title="${esc(t.name)} — 실행은 노트북(hub-agent)이 해요">${esc(t.icon + ' ' + t.label)}</button>`).join('');
+}
+function ordPresetRender(){
+  const box = document.getElementById('ord-presets');
+  if(!box) return;
+  box.innerHTML = '<span class="room-hint">빠른 오더</span>' + ORD_PRESETS.map((p, i) =>
+    `<button type="button" class="rp" data-i="${i}" onclick="ordPreset(this)" title="입력칸을 채워요 — 확인하고 보내세요">${esc(p.icon + ' ' + p.label)}</button>`).join('');
+}
+function ordPreset(btn){
+  const i = Number(btn && btn.dataset ? btn.dataset.i : -1);
+  const p = ORD_PRESETS[i];
+  const inp = document.getElementById('ord-inp');
+  if(!p || !inp) return;
+  inp.value = p.fill; ordTyped();
+  try { inp.focus(); } catch(e) {}
+  sync('내용을 채웠어요 — 확인하고 보내세요', 3000);
+}
+function ordFilterSet(btn){
+  const k = String((btn && btn.dataset && btn.dataset.k) || '');
+  const v = String((btn && btn.dataset && btn.dataset.v) || 'all');
+  if(k === 'who') ORD_WHO = (v === 'all' || ordSenderList().some(x => x.id === v)) ? v : 'all';
+  else ORD_FILTER = ['all', 'live', 'wait', 'done'].indexOf(v) >= 0 ? v : 'all';
+  renderOrders();
+}
+function ordVisible(it){
+  if(!it || !it.id) return false;
+  const st = String(it.status || '').toUpperCase();
+  if(ORD_FILTER === 'live' && !(st === 'PENDING' || st === 'RUNNING')) return false;
+  if(ORD_FILTER === 'wait' && st !== 'WAITING_APPROVAL') return false;
+  if(ORD_FILTER === 'done' && !(st === 'DONE' || st === 'FAILED' || st === 'REJECTED' || st === 'EXPIRED' || st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW')) return false;
+  if(ORD_WHO !== 'all' && ordSenderKey(it) !== ORD_WHO) return false;
+  return true;
+}
+function ordFilterRender(){
+  const box = document.getElementById('ord-filters');
+  if(!box) return;
+  const stC = [['all', '전체'], ['live', '진행'], ['wait', '승인'], ['done', '끝남']].map(x =>
+    `<button class="rf${ORD_FILTER === x[0] ? ' on' : ''}" data-k="st" data-v="${x[0]}" onclick="ordFilterSet(this)">${esc(x[1])}</button>`).join('');
+  const whoC = [{id: 'all', label: '전체'}].concat(ordSenderList().map(a => ({id: a.id, label: (a.icon || '🌐') + ' ' + a.name}))).map(x =>
+    `<button class="rf${ORD_WHO === x.id ? ' on' : ''}" data-k="who" data-v="${esc(x.id)}" onclick="ordFilterSet(this)">${esc(x.label)}</button>`).join('');
+  const shown = ORD_ITEMS.filter(ordVisible).length;
+  box.innerHTML = '<span class="room-hint">상태</span>' + stC + '<span class="rf-sep"></span>' +
+    '<span class="room-hint">발신</span>' + whoC +
+    `<span class="room-hint" style="margin-left:auto">${shown}/${ORD_ITEMS.length}건</span>`;
+  if(ordSenderSupported() === false){
+    box.innerHTML += '<span class="room-hint" style="flex:1 1 100%">발신자·대상 표시는 서버(Apps Script)를 재배포하면 켜져요 — 지금은 모두 포털로 보여요</span>';
+  }
+}
+/** 서버가 source 를 돌려주는가 — 목록에 source 칸이 하나도 없으면 예전 배포 */
+function ordSenderSupported(){
+  if(!ORD_ITEMS.length) return null;
+  return ORD_ITEMS.some(i => typeof i.source === 'string' && i.source !== '');
+}
+function ordSenderCounts(){
+  const c = {pi1: 0, pi2: 0, portal: 0, notebook: 0, telegram: 0, phone: 0};
+  ORD_ITEMS.forEach(it => { const k = ordSenderKey(it); c[k] = (c[k] || 0) + 1; });
+  return c;
+}
+function ordWhoRender(){
+  const sel = document.getElementById('ord-who');
+  if(!sel) return;
+  sel.innerHTML = ordSenderList().map(a =>
+    `<option value="${esc(a.id)}"${ORD_SENDER === a.id ? ' selected' : ''}>발신 ${esc((a.icon || '🤖') + ' ' + a.name)}</option>`).join('');
+}
+function ordWhoLoad(){
+  try { const v = localStorage.getItem(ORD_WHO_KEY); if(ordSenderList().some(x => x.id === v)) ORD_SENDER = v; } catch(e) {}
+  try { const t = localStorage.getItem(ORD_TARGET_KEY); if(ordTargetList().some(x => x.id === t)) ORD_TARGET = t; } catch(e) {}
+  try { const m = localStorage.getItem(ORD_MODE_KEY); if(['chat', 'ask', 'edit'].indexOf(m) >= 0) ORD_MODE = m; } catch(e) {}
+}
+
+/* ── 답글·복사·오더로 넘기기 ── */
+function ordReply(it){
+  const inp = document.getElementById('ord-inp');
+  if(!inp) return;
+  const src = ordMsgText(it) || String(it && it.result || '');
+  ORD_REPLY_TO = ordShort(src, 60);
+  try { inp.focus(); } catch(e) {}
+  ordQuoteRender();
+  sync('답글을 적어보세요 — 보내면 원문을 인용해요', 3200);
+}
+function ordQuoteClear(){ ORD_REPLY_TO = ''; ordQuoteRender(); }
+function ordQuoteRender(){
+  const box = document.getElementById('ord-quote');
+  if(!box) return;
+  if(!ORD_REPLY_TO){ box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="chat-quote"><b>답글</b> ${esc(ORD_REPLY_TO)} <button class="chat-a" onclick="ordQuoteClear()" title="인용 취소">✕</button></div>`;
+}
+/** 오더 하나를 피클 채팅에 붙여넣을 수 있는 글로 복사 — 외부 웹훅이 없어도 전달된다 */
+function ordCopyChat(it){
+  if(!it) return;
+  const tg = ordTargetLabel(ordTargetKey(it));
+  const txt = tg.label + ' 포털 오더 ' + String(it.id || '') + '\n' +
+    '내용: ' + ordMsgText(it) + '\n' +
+    '상태: ' + ((ORD_STATUS[String(it.status || '').toUpperCase()] || {}).t || it.status || '') +
+    (it.result ? '\n결과: ' + String(it.result).slice(0, 200) : '');
+  ordCopyText(txt, null);
+}
+/** 비서 답장 → 바로 오더로. 답장에 "[오더] …" 줄이 있으면 그것을, 없으면 원문을 채운다 */
+function ordPromote(it){
+  const inp = document.getElementById('ord-inp');
+  if(!inp) return;
+  const txt = String((it && (it.result || it.summary)) || '');
+  const m = /\[오더\]\s*(.+)/.exec(txt);
+  inp.value = (m ? m[1] : ordMsgText(it) || txt).trim().replace(/…$/, '');
+  ordModeSet('ask'); ordTyped();
+  try { inp.focus(); } catch(e) {}
+  sync('오더 모드로 옮겼어요 — 확인하고 보내면 큐에 들어가요', 3600);
+}
+
+/* ════════ 📊 비서 사용량 ════════ */
+function useLoad(){
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(USE_KEY) || 'null'); } catch(e) { d = null; }
+  USE_DATA = (d && typeof d === 'object' && d.items && typeof d.items === 'object' && !Array.isArray(d.items)) ? d.items : {};
+  USE_AT = (d && typeof d.at === 'string') ? d.at : '';
+}
+function useSaveLocal(){
+  USE_AT = new Date().toISOString();
+  try { localStorage.setItem(USE_KEY, JSON.stringify({v: 1, at: USE_AT, items: USE_DATA})); } catch(e) {}
+}
+function useOf(id){ const x = USE_DATA && USE_DATA[id]; return (x && isFinite(x.pct)) ? x : null; }
+/** 남은 % → 상태: 위험(<10) · 임박(<30) · 정상 */
+function useState(pct){
+  const n = numOf(pct);
+  if(n === null) return 'unknown';
+  if(n < 10) return 'danger';
+  if(n < 30) return 'soon';
+  return 'ok';
+}
+function useSummary(){
+  const c = {danger: 0, soon: 0, ok: 0, unknown: 0};
+  useDefs().forEach(d => { const x = useOf(d.id); c[useState(x ? x.pct : null)]++; });
+  return c;
+}
+/** 다음 리셋 시각(ms) — 피클 크레딧은 매일 04:00, 주간 한도는 월요일 09:00 */
+function useResetAt(def, now){
+  const t = new Date(numOf(now) || Date.now());
+  if(def && def.reset === 'weekly'){
+    const at = new Date(t.getTime());
+    at.setHours(9, 0, 0, 0);
+    let add = (1 - at.getDay() + 7) % 7;              // 1=월요일
+    if(add === 0 && t.getTime() >= at.getTime()) add = 7;
+    at.setDate(at.getDate() + add);
+    return at.getTime();
+  }
+  const at = new Date(t.getTime());
+  at.setHours(4, 0, 0, 0);
+  if(at.getTime() <= t.getTime()) at.setDate(at.getDate() + 1);
+  return at.getTime();
+}
+function useLeftText(ms){
+  const n = numOf(ms);
+  if(n === null || n <= 0) return '곧 리셋';
+  const s = Math.ceil(n / 1000);
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if(d > 0) return '리셋 ' + d + '일 ' + h + '시간 후';
+  if(h > 0) return '리셋 ' + h + '시간 ' + m + '분 후';
+  return '리셋 ' + Math.max(1, m) + '분 후';
+}
+function useAgoText(iso){
+  const t = Date.parse(String(iso || ''));
+  if(!isFinite(t)) return '';
+  const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+  return '보고 ' + (agoText(min) || '방금');
+}
+function useCard(def){
+  const x = useOf(def.id);
+  const pct = x ? x.pct : null;
+  const st = useState(pct);
+  const editing = USE_EDIT === def.id;
+  const w = pct === null ? 0 : Math.max(0, Math.min(100, pct));
+  const meta = [useLeftText(useResetAt(def) - Date.now())];
+  if(x && x.at) meta.push(useAgoText(x.at));
+  if(x && x.note) meta.push(String(x.note));
+  const act = editing
+    ? `<div class="use-edit"><input class="use-inp" id="use-inp-${esc(def.id)}" type="number" min="0" max="100" step="0.1" inputmode="decimal" value="${pct === null ? '' : esc(String(pct))}" placeholder="잔여 %" onkeydown="useKey(event,'${esc(def.id)}')">` +
+      `<button class="use-ok" onclick="useCommit('${esc(def.id)}')">저장</button>` +
+      `<button class="use-no" onclick="useCancel()">취소</button></div>`
+    : `<button class="use-act" onclick="useEditStart('${esc(def.id)}')">잔여 입력</button>` +
+      (def.custom ? `<button class="use-del" onclick="useRemove('${esc(def.id)}')" title="이 비서를 목록에서 빼기">🗑 빼기</button>` : '');
+  return `<div class="use-dev ${st}">` +
+    `<div class="use-top"><span class="use-name">${esc(def.icon + ' ' + def.name)}</span><span class="use-badge">${esc(USE_STATE_TXT[st])}</span></div>` +
+    `<div class="use-pct">${pct === null ? '— 미확인' : esc(String(Math.round(pct * 10) / 10)) + '<span>% 남음</span>'}</div>` +
+    `<div class="use-bar"><i style="width:${w}%"></i></div>` +
+    `<div class="use-meta">${esc(meta.join(' · '))}</div>` + act + '</div>';
+}
+function renderUse(force){
+  if((USE_EDIT || USE_ADD) && !force) return;     // 입력 중에 다시 그리면 글자가 날아가요
+  const body = document.getElementById('use-grid');
+  const sum = document.getElementById('use-sum');
+  const c = useSummary();
+  if(sum) sum.innerHTML = ['danger', 'soon', 'ok', 'unknown'].map(k =>
+    `<span class="use-pill ${k}"><i></i>${esc(USE_STATE_TXT[k])} <b>${c[k]}</b></span>`).join('');
+  if(body){
+    let html = '';
+    ['일일', '주간'].forEach(g => {
+      const defs = useDefs().filter(d => d.group === g);
+      if(!defs.length) return;
+      html += `<div class="use-grp">${esc(g)} ${defs.length}명</div><div class="use-grid">` + defs.map(useCard).join('') + '</div>';
+    });
+    body.innerHTML = html + (USE_ADD
+      ? `<div class="use-add-form"><input class="use-inp" id="use-new-name" placeholder="새 비서 이름 (예: 부이 · 큐)" maxlength="16" onkeydown="useAddKey(event)">
+           <select class="use-inp" id="use-new-group" aria-label="리셋 주기"><option value="일일">일일</option><option value="주간">주간</option></select>
+           <button class="use-ok" onclick="useAddCommit()">추가</button>
+           <button class="use-no" onclick="useAddCancel()">취소</button></div>`
+      : `<button class="use-add" onclick="useAddStart()">＋ 비서 추가 (부이 · 큐 …)</button>`);
+  }
+  const note = document.getElementById('use-note');
+  if(note){
+    const reported = useDefs().filter(d => useOf(d.id)).length;
+    note.textContent = reported + '/' + useDefs().length + '개 보고 · ' +
+      (USE_AT ? '이 기기 저장 ' + clockText(USE_AT) : '아직 입력 없음') +
+      ' · 위험 <10% · 임박 <30% · 남은 %는 직접 넣어요(토큰 0원)' +
+      (USE_SRV === false ? ' · 서버 저장은 Apps Script 재배포 후' : '');
+  }
+  const sm = document.getElementById('room-use-sum');
+  if(sm) sm.textContent = '위험 ' + c.danger + ' · 임박 ' + c.soon + ' · 정상 ' + c.ok + ' · 미확인 ' + c.unknown;
+}
+function useToggle(){ renderUse(true); }
+let USE_ADD = false;
+function useAddStart(){
+  USE_ADD = true; USE_EDIT = '';
+  renderUse(true);
+  try { const i = document.getElementById('use-new-name'); if(i && i.focus) i.focus(); } catch(e) {}
+}
+function useAddCancel(){ USE_ADD = false; renderUse(true); }
+function useAddKey(e){
+  if(!e) return;
+  if(e.key === 'Enter'){ if(e.preventDefault) e.preventDefault(); useAddCommit(); }
+  else if(e.key === 'Escape') useAddCancel();
+}
+function useAddCommit(){
+  const el = document.getElementById('use-new-name');
+  const g = document.getElementById('use-new-group');
+  const name = String((el && el.value) || '').trim();
+  if(!name){ sync('비서 이름을 적어주세요', 3000); return; }
+  const id = agentAdd(name, g && g.value, '🤖');
+  USE_ADD = false;
+  if(!id){ sync('추가하지 못했어요 — 이름을 확인해 주세요', 3200); return; }
+  USE_EDIT = '';
+  renderUse(true); renderRoom();
+  sync('🤖 ' + name + ' 을(를) 참여자로 추가했어요 — @' + name + ' 로 부를 수 있어요', 4200);
+}
+function useRemove(id){
+  const a = agentById(id);
+  if(!a) return;
+  if(!confirm('“' + a.name + '” 을(를) 참여자 목록과 사용량 카드에서 뺄까요?\n(오더 기록은 큐에 그대로 남아요)')) return;
+  agentRemove(id);
+  renderUse(true); renderRoom();
+  sync(a.name + ' 을(를) 뺐어요', 3000);
+}
+function useEditStart(id){
+  USE_EDIT = String(id || '');
+  renderUse(true);
+  try { const i = document.getElementById('use-inp-' + USE_EDIT); if(i && i.focus) i.focus(); } catch(e) {}
+}
+function useCancel(){ USE_EDIT = ''; renderUse(true); }
+function useKey(e, id){
+  if(!e) return;
+  if(e.key === 'Enter'){ if(e.preventDefault) e.preventDefault(); useCommit(id); }
+  else if(e.key === 'Escape') useCancel();
+}
+function useCommit(id){
+  const el = document.getElementById('use-inp-' + id);
+  const raw = String((el && el.value) || '').replace(/[^0-9.]/g, '');
+  const n = Number(raw);
+  if(!raw || !isFinite(n) || n < 0 || n > 100){
+    sync('0~100 사이 숫자로 넣어주세요 (예: 42.5)', 3500);
+    return;
+  }
+  const pct = Math.round(n * 10) / 10;
+  USE_DATA[id] = {pct: pct, at: new Date().toISOString()};
+  USE_EDIT = '';
+  useSaveLocal();
+  renderUse(true);
+  renderOrdersSafe();
+  sync('잔여 ' + pct + '% 로 기록했어요', 3000);
+  usePush([id]);
+}
+/** 서버(Drive) 저장 — 예전 배포면 조용히 로컬만 쓴다(토큰 0) */
+async function usePush(ids){
+  if(!serverConfigured() || USE_SRV === false) return;
+  const items = (ids || Object.keys(USE_DATA)).map(id => {
+    const x = useOf(id);
+    return x ? {id: id, pct: x.pct, at: x.at} : null;
+  }).filter(Boolean);
+  if(!items.length) return;
+  try {
+    const d = await post({action: 'usage_set', items: items});
+    if(d && d.ok === true) USE_SRV = true;
+    else if(d && /알 수 없는/.test(String(d.error || ''))) USE_SRV = false;
+  } catch(e) { /* 서버 저장 실패는 로컬 기록을 막지 않는다 */ }
+}
+async function useServerGet(){
+  if(!serverConfigured() || USE_SRV === false) return null;
+  try {
+    const d = await post({action: 'usage_get'});
+    if(!d || d.ok !== true){ if(d && /알 수 없는/.test(String(d.error || ''))) USE_SRV = false; return null; }
+    USE_SRV = true;
+    if(Array.isArray(d.items)) useMerge(d.items);
+    return d;
+  } catch(e) { return null; }
+}
+/** 서버 값과 이 기기 값을 시각(at) 기준으로 합친다 — 더 최근에 넣은 쪽이 이긴다 */
+function useMerge(list){
+  let changed = false;
+  (Array.isArray(list) ? list : []).forEach(x => {
+    if(!x || !useDefs().some(d => d.id === x.id)) return;
+    const pct = numOf(x.pct);
+    if(pct === null || pct < 0 || pct > 100) return;
+    const at = String(x.at || '');
+    const cur = useOf(x.id);
+    const curAt = Date.parse((cur && cur.at) || '') || 0;
+    const newAt = Date.parse(at) || 0;
+    if(!cur || newAt > curAt){ USE_DATA[x.id] = {pct: pct, at: at}; changed = true; }
+  });
+  if(changed){ useSaveLocal(); renderUse(true); renderOrdersSafe(); }
+  return changed;
+}
+
+/* ── 채팅 말풍선 ── */
+/** 참여자 색 — 말풍선·이름 배지 */
+function ordWhoCls(k){
+  if(k === 'pi1') return 'w-pi1';
+  if(k === 'pi2') return 'w-pi2';
+  if(k === 'notebook') return 'w-nb';
+  return 'w-me';
+}
+function ordWhoBadge(k){
+  const d = ordSenderLabel(k);
+  return `<span class="who ${ordWhoCls(k)}">${esc(d.icon + ' ' + d.name)}</span>`;
+}
+/** 오른쪽(나) 말풍선 — 내가 보낸 말 */
+function chatOut(it){
+  const s = ORD_STATUS[String(it.status || '').toUpperCase()] || {t: String(it.status || ''), c: 'c-off'};
+  const tg = ordTargetLabel(ordTargetKey(it));
+  const body = ordMsgText(it) || ordBody(it).t;
+  const to = ordIsMine(it) ? `<span class="chat-to">→ ${esc(tg.label)}</span>` : `<span class="chat-to">→ ${esc(tg.label)}</span>`;
+  return `<div class="chat-row out"><div class="chat-bubble">` +
+    `<div class="chat-meta">${ordWhoBadge(ordSenderKey(it))}${to}<span class="ord-chip ${s.c}">${esc(s.t)}</span>` +
+    (it.auto_approved ? '<span class="ord-chip c-auto" title="이미 지시한 일반 코드 작업이라 승인 없이 실행해요">자동(위임)</span>' : '') +
+    `<span class="ord-when">${esc(ordWhen(it.created_at))}</span></div>` +
+    `<div class="chat-text">${ordMentionHtml(esc(body))}</div>` +
+    (ordIsChat(it) ? '' : `<div class="ord-sub">${esc([ordTypeName(it.type), (it.workspace ? ordWsName(it.workspace) : ''), (it.id || '')].filter(Boolean).join(' · '))}</div>`) +
+    `</div></div>`;
+}
+/** 왼쪽(비서) 말풍선 — 진행·승인·답장·결과 */
+function chatIn(it){
+  const st = String(it.status || '').toUpperCase();
+  const s = ORD_STATUS[st] || {t: st || '?', c: 'c-off'};
+  const isChat = ordIsChat(it);
+  const tg = ordTargetKey(it);
+  const body = ordBody(it);
+  const av = '<div class="chat-av">🏠</div>';
+  const meta = `<div class="chat-meta"><b>집 노트북</b>` +
+    (tg !== 'notebook' ? `<span class="chat-to">→ ${esc(ordTargetLabel(tg).label)}</span>` : '') +
+    `<span class="ord-chip ${s.c}">${esc(s.t)}</span>` + ordEngineChip(it) +
+    `<span class="ord-when">${esc(ordWhen(ordReplyAt(it)))}</span></div>`;
+  let cls = 'in';
+  let inner = '';
+  const cd = ordDeadline(it);
+  const acts = [];
+  if(st === 'PENDING'){
+    cls = 'in sys';
+    inner = `<div class="chat-text"><span class="chat-typing"><i></i><i></i><i></i></span> 차례를 기다려요 — 노트북이 60초마다 확인해요</div>`;
+  } else if(st === 'WAITING_APPROVAL'){
+    cls = 'in warn';
+    inner = `<div class="chat-text">${isChat ? '이건 실행이 필요해 보여요. ' : ''}실행해도 될까요?</div>` +
+      (cd ? `<div class="ord-sub"><span class="ord-cd" data-until="${cd}">⏳ ${esc(ordExpire(it.expires_in_ms))}</span></div>` : `<div class="ord-sub">${esc(ordExpire(it.expires_in_ms))}</div>`) +
+      `<div class="ord-acts"><button class="ord-ok" data-id="${esc(it.id)}" onclick="decideOrder(this.dataset.id,'approve')">✅ 승인</button>` +
+      `<button class="ord-no" data-id="${esc(it.id)}" onclick="decideOrder(this.dataset.id,'reject')">🚫 거절</button></div>`;
+  } else if(st === 'RUNNING'){
+    cls = 'in';
+    inner = `<div class="chat-text">${isChat ? '답장 쓰는 중이에요' : (it.summary ? esc(ordShort(it.summary, 60)) + ' — 실행 중' : '실행 중이에요')} ` +
+      `<span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ordElapsedMs(it) || 0))}</span>째</div>` +
+      `<div class="mon-bar"><i></i></div>` + ordBeatText(it);
+  } else if(st === 'DONE'){
+    cls = 'in ok';
+    inner = `<div class="chat-text">${isChat ? ordMentionHtml(esc(String(it.result || '네, 알겠습니다.'))) : esc(body.t)}</div>` +
+      (isChat ? '' : `<div class="ord-sub">${esc([(numOf(it.duration_ms) !== null ? monDur(numOf(it.duration_ms)) + ' 걸림' : ''), (it.finished_at ? ordWhen(it.finished_at) + ' 끝' : '')].filter(Boolean).join(' · '))}</div>`) +
+      ordSteps(it) + ordGateBox(it);
+  } else if(st === 'FAILED' || st === 'TIMEOUT_REVIEW'){
+    cls = 'in bad';
+    inner = `<div class="chat-text err">${esc(body.t)}</div>`;
+  } else if(st === 'REVIEW_NEEDED'){
+    cls = 'in warn';
+    inner = `<div class="chat-text">${esc(body.t)}</div>` + ordGateBox(it) + ordMergeBlock(it);
+  } else if(st === 'REJECTED' || st === 'EXPIRED'){
+    cls = 'in sys';
+    inner = `<div class="chat-text">${esc(body.t)}</div>`;
+  } else {
+    inner = `<div class="chat-text">${esc(body.t)}</div>`;
+  }
+  if(st === 'RUNNING') inner = inner + ordStaleBadge(it);
+  // 답장·결과에 붙는 버튼 — 답글 · 오더로 · 복사 · 다시 실행
+  if(st === 'DONE' || st === 'FAILED' || st === 'TIMEOUT_REVIEW' || st === 'EXPIRED'){
+    acts.push(`<button class="chat-a" onclick="ordReplyById('${esc(it.id)}')">↩ 답글</button>`);
+    acts.push(`<button class="chat-a" onclick="ordPromoteById('${esc(it.id)}')">📦 오더로</button>`);
+    acts.push(`<button class="chat-a" onclick="ordCopyById('${esc(it.id)}')">📋 복사</button>`);
+    if((it.type === 'git_pull' || it.type === 'toss_sync') && (st === 'FAILED' || st === 'TIMEOUT_REVIEW' || st === 'EXPIRED'))
+      acts.push(`<button class="ord-again" data-type="${esc(it.type)}" onclick="quickOrder(this.dataset.type)">🔄 다시 실행</button>`);
+  }
+  if(st === 'DONE' && it.branch) acts.push(`<button class="chat-a" onclick="ordMergeById('${esc(it.id)}')">⧉ 병합 1줄</button>`);
+  return `<div class="chat-row in">${av}<div class="chat-bubble ${cls}">${meta}${inner}` +
+    (acts.length ? `<div class="chat-acts">${acts.join('')}</div>` : '') + '</div></div>';
+}
+/** 목록에서 id 로 찾아 버튼 기능을 실행한다(HTML 안에 긴 글을 넣지 않으려고 id 만 쓴다) */
+function ordById(id){ for(let i = 0; i < ORD_ITEMS.length; i++) if(ORD_ITEMS[i].id === id) return ORD_ITEMS[i]; return null; }
+function ordReplyById(id){ const it = ordById(id); if(it) ordReply(it); }
+function ordPromoteById(id){ const it = ordById(id); if(it) ordPromote(it); }
+function ordCopyById(id){ const it = ordById(id); if(it) ordCopyChat(it); }
+function ordMergeById(id){
+  const it = ordById(id);
+  if(!it) return;
+  ordCopyText(ordMergeCmd(it), null);
+}
+/** 회의실 머리말 — 참여 비서 수 · 사용량 요약 · 오더 건수 */
+function renderRoom(){
+  const people = document.getElementById('room-people');
+  if(people) people.textContent = '👥 ' + agentMentions().length + '명';
+  renderUse(false);
+  ordMentionRender();
+  ordPresetRender();
+  ordWhoRender();
+  ordModeRender();
+  ordFilterRender();
+  ordQuoteRender();
+}
+function renderOrdersSafe(){ try { renderOrders(); } catch(e) {} }
+
 function ordExample(btn){
   const inp = document.getElementById('ord-inp');
   const text = btn && btn.dataset ? String(btn.dataset.fill || '') : '';
@@ -1191,61 +2077,30 @@ function renderOrderNotice(msg){
   if(box) box.innerHTML = `<div class="ord-note">${esc(msg)}</div>`;
   const cnt = document.getElementById('ord-count'); if(cnt) cnt.textContent = '';
   const stt = document.getElementById('ord-state'); if(stt) stt.textContent = '';
+  renderRoom();
   monRender();
 }
 function renderOrders(){
   const box = document.getElementById('ord-list');
   renderOrderHead();
   if(!box) return;
-  if(!ORD_ITEMS.length){ box.innerHTML = '<div class="ord-empty">아직 오더가 없어요 — 위에서 첫 오더를 보내보세요</div>'; ordTickStart(); return; }
-  const keepTop = numOf(box.scrollTop) || 0;          // 다시 그려도 보던 위치를 지켜요
-  box.innerHTML = ORD_ITEMS.map(it => {
-    const s = ORD_STATUS[it.status] || {t: String(it.status || '?'), c: 'c-off', s: ''};
-    const body = ordBody(it);
-    const sub = [];
-    if(it.type === 'git_pull' || it.type === 'claude_prompt') sub.push(ordWsName(it.workspace));
-    if(it.id) sub.push(it.id);
-    const left = ordDeadline(it);
-    const cd = left ? `<div class="ord-sub"><span class="ord-cd" data-until="${left}">⏳ ${esc(ordExpire(it.expires_in_ms))}</span></div>` : '';
-    if(it.status === 'WAITING_APPROVAL' && !left) sub.push(ordExpire(it.expires_in_ms));
-    else if(it.status === 'PENDING') sub.push('노트북이 다음 확인 때 실행해요');
-    else if(numOf(it.duration_ms) !== null) sub.push(monDur(numOf(it.duration_ms)) + ' 걸림' + (it.finished_at ? ' · ' + ordWhen(it.finished_at) + ' 끝' : ''));
-    if(it.claimed_by) sub.push('실행한 곳 ' + String(it.claimed_by));
-    const beatTxt = ordBeatText(it);
-    // 실행 중은 경과 시간을 1초마다 세어요 (진짜 돌고 있는지 눈으로 보이게)
-    const el = it.status === 'RUNNING'
-      ? `<div class="ord-sub">⏱ <span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ordElapsedMs(it) || 0))}</span>째 실행 중` +
-        (it.started_at || it.claimed_at ? ' · 시작 ' + esc(ordWhen(it.started_at || it.claimed_at)) : ' · 접수 ' + esc(ordWhen(it.created_at))) +
-        beatTxt + '</div>'
-      : '';
-    const again = (it.type === 'git_pull' || it.type === 'toss_sync') &&
-      (it.status === 'FAILED' || it.status === 'TIMEOUT_REVIEW' || it.status === 'EXPIRED');
-    const acts = it.status === 'WAITING_APPROVAL'
-      ? `<div class="ord-acts"><button class="ord-ok" data-id="${esc(it.id)}" onclick="decideOrder(this.dataset.id,'approve')">✅ 승인</button>` +
-        `<button class="ord-no" data-id="${esc(it.id)}" onclick="decideOrder(this.dataset.id,'reject')">🚫 거절</button></div>`
-      : (again ? `<div class="ord-acts"><button class="ord-again" data-type="${esc(it.type)}" onclick="quickOrder(this.dataset.type)">🔄 다시 실행</button></div>` : '');
-    return `<div class="ord-item ${s.s}">
-      <div class="ord-ic">${ordIcon(it.type)}</div>
-      <div class="ord-main">
-        <div class="ord-line">
-          <span class="ord-type">${esc(ordTypeName(it.type))}</span>
-          <span class="ord-chip ${s.c}">${esc(s.t)}</span>
-          ${it.auto_approved ? '<span class="ord-chip c-auto" title="이미 지시한 일반 코드 작업이라 승인 없이 실행해요">자동(위임)</span>' : ''}
-          ${ordEngineChip(it)}
-          <span class="ord-when">${esc(ordWhen(it.created_at))}</span>
-        </div>
-        <div class="ord-text${body.err ? ' err' : ''}">${esc(body.t)}</div>
-        <div class="ord-sub">${esc(sub.join(' · '))}</div>
-        ${ordGateBox(it)}
-        ${ordStaleBadge(it)}
-        ${cd}
-        ${el}
-        ${ordSteps(it)}
-        ${acts}
-      </div>
-    </div>`;
-  }).join('');
-  if(box.scrollTop !== undefined && typeof box.scrollTop === 'number' && keepTop) box.scrollTop = keepTop;
+  if(!ORD_ITEMS.length){ box.innerHTML = '<div class="ord-empty">첫 말을 걸면 여기에 카톡처럼 쌓여요</div>'; ordTickStart(); return; }
+  // 채팅은 오래된 것이 위·새 것이 아래 — 목록은 최신순이라 뒤집어요
+  const items = ORD_ITEMS.filter(ordVisible).slice().reverse();
+  if(!items.length){
+    box.innerHTML = '<div class="ord-empty">이 갈래에는 오더가 없어요 — 위 필터를 풀어보세요</div>';
+    ordTickStart(); return;
+  }
+  const keepTop = numOf(box.scrollTop) || 0;
+  const nearBottom = !keepTop || ((numOf(box.scrollHeight) || 0) - keepTop - (numOf(box.clientHeight) || 0) < 90);
+  let html = '', day = '';
+  items.forEach(it => {
+    const d = ordChatDay(it.created_at);
+    if(d && d !== day){ html += `<div class="chat-day">${esc(d)}</div>`; day = d; }
+    html += chatOut(it) + chatIn(it);
+  });
+  box.innerHTML = html;
+  try { if(box.scrollTop !== undefined) box.scrollTop = nearBottom ? (numOf(box.scrollHeight) || 0) : keepTop; } catch(e) {}
   ordTickStart();
 }
 function applyOrderList(d){
@@ -1254,6 +2109,7 @@ function applyOrderList(d){
   ORD_FETCH_AT = Date.now();
   ORD_SUM = {pending: numOf(d.pending), running: numOf(d.running), waiting: numOf(d.waiting),
     timeout: numOf(d.timeout), done: numOf(d.done), failed: numOf(d.failed)};
+  if(typeof d.chat === 'boolean') ORD_CHAT_OK = d.chat;      // 서버가 kind:'chat' 을 아는가
   if(Array.isArray(d.workspaces) && d.workspaces.length) ORD_WSS = d.workspaces.slice(0, 20);
   fillOrderWs();
   const sig = ordSig(ORD_ITEMS);
@@ -1293,38 +2149,58 @@ async function quickOrder(type){
   try{
     sync('접수 중...', 0);
     ORD_EPOCH++;
-    const d = await post({action: 'queue_enqueue', type: type, workspace: type === 'git_pull' ? ordWs() : '', payload: {}});
+    const d = await post({action: 'queue_enqueue', type: type, workspace: type === 'git_pull' ? ordWs() : '', payload: {},
+      source: ORD_SENDER, client_id: ORD_SENDER});
     if(!d || !d.ok){ sync('접수 실패 — ' + ordErr(d), 4500); return; }
     sync(d.duplicate ? '같은 오더가 이미 대기 중이에요' : '오더 접수됨 ✓', 3500);
   } finally { ORD_SEND_BUSY = false; }
   await loadOrders();
 }
+/**
+ * 보내기 — 카톡처럼 그냥 말해도 되고(대화), 오더·수정으로도 보낼 수 있어요.
+ *  · 대화(chat)  : payload.kind='chat' → 노트북이 "이렇게 하겠습니다" 답장을 result 에 남긴다.
+ *  · 오더(ask)   : 지금처럼 큐에 넣고 결과까지 받는다(파일은 안 고침).
+ *  · 수정(edit)  : 파일을 고치는 오더 — 승인 대상이면 [✅ 승인] 을 눌러야 실행돼요.
+ *  · 발신(source)·대상(payload.target)을 함께 실어 보내 피원(pi1)·피투(pi2)·포털을 구분한다.
+ *    (예전 서버는 source·target 을 무시하고 portal·노트북으로 처리한다)
+ */
 async function sendOrder(){
   const inp = document.getElementById('ord-inp');
-  const text = String((inp && inp.value) || '').trim();
-  if(!text){ sync('보낼 오더를 적어주세요', 3000); return; }
-  if(text.length > ORD_PROMPT_MAX){ sync('오더가 너무 길어요 — ' + text.length + '자 (2,000자 안으로 줄여주세요)', 5000); ordTyped(); return; }
+  let text = String((inp && inp.value) || '').trim();
+  if(!text){ sync('보낼 말을 적어주세요', 3000); return; }
+  if(ORD_REPLY_TO){ text = '↩ ' + ORD_REPLY_TO + '\n' + text; }
+  if(text.length > ORD_PROMPT_MAX){ sync('글이 너무 길어요 — ' + text.length + '자 (2,000자 안으로 줄여주세요)', 5000); ordTyped(); return; }
   if(!serverConfigured()){ sync('⚙️ 서버 설정을 먼저 해주세요', 3500); return; }
   if(ORD_SEND_BUSY) return;                                     // 연타로 두 번 접수되지 않게
-  const editBox = document.getElementById('ord-edit-mode');
-  const edit = !!(editBox && editBox.checked);
-  if(edit && !confirm('파일을 고치는 오더로 접수할게요.\n가계부·콘텐츠허브·보험툴·스마트스토어는 자동 승인으로 바로 실행되고,\n포털·파괴적 지시는 승인 대기로 서요.\n\n접수할까요?')) return;
+  const editBoxNow = document.getElementById('ord-edit-mode');
+  const mode = (editBoxNow && editBoxNow.checked) ? 'edit' : (ORD_MODE === 'ask' ? 'ask' : 'chat');
+  if(mode === 'edit' && !confirm('파일을 고치는 오더로 접수할게요.\n가계부·콘텐츠허브·보험툴·스마트스토어는 자동 승인으로 바로 실행되고,\n포털·파괴적 지시는 승인 대기로 서요.\n\n접수할까요?')) return;
   ORD_SEND_BUSY = true; ordSendLock(true);
   try{
-    sync('접수 중...', 0);
+    sync('보내는 중...', 0);
     const engine = ordEngine();
-    const payload = {prompt: text, mode: edit ? 'edit' : 'ask'};
+    const payload = {prompt: text, mode: mode === 'edit' ? 'edit' : 'ask'};
+    if(ORD_TARGET) payload.target = ORD_TARGET;
+    if(mode === 'chat') payload.kind = 'chat';
     // auto 는 서버에 보내지 않는다(기본값) — 예전 서버에서도 오더 모양이 그대로다.
     if(engine !== 'auto') payload.engine = engine;
     ORD_EPOCH++;
-    const d = await post({action: 'queue_enqueue', type: 'claude_prompt', workspace: ordWs(), payload: payload});
+    const d = await post({action: 'queue_enqueue', type: 'claude_prompt', workspace: ordWs(), payload: payload,
+      source: ORD_SENDER, client_id: ORD_SENDER});
     if(!d || !d.ok){ sync('접수 실패 — ' + ordErr(d), 4500); return; }
     if(inp && inp.value.trim() === text) inp.value = '';
+    const editBox = document.getElementById('ord-edit-mode');
     if(editBox && editBox.checked) editBox.checked = false;
+    if(mode === 'edit') ordModeSet('chat');
+    ORD_REPLY_TO = ''; ordQuoteRender();
     ordTyped();
     if(!d.duplicate) ordRecentAdd(text);                        // 이 기기에만 남는 최근 글
     const autoOk = !!(d.item && d.item.auto_approved);
-    sync(d.duplicate ? '같은 오더가 이미 있어요' : (edit ? (autoOk ? '자동 승인으로 접수됨 ✓' : '승인 대기로 접수됨 ✓') : '오더 접수됨 ✓') + (engine !== 'auto' ? ' · 엔진 ' + ordEngineName(engine) : ''), 4000);
+    const head = d.duplicate ? '같은 말이 이미 있어요'
+      : (mode === 'chat' ? '보냈어요 — 노트북이 답할게요'
+        : (mode === 'edit' ? (autoOk ? '자동 승인으로 접수됨 ✓' : '승인 대기로 접수됨 ✓') : '오더 접수됨 ✓'));
+    sync(head + (engine !== 'auto' ? ' · 엔진 ' + ordEngineName(engine) : '') +
+      (ORD_TARGET !== 'notebook' ? ' · ' + ordTargetLabel(ORD_TARGET).label : ''), 4000);
   } finally { ORD_SEND_BUSY = false; ordSendLock(false); }
   await loadOrders();
 }
@@ -1385,7 +2261,8 @@ const GH_REPOS = [
 const GH_KEY = 'portal_gh_cache';
 const GH_TTL = 5 * 60000;               // 커밋은 5분
 const GH_RUN_TTL = 15 * 60000;          // CI 는 15분 — 로그인 없이 시간당 60회라 아껴요
-const AGENT_JSON = './status/agent.json';   // 피클이 작업 시작·종료 때 덮어쓰는 공개 상태 파일(개인정보 없음)
+const AGENT_JSON = './status/agent.json';   // 피원(pi1)이 작업 시작·종료 때 덮어쓰는 공개 상태 파일(개인정보 없음)
+const AGENT_JSON_PI2 = './status/pi2.json'; // 피투(pi2)가 같은 모양으로 남기는 파일(없으면 조용히 넘어감)
 const AGENT_TTL = 60 * 1000;
 const AGENT_STALE_MIN = 30;             // 30분 넘게 갱신이 없으면 '응답 없음'
 // 진행 중인 프로젝트 — 오더 작업 위치·GitHub 저장소·피클 작업이 같은 이름으로 모여요
@@ -1677,6 +2554,12 @@ function agentCached(){
   return null;
 }
 function agentSave(d){ AGENT_DATA = d; try { localStorage.setItem('portal_agent_cache', JSON.stringify(d)); } catch(e) {} }
+/** 기기 비트(state·project·task)를 상태 파일 모양({agent:{…}})으로 — 피투 카드가 같이 쓴다 */
+function beatAsStatus(b){
+  if(!b || !b.state) return null;
+  return {updated_at: String(b.updated_at || ''), source: 'beat',
+    agent: {state: b.state, project: b.project, task: b.task, started_at: b.started_at}};
+}
 /** 둘 중 더 최근에 쓰인 쪽(updated_at) — 서버(드라이브)와 저장소 파일을 같이 읽어요 */
 function agentNewer(a, b){
   if(!a) return b || null;
@@ -1688,7 +2571,7 @@ async function agentLoad(force){
   if(!force && c && (Date.now() - (Date.parse(c.fetched_at) || 0)) < AGENT_TTL){ AGENT_DATA = c; return c; }
   if(AGENT_BUSY) return AGENT_DATA;
   AGENT_BUSY = true;
-  let fromServer = null, fromFile = null;
+  let fromServer = null, fromFile = null, fromFile2 = null;
   try{
     const jobs = [];
     if(serverConfigured()){
@@ -1701,6 +2584,11 @@ async function agentLoad(force){
         .then(r => (r && r.ok) ? r.json() : null)
         .then(d => { if(d && (Array.isArray(d.tasks) || d.agent)) fromFile = d; })
         .catch(() => {}));
+      // 피투(pi2) 파일은 아직 없을 수 있다 — 404 면 조용히 넘어간다
+      jobs.push(fetch(AGENT_JSON_PI2 + '?t=' + Math.floor(Date.now() / AGENT_TTL), {cache: 'no-cache'})
+        .then(r => (r && r.ok) ? r.json() : null)
+        .then(d => { if(d && (Array.isArray(d.tasks) || d.agent)) fromFile2 = d; })
+        .catch(() => {}));
     }
     if(jobs.length) await Promise.all(jobs);
     const pick = agentNewer(fromServer && fromServer.connected ? fromServer : null, fromFile);
@@ -1708,6 +2596,9 @@ async function agentLoad(force){
       const merged = Object.assign({}, pick);
       if(fromServer && fromServer.direct && !merged.direct) merged.direct = fromServer.direct;
       if(fromServer && fromServer.pc && !merged.pc) merged.pc = fromServer.pc;
+      // 피투(pi2) — 저장소 파일(status/pi2.json)과 서버 기기 비트(agent_beat target=pi2) 중 최신
+      const pi2 = agentNewer(beatAsStatus(fromServer && fromServer.pi2), fromFile2);
+      if(pi2) merged.pi2 = pi2;
       if(fromServer && Array.isArray(fromServer.beat_targets)) merged.beat_targets = fromServer.beat_targets;
       if(!merged.updated_at) merged.updated_at = (fromFile && fromFile.updated_at) || (fromServer && fromServer.updated_at) || '';
       merged.fetched_at = new Date().toISOString();
@@ -1730,14 +2621,14 @@ function agentEvents(){
     const at = Date.parse(String(t.ended_at || t.started_at || ''));
     if(!isFinite(at)) return;
     if(t.id) seen[t.id] = true;
-    evs.push({at: at, who: 'pk', whoTxt: '🤖 피클', proj: t.project || 'life', ic: '🍋',
+    evs.push({at: at, who: 'pk', whoTxt: '🤖 피원', proj: t.project || 'life', ic: '🍋',
       tx: `<b>${esc(t.title || '작업')}</b> · ${esc(lab[st] || st || '기록')}` +
         (t.result ? ` <em>${esc(ordShort(t.result, 70))}</em>` : '')});
   });
   const cur = d.agent;
   if(cur && String(cur.state || '').toLowerCase() === 'working' && !(cur.id && seen[cur.id])){
     const at = Date.parse(String(cur.started_at || ''));
-    if(isFinite(at)) evs.push({at: at, who: 'pk', whoTxt: '🤖 피클', proj: cur.project || 'life', ic: '🍋',
+    if(isFinite(at)) evs.push({at: at, who: 'pk', whoTxt: '🤖 피원', proj: cur.project || 'life', ic: '🍋',
       tx: `<b>${esc(cur.task || '작업')}</b> · 작업 중`});
   }
   return evs;
@@ -1812,23 +2703,24 @@ function monDevDirect(){
     main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '마지막 작업')}`,
     sub: ageMin === null ? '' : '마지막 신호 ' + esc(agoText(ageMin) || '방금') + ' · 다음 작업은 free 로'});
 }
-function monDevPickle(){
-  const d = AGENT_DATA;
+/** 비서(피원·피투) 카드 — status/agent.json · status/pi2.json · 서버 기기 비트를 한 모양으로 그린다 */
+function monAgentBody(name, d, tag){
   const cur = d && d.agent ? d.agent : null;
   const running = !!(cur && String(cur.state || '').toLowerCase() === 'working');
   const upMs = Date.parse(String((d && d.updated_at) || ''));
   const ageMin = isFinite(upMs) ? Math.max(0, Math.round((Date.now() - upMs) / 60000)) : null;
   const stale = running && (cur.stale === true || (ageMin !== null && ageMin >= AGENT_STALE_MIN));
+  const file = tag === 'pi2' ? 'status/pi2.json' : 'status/agent.json';
   if(!d){
-    return monCard({name: '🤖 피클', cls: 'wait', state: '기록 없음',
-      main: '피클이 한 일·하는 일이 여기 나와요',
-      sub: '작업을 시작할 때·끝낼 때 status/agent.json 에 스스로 남게요'});
+    return monCard({name: name, cls: 'wait', state: '기록 없음',
+      main: '한 일·하는 일이 여기 나와요',
+      sub: '작업을 시작할 때·끝낼 때 ' + file + ' 에 스스로 남기면 보여요'});
   }
   if(running){
     const since = Date.parse(String(cur.started_at || ''));
     const sub = (isFinite(since) ? '⏱ <span class="ord-elapsed" data-since="' + since + '">' + esc(monDur(Date.now() - since)) + '</span>째 · 시작 ' + esc(clockText(cur.started_at)) : '작업 중') +
       (ageMin === null ? '' : ' · 마지막 기록 ' + esc(agoText(ageMin) || '방금'));
-    return monCard({name: '🤖 피클', cls: stale ? 'bad' : 'run', state: stale ? '응답 없음' : '작업 중',
+    return monCard({name: name, cls: stale ? 'bad' : 'run', state: stale ? '응답 없음' : '작업 중',
       main: `<b>${esc(projLabel(cur.project))}</b> · ${esc(cur.task || '작업 중')}`,
       sub: stale ? ('마지막 기록 ' + esc(agoText(ageMin)) + ' — 오래 걸리면 멈춘 걸 수 있어요') : sub,
       bar: !stale,
@@ -1840,11 +2732,36 @@ function monDevPickle(){
     const ok = !/fail/i.test(String(last.state || ''));
     const at = Date.parse(String(last.ended_at)) || 0;
     const min = at ? Math.max(0, Math.round((Date.now() - at) / 60000)) : null;
-    return monCard({name: '🤖 피클', cls: ok ? 'ok' : 'wait', state: ok ? '쉴 준비' : '실패 있음',
+    return monCard({name: name, cls: ok ? 'ok' : 'wait', state: ok ? '쉴 준비' : '실패 있음',
       main: `<b>${esc(projLabel(last.project))}</b> · ${esc(last.title || '작업')}`,
       sub: (min === null ? '' : esc(agoText(min) || '방금') + ' 끝냄 · ') + esc(ordShort(last.result || '', 60) || '결과 기록 없음')});
   }
-  return monCard({name: '🤖 피클', cls: 'ok', state: '대기 중', main: '지금 하는 작업은 없어요', sub: '다음에 맡길 일을 오더함에 적어주세요'});
+  return monCard({name: name, cls: 'ok', state: '대기 중', main: '지금 하는 작업은 없어요',
+    sub: ageMin === null ? '다음에 맡길 일을 아래 회의실에 적어주세요' : '마지막 기록 ' + esc(agoText(ageMin) || '방금')});
+}
+/** 🤖 피원 (pi1) — 본계정 비서가 남기는 status/agent.json */
+function monDevPickle(){ return monAgentBody('🤖 피원', AGENT_DATA, 'pi1'); }
+/** 🤖 피투 (pi2) — 부계정 비서. status/pi2.json 또는 서버 agent_beat target=pi2 */
+function monDevPi2(){ return monAgentBody('🤖 피투', AGENT_DATA && AGENT_DATA.pi2, 'pi2'); }
+/** 📋 오더 큐 — 대기·승인·실행·오늘 완료 + 발신별 건수 */
+function monDevQueue(){
+  const p = ORD_ITEMS.filter(i => i.status === 'PENDING').length;
+  const r = ORD_ITEMS.filter(i => i.status === 'RUNNING').length;
+  const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
+  const t = ORD_ITEMS.filter(i => i.status === 'TIMEOUT_REVIEW').length;
+  const done = ORD_ITEMS.filter(i => i.status === 'DONE' && String(i.finished_at || '').slice(0, 10) === monToday()).length;
+  if(!ORD_AT){
+    return monCard({name: '📋 오더 큐', cls: 'wait', state: !serverConfigured() ? '미연결' : '확인 중',
+      main: '아직 오더 목록을 못 읽었어요',
+      sub: serverConfigured() ? '⟳ 로 다시 읽어보세요' : '⚙️ 서버 설정을 하면 큐가 보여요'});
+  }
+  const c = ordSenderCounts();
+  const who = ['pi1', 'pi2', 'portal'].filter(k => c[k]).map(k => ordSenderLabel(k).name + ' ' + c[k]).join(' · ');
+  const cls = (w || t) ? 'wait' : (r ? 'run' : 'ok');
+  return monCard({name: '📋 오더 큐', cls: cls, state: w ? '승인 ' + w : (r ? '실행 중' : (p ? '대기 ' + p : '한가함')),
+    main: `대기 <b>${p}</b> · 승인 <b>${w}</b> · 실행 <b>${r}</b> · 오늘 완료 <b>${done}</b>`,
+    sub: (who ? '발신 ' + who + ' · ' : '') + (ORD_POLL.timer ? '자동 갱신 중' : '자동 갱신 꺼짐') +
+      (t ? ' · 확인 필요 ' + t : '')});
 }
 function monCard(o){
   return `<div class="mon-dev ${o.cls || ''}">
@@ -2044,7 +2961,7 @@ function monFeedHtml(){
     `<span class="mon-tx">${e.ic} ${e.tx}</span></div>`).join('');
 }
 function monFootText(){
-  const bits = ['🍋 피클 = status/agent.json(작업 시작·종료 때 기록)',
+  const bits = ['🍋 피원(pi1) = status/agent.json · 피투(pi2) = status/pi2.json(작업 시작·종료 때 기록)',
     '🏠 노트북 = 오더함 시트(Command_Queue) + 하트비트',
     '⌨️ 노트북·직접 · 💻 회사 PC = 기기 비트(agent_beat · 비공개 레포·커밋 전 작업 포함)',
     '⚡ 에이전트 = agent/* 브랜치를 머지한 커밋'];
@@ -2073,11 +2990,13 @@ function monRender(force){
     '\u0003' + (QSTAT_DATA ? (QSTAT_DATA.at || '') + JSON.stringify(QSTAT_DATA.heartbeat || {}) + (QSTAT_DATA.at ? '' : '') : '') +
     '\u0003' + (AGENT_DATA ? (AGENT_DATA.updated_at || '') + '|' + JSON.stringify(AGENT_DATA.agent || {}) + '|' + (AGENT_DATA.tasks || []).length : '') +
     '\u0003' + (AGENT_DATA && AGENT_DATA.pc ? JSON.stringify(AGENT_DATA.pc) : '') +
+    '\u0003' + (AGENT_DATA && AGENT_DATA.pi2 ? JSON.stringify(AGENT_DATA.pi2) : '') +
+    '\u0003' + (ORD_SENDER + '|' + ORD_TARGET + '|' + ORD_MODE + '|' + ORD_WHO + '|' + ORD_FILTER + '|' + USE_AT) +
     '\u0003' + (AGENT_DATA && AGENT_DATA.direct ? JSON.stringify(AGENT_DATA.direct) : '') +
     '\u0003' + MON_FILTER + '\u0003' + MON_PROJ + '\u0003' + (ORD_POLL.timer ? 1 : 0) + (ORD_POLL.paused ? 1 : 0);
   if(!force && sig === MON_SIG) return;
   MON_SIG = sig;
-  cards.innerHTML = [monDevDirect(), monDevNotebook(), monDevPc(), monDevPickle()].join('');
+  cards.innerHTML = [monDevDirect(), monDevNotebook(), monDevPc(), monDevPickle(), monDevPi2(), monDevQueue()].join('');
   const proj = document.getElementById('mon-proj');
   if(proj) proj.innerHTML = monProjChips();
   const feed = document.getElementById('mon-feed');
@@ -2105,6 +3024,7 @@ function monFilter(btn){
 /** 관제 ⟳ — 오더·상태등·GitHub 를 한 번에 새로 읽어요(캐시 무시) */
 async function monRefresh(force){
   const jobs = [refreshQueueStatus(true)];
+  jobs.push(useServerGet());
   if(serverConfigured()) jobs.push(loadOrders());
   if(ghCanFetch()) jobs.push(ghRefresh(!!force));
   jobs.push(agentLoad(true));
@@ -2718,7 +3638,10 @@ renderCal();
 applyStoreLink();
 fillOrderWs();
 ordEngineLoad();
+ordWhoLoad(); useLoad();
 ordRecentLoad(); ordRecentRender(); ordTyped();
+ordModeRender(); renderUse(true); renderRoom();
+if(serverConfigured()) useServerGet().then(() => { renderUse(true); }).catch(() => {});
 GH_DATA = ghCached();                                    // 이 기기에 남은 GitHub 기록(5분 캐시)
 AGENT_DATA = agentCached();                              // 피클이 남긴 마지막 상태
 monRender();

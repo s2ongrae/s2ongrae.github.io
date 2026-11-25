@@ -353,7 +353,7 @@ console.log('R) 🤖 노트북 오더함 (포털 안 오더 창구)');
   ok(be && be.type === 'claude_prompt' && be.workspace === 'gaegyebu' && be.payload.prompt === '가계부 11월 지출 점검해줘' && be.payload.mode === 'ask', '입력한 오더가 claude_prompt(ask)로 접수된다');
   ok(D6.el('ord-inp').value === '', '접수되면 입력칸이 비워진다');
   ok(D6.get('ORD_ITEMS').some(i => i.summary.indexOf('가계부 11월 지출 점검해줘') >= 0), '보낸 오더가 바로 목록에 쌓인다');
-  ok(D6.el('sync-txt').textContent.indexOf('접수됨') >= 0, '접수 안내가 뜬다');
+  ok(/보냈어요|접수됨/.test(D6.el('sync-txt').textContent), '접수 안내가 뜬다');
 
   // ⑦ 파일 수정 허용 → 자동 승인(가계부)은 바로 실행 대기, 포털은 승인 대기
   D6.el('ord-edit-mode').checked = true;
@@ -413,7 +413,8 @@ console.log('R) 🤖 노트북 오더함 (포털 안 오더 창구)');
 
   // ⑬ 서버 값이 이상해도 화면이 깨지지 않는다
   D6.run(`applyOrderList({at:new Date().toISOString(), items:[{id:'"><b>', type:'<img src=x>', status:'WHAT', summary:'<script>x</script>', workspace:'<i>', created_at:'bad'}], workspaces:['<b>ws</b>']})`);
-  ok(!/<script|<img|<i>|<b>/.test(box()) && box().indexOf('&lt;') >= 0, '알 수 없는 상태·값도 이스케이프해서 그린다');
+  ok(box().indexOf('<script') < 0 && box().indexOf('<img') < 0 && box().indexOf('<i>') < 0 &&
+    box().indexOf('&lt;script') >= 0 && box().indexOf('&lt;img') >= 0, '알 수 없는 상태·값도 이스케이프해서 그린다');
   ok(D6.el('ord-ws').innerHTML.indexOf('&lt;b&gt;') >= 0, '작업 위치 이름도 이스케이프');
 
   // ⑭ AI 엔진 선택칸 — 4개 · 자동 라벨은 정품 Claude→agy→FreeLLMAPI 순
@@ -600,7 +601,7 @@ console.log('S) 오더함 — 자동 확인·승인 카운트다운·다시 실�
   await D9.run('sendOrder()');
   ok(D9.calls.length === nLock, '보내는 중에 또 눌러도 두 번 접수하지 않는다');
   D9.run('ORD_SEND_BUSY = false; ordSendLock(false)');
-  ok(D9.el('ord-send').textContent === '오더 보내기' && D9.el('ord-send').disabled === false, '전송 잠금이 풀리면 버튼이 되살아난다');
+  ok(D9.el('ord-send').textContent === '↑' && D9.el('ord-send').disabled === false, '전송 잠금이 풀리면 보내기 버튼이 되살아난다');
 
   // ⑨ 승인·전송은 그 전에 시작한 목록 요청을 무효로 만든다(늦게 온 옛 응답이 덮어쓰지 않게)
   const ep0 = D9.run('ORD_EPOCH');
@@ -734,7 +735,8 @@ console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·Gi
   ok(evs11.length >= 7, '오더와 커밋이 한 목록에 모인다');
   ok(evs11.every((e, i) => i === 0 || evs11[i - 1].at >= e.at), '최신이 위(시간 내림차순)');
   ok(evs11.some(e => e.who === 'hub') && evs11.some(e => e.who === 'pc'), '노트북·회사 PC·에이전트 세 갈래가 다 보인다');
-  ok((cards11().match(/class="mon-dev/g) || []).length === 4, '카드가 4개(직접·허브·회사PC·피클)다');
+  ok((cards11().match(/class="mon-dev/g) || []).length === 6, '카드가 6개(직접·허브·회사PC·피원·피투·오더 큐)다');
+  ok(/🤖 피원/.test(cards11()) && /🤖 피투/.test(cards11()) && /📋 오더 큐/.test(cards11()), '피원(pi1)·피투(pi2)·오더 큐 카드가 함께 보인다');
   D11.run('AGENT_DATA = {direct: null}');
   ok(/기록 없음/.test(D11.run('monDevDirect()')) && /free로 작업하면/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 기록이 없으면 free 안내');
   D11.run('AGENT_DATA = {direct: {state: "working", project: "portal", task: "포털 관제", started_at: new Date().toISOString(), updated_at: new Date().toISOString()}}');
@@ -836,7 +838,7 @@ console.log('U) 🤖 피클 상태·프로젝트 묶음 — 3주체 현황과 �
   ok(D12.run('MON_PROJ') === 'all', '전체로 되돌린다');
 
   // ③ 🤖 피클 카드 — 진행 중 / 대기 / 정체 / 기록 없음
-  ok(/📋 생활·행정|피클/.test(D12.run('monDevPickle()')), '피클 카드가 있다');
+  ok(/🤖 피원/.test(D12.run('monDevPickle()')), '피원(pi1) 카드가 있다');
   D12.run('AGENT_DATA = {updated_at: "' + at(nowMs) + '", agent: {state: "working", task: "포털 관제 개선", project: "portal", started_at: "' + at(nowMs - 20 * 60000) + '", id: "t1"}, tasks: []}');
   const pkRun = D12.run('monDevPickle()');
   ok(/작업 중/.test(pkRun) && /포털 관제 개선/.test(pkRun) && /data-since="\d{13}"/.test(pkRun), '피클이 하는 일과 경과 시간이 보인다');
@@ -850,9 +852,9 @@ console.log('U) 🤖 피클 상태·프로젝트 묶음 — 3주체 현황과 �
   const pe = D12.get('agentEvents()');
   ok(pe.length === 1 && pe[0].who === 'pk' && pe[0].proj === 'portal', '피클 작업이 이벤트로 바뀐다');
   D12.run('monRender(true)');
-  ok(/🤖 피클/.test(D12.el('mon-feed').innerHTML) && /포털 관제 개선/.test(D12.el('mon-feed').innerHTML), '통합 이력에 피클이 함께 보인다');
+  ok(/🤖 피원/.test(D12.el('mon-feed').innerHTML) && /포털 관제 개선/.test(D12.el('mon-feed').innerHTML), '통합 이력에 피원이 함께 보인다');
   D12.run('monFilter({dataset:{f:"pk"}})');
-  ok(D12.run('MON_FILTER') === 'pk' && /🤖 피클/.test(D12.el('mon-feed').innerHTML) && !/💻 회사 PC/.test(D12.el('mon-feed').innerHTML), '🤖 피클 갈래만 고를 수 있다');
+  ok(D12.run('MON_FILTER') === 'pk' && /🤖 피원/.test(D12.el('mon-feed').innerHTML) && !/💻 회사 PC/.test(D12.el('mon-feed').innerHTML), '🤖 피원 갈래만 고를 수 있다');
   D12.run('monFilter({dataset:{f:"all"}})');
 
   // ⑤ 피클 기록이 없으면 솔직하게, 테스트 환경에서는 파일을 부르지 않는다
@@ -862,6 +864,157 @@ console.log('U) 🤖 피클 상태·프로젝트 묶음 — 3주체 현황과 �
   ok(D12.calls.every(c => c.opts.method === 'POST' && JSON.parse(c.opts.body).action), '피클 상태도 POST 한 갈래로만 요청한다');
   D12.run('AGENT_DATA = {updated_at: "' + at(nowMs) + '", agent: null, tasks: [{id:"x", project:"content", title: "<img src=x onerror=alert(1)>", state: "done", ended_at: "' + at(nowMs) + '"}]}');
   ok(JSON.stringify(D12.get('monFeedHtml()')).indexOf('<img') < 0, '피클이 남긴 글도 그대로 그리지 않는다');
+}
+
+console.log('V) 💬 비서 통합 회의실 — 카톡 타임라인·@멘션·사용량·비서 슬롯');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const S13 = mk();
+  const nowMs = Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, status, x) => {
+    const r = [id, created, 'portal', 'claude_prompt', 'gaegyebu', '{}', status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  S13.props.QUEUE_SHEET_ID = 'SHEETidRoomTest0001';
+  S13.addSheet('SHEETidRoomTest0001', {'Command_Queue': [HEAD.slice(0)].concat([
+    row('Q-r1', at(nowMs - 6 * 60000), 'DONE', {source: 'pi1', workspace: 'content-hub',
+      payload: JSON.stringify({prompt: '@피투 이번 주 블로그 소재 3개만 뽑아줘', mode: 'ask', kind: 'chat', target: 'pi2'}),
+      finished_at: at(nowMs - 5 * 60000), duration_ms: 12000, result: '블로그 소재 3개 뽑았습니다: ① 서울숲 ② 성수 ③ 대전 소제'}),
+    row('Q-r2', at(nowMs - 30 * 60000), 'DONE', {source: 'portal', workspace: 'gaegyebu',
+      payload: JSON.stringify({prompt: '가계부 11월 지출 점검해줘', mode: 'ask', kind: 'chat'}),
+      finished_at: at(nowMs - 29 * 60000), duration_ms: 4000, result: '11월 지출부터 볼게요. 확인이 필요한 점: 카드값 마감일'}),
+    row('Q-r3', at(nowMs - 2 * 60000), 'WAITING_APPROVAL', {source: 'pi2', workspace: 'gaegyebu',
+      payload: JSON.stringify({prompt: '제목 고쳐줘', mode: 'edit', target: 'pi1'}), risk_level: 'HIGH',
+      approval_expires_at: at(nowMs + 9 * 60000)})
+  ])});
+  const D13 = makeDevice(S13);
+  D13.config();
+  await D13.run('loadOrders()');
+  const feed = () => D13.el('ord-list').innerHTML;
+  const lastBody13 = a => {
+    for (let i = D13.calls.length - 1; i >= 0; i--) { const b = JSON.parse(D13.calls[i].opts.body); if (b.action === a) return b; }
+    return null;
+  };
+
+  // ① 회의실 뼈대
+  ok(/비서-통합-회의실/.test(html) && /id="room-people"/.test(html), '회의실 머리말(# 비서-통합-회의실 · 참여자 수)');
+  ok(/id="room-use"/.test(html) && /📊 비서 사용량/.test(html) && /<details class="room-use"/.test(html), '📊 비서 사용량이 접기/펼치기 패널로 있다');
+  ok(/id="ord-presets"/.test(html) && /id="ord-mentions"/.test(html) && /id="ord-mode"/.test(html) && /id="ord-who"/.test(html),
+    '하단 입력바에 프리셋·대상 칩·모드·발신 선택이 있다');
+  ok(/class="order-card room-card"/.test(html) && html.indexOf('id="mon-card"') < html.indexOf('id="order-card"'), '관제 카드 아래에 회의실이 이어진다');
+  ok((D13.el('room-people').textContent || '').indexOf('명') >= 0, '참여 비서 수가 머리말에 보인다');
+  let sum = D13.el('use-sum').innerHTML;
+  ok(/위험/.test(sum) && /임박/.test(sum) && /정상/.test(sum) && /미확인/.test(sum), '사용량 요약(위험·임박·정상·미확인)');
+
+  // ② 참여자·대상 칩은 레지스트리에서 나온다
+  const ment = D13.el('ord-mentions').innerHTML;
+  ok(/@전체/.test(ment) && /@피원/.test(ment) && /@피투/.test(ment) && /@노트북/.test(ment), '@전체·@피원·@피투·@노트북 대상 칩');
+  ok(D13.run('ordTargetList().length') === 4, '대상 목록 = 전체 + 참여 비서 3');
+  ok(/블로그 초안/.test(D13.el('ord-presets').innerHTML) && /상태 확인/.test(D13.el('ord-presets').innerHTML), '빠른 오더 프리셋 버튼');
+  D13.run('ordPreset({dataset:{i:"0"}})');
+  ok(/블로그 초안|대전 로컬 맛집/.test(D13.el('ord-inp').value), '프리셋을 누르면 입력칸이 채워진다(자동 전송 없음)');
+
+  // ③ 카톡 타임라인 — 내 말은 오른쪽, 비서 답은 왼쪽
+  const f1 = feed();
+  ok(/class="chat-row out"/.test(f1) && /class="chat-row in"/.test(f1), '보낸 말은 오른쪽, 비서 말은 왼쪽 말풍선');
+  ok(/who w-pi1/.test(f1) && /피원/.test(f1), '피원(pi1)이 낸 말에는 피원 배지');
+  ok(/who w-pi2/.test(f1), '피투(pi2)가 낸 말에는 피투 배지');
+  ok(/&lt;|@피투/.test(f1) && /class="mt mt-pi2"/.test(f1), '본문의 @피투 는 하이라이트 칩으로 그린다');
+  ok(/블로그 소재 3개 뽑았습니다/.test(f1), '비서 답장이 말풍선으로 보인다');
+  ok(/chat-to/.test(f1) && /@피투/.test(f1), '답장에 대상(→ @피투) 표시');
+  ok(/data-id="Q-r3"/.test(f1) && (f1.match(/data-id="Q-r3"/g) || []).length === 2, '승인 대기 말풍선에 승인·거절 버튼 2개');
+  ok(/class="chat-day"/.test(f1), '날짜 구분선(오늘/어제)');
+
+  // ④ 상태·발신 필터
+  D13.run('ordFilterSet({dataset:{k:"who",v:"pi1"}})');
+  ok(D13.run('ORD_WHO') === 'pi1' && /블로그 소재/.test(feed()) && !/가계부 11월 지출/.test(feed()), '발신 피원만 남긴다');
+  D13.run('ordFilterSet({dataset:{k:"who",v:"all"}})');
+  D13.run('ordFilterSet({dataset:{k:"st",v:"wait"}})');
+  ok(/승인 대기/.test(feed()) && !/블로그 소재/.test(feed()), '상태 필터(승인 대기)가 먹는다');
+  D13.run('ordFilterSet({dataset:{k:"st",v:"all"}})');
+  ok(D13.run('ordFilterSet({dataset:{k:"who",v:"nope"}}), ORD_WHO') === 'all', '모르는 필터 값은 전체로');
+
+  // ⑤ 보내기 — 대화 모드면 kind=chat · 발신·대상이 함께 실린다
+  D13.run("ordModeSet('chat')");
+  ok(D13.run('ORD_MODE') === 'chat' && D13.el('ord-edit-mode').checked === false, '대화 모드 기본');
+  D13.el('ord-inp').value = '@피원 이번 주 일정 정리해줘';
+  await D13.run('sendOrder()');
+  let be = lastBody13('queue_enqueue');
+  ok(be && be.payload.kind === 'chat' && be.payload.mode === 'ask', '대화는 claude_prompt + kind=chat 로 접수');
+  ok(be.source === 'portal' && be.client_id === 'portal', '발신(source·client_id)이 함께 간다');
+  D13.run('ordTargetSet({dataset:{t:"pi2"}})');
+  await D13.run("loadOrders(); ORD_TARGET");
+  D13.el('ord-inp').value = '피투한테 넘길 일';
+  await D13.run('sendOrder()');
+  be = lastBody13('queue_enqueue');
+  ok(be.payload.target === 'pi2', '대상 @피투 가 payload.target 으로 간다');
+  D13.run("ordModeSet('edit')");
+  ok(D13.el('ord-edit-mode').checked === true && D13.run('ORD_MODE') === 'edit', '수정 모드는 체크박스와 함께 움직인다');
+  D13.run("ordModeSet('chat')");
+
+  // ⑥ 답글·오더로·복사
+  D13.run("ordReplyById('Q-r2')");
+  ok(!!D13.run('ORD_REPLY_TO') && /가계부/.test(D13.run('ORD_REPLY_TO')), '답글을 누르면 원문을 인용할 준비를 한다');
+  ok(/chat-quote/.test(D13.el('ord-quote').innerHTML), '인용 미리보기가 입력칸 위에 보인다');
+  D13.el('ord-inp').value = '카드값 마감일은 25일이야';
+  await D13.run('sendOrder()');
+  be = lastBody13('queue_enqueue');
+  ok(/^↩ /.test(be.payload.prompt) && /카드값 마감일/.test(be.payload.prompt), '답글은 원문 인용을 붙여 보낸다');
+  ok(D13.run('ORD_REPLY_TO') === '', '보내면 인용은 지워진다');
+  D13.run("ordModeSet('chat'); ordPromoteById('Q-r2')");
+  ok(D13.run('ORD_MODE') === 'ask', '답장에서 [📦 오더로] 누르면 오더 모드로 바뀐다');
+  D13.run("ordModeSet('chat')");
+
+  // ⑦ 사용량 — 남은 % 직접 입력 · 상태 계산 · 이 기기 저장
+  ok(D13.run('useState(5)') === 'danger' && D13.run('useState(20)') === 'soon' && D13.run('useState(50)') === 'ok' && D13.run('useState(null)') === 'unknown',
+    '남은 % 상태: 위험<10 · 임박<30 · 정상 · 미확인');
+  ok(/리셋/.test(D13.run("useLeftText(useResetAt({reset:'daily04'}) - Date.now())")), '일일 리셋 남은 시간을 04:00 기준으로 센다');
+  ok(/리셋/.test(D13.run("useLeftText(useResetAt({reset:'weekly'}) - Date.now())")), '주간 리셋도 문구가 나온다');
+  D13.run("useEditStart('pi1')");
+  ok(/잔여 %/.test(D13.el('use-inp-pi1').placeholder || '') || D13.run('USE_EDIT') === 'pi1', '잔여 입력 칸이 열린다');
+  D13.el('use-inp-pi1').value = '8';
+  D13.run("useCommit('pi1')");
+  ok(D13.run('useOf("pi1").pct') === 8, '넣은 %가 기록된다');
+  ok(JSON.parse(D13.store.get('portal_use_v1')).items.pi1.pct === 8, '이 기기(localStorage)에 저장된다');
+  ok(D13.run('useSummary().danger') === 1, '요약이 위험 1 로 센다');
+  D13.el('use-inp-pi1').value = '250';
+  D13.run("useEditStart('pi1'); useCommit('pi1')");
+  ok(D13.run('useOf("pi1").pct') === 8, '0~100 밖의 값은 받지 않는다');
+  D13.run("useMerge([{id:'pi1',pct:40,at:new Date(Date.now()+60000).toISOString()}])");
+  ok(D13.run('useOf("pi1").pct') === 40, '서버 값이 더 최근이면 그쪽을 쓴다');
+  D13.run("useMerge([{id:'pi1',pct:90,at:new Date(Date.now()-60000).toISOString()}])");
+  ok(D13.run('useOf("pi1").pct') === 40, '더 오래된 값은 무시한다');
+
+  // ⑧ 비서 슬롯 추가 — 한 곳(레지스트리)만 늘리면 카드·멘션·배지가 같이 늘어난다
+  D13.run('useAddStart()');
+  D13.el('use-new-name').value = '부이';
+  D13.run('useAddCommit()');
+  ok(D13.run('agentMentions().some(a=>a.name==="부이")') === true, '새 비서가 참여자 목록에 들어간다');
+  ok(D13.run('useDefs().some(d=>d.name==="부이")') === true, '사용량 카드 목록에도 들어간다');
+  D13.run('renderRoom()');
+  ok(/@부이/.test(D13.el('ord-mentions').innerHTML), '@부이 멘션 칩이 자동으로 생긴다');
+  ok(/부이/.test(D13.el('use-grid').innerHTML), '사용량 카드도 자동으로 생긴다');
+  const vooy = D13.run("agentMentions().filter(a=>a.name==='부이')[0].id");
+  ok(/^a[0-9a-z]+$/.test(vooy), '추가한 비서 id 는 시트 규칙에 맞는 값(a…)');
+  D13.run(`ORD_TARGET='${vooy}'`);
+  D13.el('ord-inp').value = '@부이 내일 일정 봐줘';
+  await D13.run('sendOrder()');
+  be = lastBody13('queue_enqueue');
+  ok(be.payload.target === vooy, '새 비서에게도 오더가 간다(payload.target)');
+  D13.run('renderOrders()');
+  ok(new RegExp('mt-' + vooy).test(D13.el('ord-list').innerHTML) || /mt-new/.test(D13.el('ord-list').innerHTML), '새 비서 멘션도 칩으로 그린다');
+  D13.run(`agentRemove('${vooy}'); renderRoom()`);
+  ok(!/@부이/.test(D13.el('ord-mentions').innerHTML) && D13.run('agentMentions().some(a=>a.name==="부이")') === false, '뺀 비서는 목록에서 사라진다');
+
+  // ⑨ 말풍선 속 값도 이스케이프
+  D13.run(`ORD_ITEMS = [{id:'Q-x', status:'DONE', source:'pi1', type:'claude_prompt', kind:'chat', summary:'<img src=x>@피원', result:'<script>x</script>', created_at:new Date().toISOString()}]; renderOrders()`);
+  ok(feed().indexOf('<img') < 0 && feed().indexOf('<script') < 0 && feed().indexOf('&lt;img') >= 0, '말풍선 글자도 그대로 그리지 않는다');
+  ok(/class="mt mt-pi1"/.test(feed()), '이스케이프한 뒤에도 @피원 칩은 살아 있다');
 }
 
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
