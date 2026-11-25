@@ -241,6 +241,21 @@ function roomMentionHtml(s){
   }
   return out;
 }
+/** 링크 — [이름](주소) 과 맨 주소를 둘 다 <a> 로. 두 번 감싸지 않게 자리표시자를 거친다 */
+function roomLinks(s){
+  const links = [];
+  let h = String(s).replace(/\[([^\]\n]{1,80})\]\((https?:\/\/[^\s)]+)\)/g, (m, label, url) => {
+    links.push('<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + label + '</a>');
+    return '\u0001' + (links.length - 1) + '\u0001';
+  });
+  h = h.replace(/https?:\/\/[^\s<]+/g, (m) => {
+    const clean = m.replace(/[),.!?]+$/, '');          // 문장 끝 구두점은 링크 밖으로
+    const tail = m.slice(clean.length);
+    links.push('<a href="' + clean + '" target="_blank" rel="noopener noreferrer">' + clean + '</a>');
+    return '\u0001' + (links.length - 1) + '\u0001' + tail;
+  });
+  return h.replace(/\u0001(\d+)\u0001/g, (m, i) => links[Number(i)] || '');
+}
 function roomMdInline(t){
   return String(t).split('\n').map(line => {
     let h = line;
@@ -249,7 +264,7 @@ function roomMdInline(t){
     h = h.replace(/^#{1,3}\s+(.*)$/, '<b class="h3">$1</b>');
     const li = /^([ \t]*)[-*•]\s+(.*)$/.exec(h);
     if(li) h = li[1] + '<span class="li">•</span> ' + li[2];
-    h = h.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    h = roomLinks(h);
     return roomMentionHtml(h);
   }).join('\n');
 }

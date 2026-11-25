@@ -118,7 +118,7 @@ input,textarea{font:inherit;color:inherit}
 
 .msg{display:flex; align-items:flex-end; gap:8px; margin:9px 0; animation:pop .18s ease-out}
 @keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-.msg.them{padding-right:min(14%,64px)}
+.msg.them{padding-right:min(10%,44px)}
 .msg.me{flex-direction:row-reverse; padding-left:min(14%,64px)}
 .av{
   flex:0 0 auto; width:34px; height:34px; border-radius:12px; display:grid; place-items:center;
@@ -126,10 +126,10 @@ input,textarea{font:inherit;color:inherit}
   border:1px solid var(--line); position:relative;
 }
 .av .pin{position:absolute; right:-2px; bottom:-2px; width:9px; height:9px; border-radius:50%; background:var(--ok); border:2px solid var(--bg)}
-.bwrap{min-width:0; max-width:100%; display:flex; flex-direction:column; gap:3px}
+.bwrap{min-width:0; max-width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:3px}
 .msg.me .bwrap{align-items:flex-end}
 .meta{
-  display:flex; align-items:center; gap:5px; flex-wrap:wrap;
+  display:flex; align-items:center; gap:5px; flex-wrap:wrap; max-width:100%;
   font-size:11px; font-weight:700; color:var(--sub); line-height:1.3;
 }
 .meta .nm{color:var(--ac,var(--sub)); font-weight:800}
@@ -138,7 +138,7 @@ input,textarea{font:inherit;color:inherit}
 .msg.me .meta{flex-direction:row-reverse}
 .bub{
   position:relative; max-width:min(78vw,540px); min-width:44px;
-  padding:8px 12px 9px; border-radius:15px 15px 15px 5px;
+  padding:10px 12px 9px; border-radius:15px 15px 15px 5px;
   background:var(--card); color:var(--txt);
   border:1px solid var(--line);
   box-shadow:0 1px 1px rgba(16,24,42,.05);

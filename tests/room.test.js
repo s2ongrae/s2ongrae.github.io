@@ -134,7 +134,7 @@ function coreTests() {
   const names = ['ROOM_AGENTS', 'ROOM_CHIPS', 'ROOM_ALIASES', 'roomAgentById', 'roomMentionMap', 'roomTargetFromText',
     'roomSenderKey', 'roomIsMine', 'roomTargetKey', 'roomTargetLabel', 'roomReplyKey', 'roomReplyWhoKey',
     'roomNeedsWorker', 'roomIsPlainReply', 'roomShowReply', 'roomMsgText', 'roomStatus', 'roomWhen', 'roomDay',
-    'roomAgo', 'roomUseState', 'roomMd', 'roomLastActivity', 'roomOnlineCount', 'esc'];
+    'roomAgo', 'roomUseState', 'roomMd', 'roomLinks', 'roomLastActivity', 'roomOnlineCount', 'esc'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -215,6 +215,11 @@ function coreTests() {
   ok(C.roomMd('```\ncode <b>\n```').indexOf('<b>') < 0, '코드블록 안도 escape');
   ok(C.roomMd('@큐 확인').indexOf('<b class="mt') > -1, '@멘션은 칩으로');
   ok(C.roomMd('https://example.com/a').indexOf('<a href="https://example.com/a"') > -1, '링크는 새 창');
+  const mdLink = C.roomMd('[월간 달력](https://example.com/a) 확인');
+  ok(mdLink.indexOf('>월간 달력</a>') > -1, '[이름](주소) 마크다운 링크');
+  ok((mdLink.match(/<a /g) || []).length === 1, '마크다운 링크가 두 번 감싸지지 않음');
+  ok(C.roomMd('본문 https://example.com/a.').indexOf('href="https://example.com/a"') > -1, '문장 끝 마침표는 링크 밖');
+  ok(C.roomMd('[x](javascript:alert(1))').indexOf('<a ') < 0, 'javascript: 마크다운 링크도 막힘');
   ok(C.roomMd('javascript:alert(1)').indexOf('<a ') < 0, 'javascript: 는 링크가 아님');
   ok(C.esc('"&\'<>') === '&quot;&amp;&#39;&lt;&gt;', 'esc 기본');
 
