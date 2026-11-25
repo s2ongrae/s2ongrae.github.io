@@ -1318,6 +1318,25 @@ function ordSenderList(){
   agentMentions().forEach(a => { if(a.id !== 'notebook') out.push(a); });
   return out;
 }
+/** 발신 필터 목록 — 보내는 사람 후보에 '노트북'을 더한다(노트북은 보내는 사람이 아니라 실행 주체) */
+function ordFilterWhoList(){
+  const out = ordSenderList();
+  if(!out.some(a => a.id === 'notebook')){
+    const nb = agentById('notebook') || {name: '집 노트북', icon: '🖥️'};
+    out.push({id: 'notebook', name: nb.name, icon: nb.icon});
+  }
+  return out;
+}
+/** 이 말이 그 사람과 얽혀 있는가 — 노트북은 발신(source)뿐 아니라 처리(claimed_by)·답장(replied_by)도 본다 */
+function ordSenderMatches(it, key){
+  const k = String(key || 'all');
+  if(k === 'all') return true;
+  if(ordSenderKey(it) === k) return true;
+  if(k === 'notebook'){
+    return ['claimed_by', 'replied_by'].some(f => ordSenderKey({source: (it || {})[f]}) === 'notebook');
+  }
+  return false;
+}
 function ordTargetList(){
   const out = [{id: 'all', label: '@전체', name: '전체 비서', icon: '👥'}];
   agentMentions().forEach(a => out.push({id: a.id, label: '@' + (a.mentionAs || a.name), name: a.name, icon: a.icon}));
@@ -1530,7 +1549,8 @@ function ordEngineChip(it){
 
 /** 노트북이 아직 할 일을 마치지 않은 오더가 있나 (자동 확인을 켤지 정하는 기준) */
 function ordActive(){
-  return ORD_ITEMS.some(i => i.status === 'PENDING' || i.status === 'RUNNING' || i.status === 'WAITING_APPROVAL');
+  return ORD_ITEMS.some(i => i.status === 'WAITING_APPROVAL' ||
+    ((i.status === 'PENDING' || i.status === 'RUNNING') && !ordIsPlainReply(i)));
 }
 function ordPollNote(msg){
   const el = document.getElementById('ord-paused');
@@ -1564,13 +1584,15 @@ function ordPollSchedule(){
   monRender();
 }
 function ordSig(items){
-  return (items || []).map(i => [i.id, i.status, i.result, i.error, i.duration_ms].join('\u0001')).join('\u0002');
+  // 2026-11-25: 발신자·답장자가 바뀌면 말풍선 색·이름이 바뀐다 — 그 값들도 서명에 넣어 즉시 다시 그린다.
+  return (items || []).map(i => [i.id, i.status, i.result, i.error, i.duration_ms,
+    i.source, i.target, i.claimed_by, i.replied_by, i.beat_at].join('\u0001')).join('\u0002');
 }
 /** 배지·확인 시각 — 목록은 그대로 두고 이것만 다시 써요. */
 function renderOrderHead(){
   const cnt = document.getElementById('ord-count'), stt = document.getElementById('ord-state');
   const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
-  const p = ORD_ITEMS.filter(i => i.status === 'PENDING' || i.status === 'RUNNING').length;
+  const p = ORD_ITEMS.filter(i => (i.status === 'PENDING' || i.status === 'RUNNING') && !ordIsPlainReply(i)).length;
   const g = ORD_ITEMS.filter(i => i.status === 'REVIEW_NEEDED').length;
   if(cnt){
     const parts = [];
@@ -1624,6 +1646,51 @@ function ordTargetLabel(k){
   return {id: 'notebook', label: '@노트북', name: '집 노트북', icon: '🏠'};
 }
 /**
+ * 답장 말풍선의 발신자 — **실제로 답한 주체**(2026-11-25).
+ *  노트북(claimed_by='notebook')이 만든 답장이 원 질문자의 source('portal')로 보여서
+ *  “왜 포털(=나)이 대답하려는 것처럼 보이냐”로 읽혔다. 끝난·진행 중 말은 처리한 비서를 쓴다.
+ */
+function ordReplyKey(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  const answered = st === 'RUNNING' || st === 'DONE' || st === 'FAILED' || st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW';
+  const by = String((it && (it.replied_by || it.claimed_by)) || '').trim().toLowerCase();
+  // hub-agent·nb 같은 별명도 '노트북'으로 접는다(ordSenderKey 와 같은 규칙)
+  const key = by ? ordSenderKey({source: by}) : '';
+  if(answered && key && agentById(key)) return key;
+  return ordSenderKey(it);
+}
+/** 왼쪽에 설 사람 — 답장은 답한 사람, 아직 앞이면 그 말을 받을 사람 */
+function ordReplyWhoKey(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(st === 'RUNNING' || st === 'DONE' || st === 'FAILED' || st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW') return ordReplyKey(it);
+  const tg = ordTargetKey(it);
+  return tg === 'all' ? 'notebook' : tg;
+}
+/**
+ * 이 말을 집어서 답할 비서가 있는가.
+ *  · 노트북은 target 이 notebook·all 인 것만 집는다(다른 비서 앞 오더는 집지 않고 되돌려 놓는다).
+ *  · 비서가 남긴 순수 답장(포털·다른 비서 앞)은 아무도 실행하지 않는다 — 대기 표시가 의미 없다.
+ */
+function ordNeedsWorker(it){
+  if(!it) return false;
+  const tg = ordTargetKey(it);
+  if(tg === 'notebook' || tg === 'all') return true;
+  if(!ordIsChat(it)) return true;
+  return ordIsMine(it);
+}
+/** 비서가 남긴 순수 답장 — 그 말 자체가 내용이라 '차례를 기다려요'·'대기' 배지를 붙이지 않는다 */
+function ordIsPlainReply(it){
+  return ordIsChat(it) && !ordIsMine(it) && !ordNeedsWorker(it);
+}
+/** 답장 말풍선을 따로 그릴 내용이 있는가 — 순수 답장은 말 한 줄로 충분하다 */
+function ordShowReply(it){
+  if(!ordIsPlainReply(it)) return true;
+  const st = String((it && it.status) || '').toUpperCase();
+  if(st === 'PENDING') return false;
+  const text = String((it && (it.result || it.error)) || '').trim();
+  return !!text && text !== ordMsgText(it);
+}
+/**
  * 본문에 적힌 @이름/@ID 로 대상 하나를 고른다 — 칩을 누르지 않고 "@큐 이거 봐줘" 라고 써도 큐에게 가게.
  *  · 칩으로 고른 대상이 있으면 그게 우선이고, 본문에 다른 이름이 있으면 본문이 이긴다(글로 가리킨 쪽이 진짜 의도).
  *  · 서버(Code.gs qqMentionOf_)도 같은 규칙으로 한 번 더 본다(외부 비서가 보낸 글).
@@ -1640,7 +1707,12 @@ function ordTargetFromText(text){
     for(let j = 0; j < labels.length; j++){
       const l = labels[j];
       if(s.substr(i, l.length) !== l) continue;
-      if(/[A-Za-z0-9_-]/.test(s.charAt(i + l.length))) continue;
+      const next = s.charAt(i + l.length);
+      if(/[A-Za-z0-9_-]/.test(next)){
+        // @큐2·@cue2 — 명부에 등록되기 전의 부계정도 그 비서 앞으로 본다(2026-11-25)
+        if(/^\d{1,2}(?![A-Za-z0-9_-])/.test(s.substr(i + l.length, 3))) return map[l];
+        continue;
+      }
       return map[l];
     }
   }
@@ -1785,17 +1857,18 @@ function ordPreset(btn){
 function ordFilterSet(btn){
   const k = String((btn && btn.dataset && btn.dataset.k) || '');
   const v = String((btn && btn.dataset && btn.dataset.v) || 'all');
-  if(k === 'who') ORD_WHO = (v === 'all' || ordSenderList().some(x => x.id === v)) ? v : 'all';
+  if(k === 'who') ORD_WHO = (v === 'all' || ordFilterWhoList().some(x => x.id === v)) ? v : 'all';
   else ORD_FILTER = ['all', 'live', 'wait', 'done'].indexOf(v) >= 0 ? v : 'all';
   renderOrders();
 }
 function ordVisible(it){
   if(!it || !it.id) return false;
   const st = String(it.status || '').toUpperCase();
-  if(ORD_FILTER === 'live' && !(st === 'PENDING' || st === 'RUNNING')) return false;
+  // 비서가 남긴 순수 답장은 '진행' 이 아니다 — 처리할 사람이 없다(2026-11-25)
+  if(ORD_FILTER === 'live' && !((st === 'PENDING' || st === 'RUNNING') && !ordIsPlainReply(it))) return false;
   if(ORD_FILTER === 'wait' && st !== 'WAITING_APPROVAL') return false;
   if(ORD_FILTER === 'done' && !(st === 'DONE' || st === 'FAILED' || st === 'REJECTED' || st === 'EXPIRED' || st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW')) return false;
-  if(ORD_WHO !== 'all' && ordSenderKey(it) !== ORD_WHO) return false;
+  if(ORD_WHO !== 'all' && !ordSenderMatches(it, ORD_WHO)) return false;
   return true;
 }
 function ordFilterRender(){
@@ -1803,7 +1876,7 @@ function ordFilterRender(){
   if(!box) return;
   const stC = [['all', '전체'], ['live', '진행'], ['wait', '승인'], ['done', '끝남']].map(x =>
     `<button class="rf${ORD_FILTER === x[0] ? ' on' : ''}" data-k="st" data-v="${x[0]}" onclick="ordFilterSet(this)">${esc(x[1])}</button>`).join('');
-  const whoC = [{id: 'all', label: '전체'}].concat(ordSenderList().map(a => ({id: a.id, label: (a.icon || '🌐') + ' ' + a.name}))).map(x =>
+  const whoC = [{id: 'all', label: '전체'}].concat(ordFilterWhoList().map(a => ({id: a.id, label: (a.icon || '🌐') + ' ' + a.name}))).map(x =>
     `<button class="rf${ORD_WHO === x.id ? ' on' : ''}" data-k="who" data-v="${esc(x.id)}" onclick="ordFilterSet(this)">${esc(x.label)}</button>`).join('');
   const shown = ORD_ITEMS.filter(ordVisible).length;
   box.innerHTML = '<span class="room-hint">상태</span>' + stC + '<span class="rf-sep"></span>' +
@@ -2119,10 +2192,13 @@ function chatOut(it, left){
   const tg = ordTargetLabel(ordTargetKey(it));
   const body = ordMsgText(it) || ordBody(it).t;
   const who = ordSenderLabel(ordSenderKey(it));
+  // 비서가 남긴 순수 답장(포털·다른 비서 앞)은 처리할 사람이 없으니 '대기' 배지를 달지 않는다(2026-11-25)
+  const plain = ordIsPlainReply(it);
   const to = `<span class="chat-to">→ ${esc(tg.label)}</span>`;
   const av = left ? `<div class="chat-av">${esc(who.icon || '🤖')}</div>` : '';
   return `<div class="chat-row ${left ? 'in' : 'out'}">${av}<div class="chat-bubble${left ? ' side-in' : ''}">` +
-    `<div class="chat-meta">${ordWhoBadge(ordSenderKey(it))}${to}<span class="ord-chip ${s.c}">${esc(s.t)}</span>` +
+    `<div class="chat-meta">${ordWhoBadge(ordSenderKey(it))}${to}` +
+    (plain ? '' : `<span class="ord-chip ${s.c}">${esc(s.t)}</span>`) +
     (it.auto_approved ? '<span class="ord-chip c-auto" title="이미 지시한 일반 코드 작업이라 승인 없이 실행해요">자동(위임)</span>' : '') +
     `<span class="ord-when">${esc(ordWhen(it.created_at))}</span></div>` +
     `<div class="chat-text">${ordMentionHtml(esc(body))}</div>` +
@@ -2137,8 +2213,8 @@ function chatIn(it){
   const tg = ordTargetKey(it);
   const body = ordBody(it);
   // 2026-11-25(v28): 왼쪽 말풍선은 **누가 말했는지**(실제 닉네임·이모지)로 그린다.
-  //   예전엔 모든 왼쪽 말풍선이 '🏠 집 노트북'이었다 — 큐·키링 답장도 노트북 이름으로 보였다.
-  const who = ordSenderLabel(ordSenderKey(it));
+  //   답장·진행·결과는 원 질문자의 source 가 아니라 **실제로 답한 주체**(replied_by·claimed_by)다(v31).
+  const who = ordSenderLabel(ordReplyWhoKey(it));
   const av = `<div class="chat-av">${esc(who.icon || '🤖')}</div>`;
   const meta = `<div class="chat-meta"><b>${esc(who.icon + ' ' + who.name)}</b>` +
     (tg !== 'notebook' ? `<span class="chat-to">→ ${esc(ordTargetLabel(tg).label)}</span>` : '') +
@@ -2150,7 +2226,9 @@ function chatIn(it){
   const acts = [];
   if(st === 'PENDING'){
     cls = 'in sys';
-    inner = `<div class="chat-text"><span class="chat-typing"><i></i><i></i><i></i></span> 차례를 기다려요 — 노트북이 60초마다 확인해요</div>`;
+    // 받을 비서가 노트북이 아니면(내가 @큐·@부이 앞으로 남긴 말) 그 이름으로 기다린다
+    const waitLabel = (tg === 'notebook' || tg === 'all') ? '노트북이 60초마다 확인해요' : (ordTargetLabel(tg).label + '가 다음 확인 때 읽어요');
+    inner = `<div class="chat-text"><span class="chat-typing"><i></i><i></i><i></i></span> 차례를 기다려요 — ${esc(waitLabel)}</div>`;
   } else if(st === 'WAITING_APPROVAL'){
     cls = 'in warn';
     inner = `<div class="chat-text">${isChat ? '이건 실행이 필요해 보여요. ' : ''}실행해도 될까요?</div>` +
@@ -2169,7 +2247,10 @@ function chatIn(it){
       ordSteps(it) + ordGateBox(it);
   } else if(st === 'FAILED' || st === 'TIMEOUT_REVIEW'){
     cls = 'in bad';
-    inner = `<div class="chat-text err">${esc(body.t)}</div>`;
+    // 대화는 오른쪽 말풍선에 이미 내 말이 있다 — 실패 사유만 깔끔히 적는다(summary 와 겹치지 않게, 2026-11-25)
+    inner = `<div class="chat-text err">${isChat
+      ? esc(it.error ? '⚠️ ' + it.error : '⚠️ 답장을 만들지 못했어요')
+      : esc(body.t)}</div>`;
   } else if(st === 'REVIEW_NEEDED'){
     cls = 'in warn';
     inner = `<div class="chat-text">${esc(body.t)}</div>` + ordGateBox(it) + ordMergeBlock(it);
@@ -2300,7 +2381,7 @@ function renderOrders(){
   items.forEach(it => {
     const d = ordChatDay(it.created_at);
     if(d && d !== day){ html += `<div class="chat-day">${esc(d)}</div>`; day = d; }
-    html += chatOut(it, !ordIsMine(it)) + chatIn(it);
+    html += chatOut(it, !ordIsMine(it)) + (ordShowReply(it) ? chatIn(it) : '');
   });
   box.innerHTML = html;
   try { if(box.scrollTop !== undefined) box.scrollTop = nearBottom ? (numOf(box.scrollHeight) || 0) : keepTop; } catch(e) {}
@@ -2858,7 +2939,7 @@ function projStats(){
     if(!st[p]) return;
     const s = String(it.status || '');
     if(s === 'RUNNING') st[p].run++;
-    else if(s === 'PENDING') st[p].pend++;
+    else if(s === 'PENDING') { if(!ordIsPlainReply(it)) st[p].pend++; }
     else if(s === 'WAITING_APPROVAL') st[p].wait++;
     else if(s === 'DONE' && String(it.finished_at || '').slice(0, 10) === today) st[p].done++;
   });
@@ -2950,7 +3031,7 @@ function monDevPickle(){ return monAgentBody('🤖 피원', AGENT_DATA, 'pi1'); 
 function monDevPi2(){ return monAgentBody('🤖 피투', AGENT_DATA && AGENT_DATA.pi2, 'pi2'); }
 /** 📋 오더 큐 — 대기·승인·실행·오늘 완료 + 발신별 건수 */
 function monDevQueue(){
-  const p = ORD_ITEMS.filter(i => i.status === 'PENDING').length;
+  const p = ORD_ITEMS.filter(i => i.status === 'PENDING' && !ordIsPlainReply(i)).length;
   const r = ORD_ITEMS.filter(i => i.status === 'RUNNING').length;
   const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
   const t = ORD_ITEMS.filter(i => i.status === 'TIMEOUT_REVIEW').length;
@@ -2979,7 +3060,7 @@ function monCard(o){
 }
 function monDevNotebookBody(){
   const runs = ORD_ITEMS.filter(i => i.status === 'RUNNING');
-  const pend = ORD_ITEMS.filter(i => i.status === 'PENDING');
+  const pend = ORD_ITEMS.filter(i => i.status === 'PENDING' && !ordIsPlainReply(i));
   const hb = QSTAT_DATA && QSTAT_DATA.heartbeat ? QSTAT_DATA.heartbeat : null;
   // 하트비트 파일이 없으면 서버가 state:'unknown'(source:'sheet')으로 답해요 — 살아 있는지 모르는 상태라
   // 초록 카드·'마지막 응답'으로 쓰지 않고, 시트 활동은 '오더를 넣은 흔적'으로만 보여준다(2026-11-18).
@@ -3105,7 +3186,7 @@ function monDevPcBeat(d){
     sub: (ageMin === null ? '' : '마지막 신호 ' + esc(agoText(ageMin) || '방금') + ' · ') + esc(src) + ' · 다음 작업은 pcbeat start'});
 }
 function ordSumText(){
-  const p = ORD_ITEMS.filter(x => x.status === 'PENDING').length;
+  const p = ORD_ITEMS.filter(x => x.status === 'PENDING' && !ordIsPlainReply(x)).length;
   const r = ORD_ITEMS.filter(x => x.status === 'RUNNING').length;
   const w = ORD_ITEMS.filter(x => x.status === 'WAITING_APPROVAL').length;
   const d = ORD_ITEMS.filter(x => x.status === 'DONE' && String(x.finished_at || '').slice(0, 10) === monToday()).length;

@@ -1223,5 +1223,104 @@ console.log('X) 🏷️ 말풍선 닉네임·이모지 · 부계정(*2·_2·pi3)
   ok(/KTX 예약 보조/.test(D17.el('use-grid').innerHTML), '카드에도 바로 보인다');
 }
 
+console.log('X) 💬 회의실 말풍선 — 답장 주체·대기 말풍선 정리 (2026-11-25 v31)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SX = mk();
+  const nowMs = Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, source, status, payload, x) => {
+    const r = [id, created, source, 'claude_prompt', 'gaegyebu', JSON.stringify(payload), status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  SX.props.QUEUE_SHEET_ID = 'SHEETidRoomBubble001';
+  SX.addSheet('SHEETidRoomBubble001', {'Command_Queue': [HEAD.slice(0)].concat([
+    // 비서가 포털(사람) 앞에 남긴 순수 답장 — 아무도 실행하지 않는다
+    row('Q-b1', at(nowMs - 4 * 60000), 'pi2', 'PENDING',
+      { prompt: '🤖 피투입니다 — 출석 완료!', mode: 'ask', kind: 'chat', target: 'portal', reply_to: 'Q-orig' }),
+    // 노트북이 답한 내 질문 — 말풍선 주체는 '포털'이 아니라 노트북이어야 한다
+    row('Q-b2', at(nowMs - 6 * 60000), 'portal', 'DONE',
+      { prompt: '가계부 점검해줘', mode: 'ask', kind: 'chat', target: 'notebook' },
+      { claimed_by: 'notebook', finished_at: at(nowMs - 5 * 60000), result: '이렇게 하겠습니다: 11월 지출부터 볼게요.' }),
+    // 내가 다른 비서 앞으로 남긴 말 — 기다리는 상대는 큐
+    row('Q-b3', at(nowMs - 3 * 60000), 'portal', 'PENDING',
+      { prompt: '@큐 이 가격 팩트체크해줘', mode: 'ask', kind: 'chat', target: 'cue' }),
+    // 비서가 포털 앞에 남긴 답장인데 결과가 따로 있는 경우 — 결과 말풍선은 보여준다
+    row('Q-b4', at(nowMs - 8 * 60000), 'keyring', 'DONE',
+      { prompt: '@포털 KTX 예약 확인했어요', mode: 'ask', kind: 'chat', target: 'portal' },
+      { claimed_by: 'keyring', finished_at: at(nowMs - 7 * 60000), result: '12/3 09:00 KTX 2매 확정' }),
+    // 대화가 실패한 경우 — 오른쪽 내 말과 왼쪽 사유가 겹치지 않아야 한다
+    row('Q-b5', at(nowMs - 2 * 60000), 'portal', 'FAILED',
+      { prompt: '내일 일정 알려줘', mode: 'ask', kind: 'chat', target: 'notebook' },
+      { claimed_by: 'notebook', finished_at: at(nowMs - 1 * 60000), error: 'claude: options.cwd 형식 오류' })
+  ])});
+  const DX = makeDevice(SX);
+  DX.config();
+  await DX.run('loadOrders()');
+  const feedX = () => DX.el('ord-list').innerHTML;
+
+  // ① 순수 답장에는 대기 말풍선·대기 배지가 없다
+  const one = id => DX.run(`ordById('${id}')`);
+  ok(DX.run("ordIsPlainReply(ordById('Q-b1'))") === true, '피투가 포털 앞에 남긴 말 = 순수 답장');
+  ok(DX.run("ordShowReply(ordById('Q-b1'))") === false, '순수 답장은 두 번째 말풍선을 그리지 않는다');
+  ok(DX.run("ordShowReply(ordById('Q-b3'))") === true, '내가 큐 앞에 남긴 말은 기다리는 말풍선을 그린다');
+  ok(DX.run("ordShowReply(ordById('Q-b4'))") === true, '결과가 따로 있는 답장은 보여준다');
+  const b1 = DX.run("chatOut(ordById('Q-b1'), true)");
+  ok(b1.indexOf('c-pend') < 0 && !/>대기</.test(b1), '순수 답장 말풍선에 대기 배지가 없다');
+  const b3 = DX.run("chatOut(ordById('Q-b3'), false)");
+  ok(/>대기</.test(b3), '내가 보낸 말에는 대기 배지가 그대로');
+
+  // ② 답장 말풍선의 주체 = 실제 답한 비서(노트북), 포털이 아니다
+  const inb2 = DX.run("chatIn(ordById('Q-b2'))");
+  ok(/🖥️ 노트북/.test(inb2) && !/🌐 포털/.test(inb2), '노트북 답장은 노트북 이름·이모지로 보인다');
+  ok(DX.run("ordReplyKey({status:'DONE', source:'portal', claimed_by:'notebook'})") === 'notebook', '답장 주체는 claimed_by');
+  ok(DX.run("ordReplyKey({status:'DONE', source:'portal', replied_by:'cue', claimed_by:'notebook'})") === 'cue', 'replied_by 가 있으면 그쪽을 쓴다');
+  ok(DX.run("ordReplyWhoKey({status:'PENDING', source:'portal', target:'cue'})") === 'cue', '아직 앞이면 받을 비서가 왼쪽에 선다');
+
+  // ③ 기다리는 상대를 이름으로 말한다
+  const inb3 = DX.run("chatIn(ordById('Q-b3'))");
+  ok(/@큐/.test(inb3) && !/노트북이 60초마다/.test(inb3), '큐 앞 말은 큐가 읽는다고 적는다');
+  const inb1 = DX.run("chatIn(ordById('Q-b2'))") ;
+  ok(inb1.length > 0, '노트북 답장에는 말풍선이 있다');
+  ok(/노트북이 60초마다 확인해요/.test(DX.run("chatIn({status:'PENDING', source:'portal', kind:'chat', target:'notebook', created_at:new Date().toISOString()})")), '노트북 앞 말은 기존 문구 그대로');
+
+  // ④ 대화 실패는 사유만 — 내 말(summary)과 겹치지 않는다
+  const failB = DX.run("chatIn(ordById('Q-b5'))");
+  ok(/options\.cwd/.test(failB) && failB.indexOf('내일 일정 알려줘') < 0, '실패 말풍선에 내 말이 또 들어가지 않는다');
+
+  // ⑤ 멘션 부계정 — 명부 등록 전에도 기본 이름으로 잡는다
+  ok(DX.run("ordTargetFromText('@큐2 팩트체크')") === 'cue', '@큐2 → cue');
+  ok(DX.run("ordTargetFromText('@부이2 비교')") === 'vooy', '@부이2 → vooy');
+  ok(DX.run("ordTargetFromText('@키링2 예약')") === 'keyring', '@키링2 → keyring');
+  ok(DX.run("ordTargetFromText('@cue2 확인')") === 'cue', '@cue2 → cue');
+  ok(DX.run("ordTargetFromText('@피원님 확인')") === 'pi1', '조사 붙은 @피원님 은 그대로');
+
+  // ⑥ 발신자 서명 — 답장자가 바뀌면 목록을 다시 그린다
+  const sigA = DX.run("ordSig([{id:'Q-x', status:'DONE', source:'portal', claimed_by:'notebook'}])");
+  const sigB = DX.run("ordSig([{id:'Q-x', status:'DONE', source:'portal', claimed_by:'cue'}])");
+  const sigC = DX.run("ordSig([{id:'Q-x', status:'DONE', source:'portal', claimed_by:'cue', beat_at:'2026-11-25T10:00:00Z'}])");
+  ok(sigA !== sigB && sigB !== sigC, 'claimed_by·beat_at 이 바뀌면 서명이 달라진다');
+
+  // ⑦ '노트북' 필터 — source 뿐 아니라 처리(claimed_by)·답장(replied_by)도 본다
+  ok(DX.run("ordSenderMatches({source:'portal', claimed_by:'notebook'}, 'notebook')") === true, 'claimed_by=notebook 도 노트북 글');
+  ok(DX.run("ordSenderMatches({source:'portal', replied_by:'notebook'}, 'notebook')") === true, 'replied_by=notebook 도 노트북 글');
+  ok(DX.run("ordSenderMatches({source:'cue'}, 'notebook')") === false, '큐 글은 노트북 글이 아니다');
+  ok(DX.run('ordFilterWhoList().some(a=>a.id==="notebook")') === true, '발신 필터에 노트북이 있다');
+  ok(DX.run('ordSenderList().some(a=>a.id==="notebook")') === false, '보내는 사람 목록에는 노트북이 없다(그대로)');
+  DX.run("ORD_WHO='notebook'; renderOrders()");
+  ok(feedX().indexOf('가계부 점검해줘') >= 0 && feedX().indexOf('내일 일정 알려줘') >= 0, '노트북 필터에 노트북이 처리한 말이 보인다');
+  DX.run("ORD_WHO='portal'; renderOrders()");
+  ok(feedX().indexOf('🤖 피투입니다') < 0, '포털 필터에서는 남의 답장이 빠진다');
+  DX.run("ORD_WHO='all'; renderOrders()");
+
+  // ⑧ 머리말 건수 — 순수 답장은 '대기' 로 세지 않는다
+  ok(DX.run("ORD_ITEMS.filter(i=>(i.status==='PENDING'||i.status==='RUNNING') && !ordIsPlainReply(i)).length") === 1,
+    '대기 건수는 큐 앞 내 말 1건만');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();

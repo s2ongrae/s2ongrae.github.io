@@ -1068,7 +1068,7 @@ console.log('16) 👥 참여 비서 명부(agents_get·agent_save) · 부분 사
   r = enq('메일 a@b.com 으로 보내줘');
   ok(!r.item.target, '주소 속 @ 는 멘션으로 보지 않는다');
   r = enq('@큐2 그것도 봐줘');
-  ok(!r.item.target || r.item.target !== 'cue2', '명부에 없는 이름(cue2)은 기본 이름 규칙으로 안 잡힌다');
+  ok(r.item.target === 'cue', '@큐2(명부에 오르기 전 부계정)도 큐 앞으로 간다');
   post({action: 'agent_save', key: KS, items: [{id: 'cue2', name: '큐2'}]});
   r = enq('@큐2 그것도 봐줘');
   ok(r.item.target === 'cue2', '명부에 올린 비서 이름(@큐2)도 대상으로 잡힌다');
@@ -1139,6 +1139,9 @@ console.log('17) 🔓 GET 읽기 · queue_claim/done · mentions·reply_to · �
     payload: { prompt: '@포털 예약했어요', mode: 'ask', kind: 'chat', target: 'portal', reply_to: 'Q-k1' } });
   ok(rr.ok === true && rr.item.reply_to === 'Q-k1', 'reply_to 가 payload·item 에 실린다');
   ok(item('Q-k1').replied_by === 'keyring' && !!item('Q-k1').replied_at, '답장이 달린 원본은 replied_by 가 보인다');
+  ok(item('Q-k1').answer_by === 'keyring', '답장한 비서는 answer_by 로도 남는다');
+  g = get({ action: 'queue_head', key: KS, target: 'keyring' });
+  ok(g.item && typeof g.item.replied_by === 'string' && typeof g.item.reply_to === 'string', 'queue_head 에도 replied_by·reply_to 가 실린다');
   ok(post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
     payload: { prompt: 'x', mode: 'ask', reply_to: 'bad id!' } }).ok === false, 'reply_to 형식이 틀리면 거절');
 
@@ -1181,6 +1184,20 @@ console.log('17) 🔓 GET 읽기 · queue_claim/done · mentions·reply_to · �
   ok(r2.ok === true && r2.item.target === 'cue2' && (r2.item.mentions || []).indexOf('cue2') >= 0, 'cue2 앞 오더와 멘션이 정상으로 잡힌다');
   g = get({ action: 'queue_list', key: KS, target: 'cue2', limit: 5 });
   ok(g.ok === true && g.items.length === 1 && g.items[0].id === r2.item.id, 'GET target=cue2 필터도 새 비서를 잡는다');
+
+  // ⑦ 사람(포털) 앞 대화는 아무도 실행하지 않는다 — 접수 순간에 DONE 으로 닫는다(2026-11-25)
+  const beforePend = post({ action: 'queue_list', key: KS, limit: 5 }).pending;
+  const del = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'cue',
+    payload: { prompt: '@포털 연결 확인했어요', mode: 'ask', kind: 'chat', target: 'portal' } });
+  ok(del.ok === true && del.item.status === 'DONE' && !!del.item.finished_at, '포털 앞 대화는 바로 DONE');
+  ok(/전달/.test(del.note || ''), '안내도 전달했다고 나온다');
+  ok(post({ action: 'queue_list', key: KS, limit: 5 }).pending === beforePend, '대기 건수가 늘지 않는다');
+  const toAll = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'cue',
+    payload: { prompt: '@전체 다들 확인', mode: 'ask', kind: 'chat', target: 'all' } });
+  ok(toAll.item.status === 'PENDING', '@전체 대화는 예전처럼 노트북이 답한다(PENDING)');
+  const plain = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
+    payload: { prompt: '제목만 고쳐줘', mode: 'ask' } });
+  ok(plain.item.status === 'PENDING', '보통 오더는 그대로 PENDING');
 }
 
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);

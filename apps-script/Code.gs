@@ -498,7 +498,7 @@ function queueSheetStatus_(sheetId) {
   const head = values[0].map(function (v) { return String(v == null ? '' : v).trim(); });
   const at = function (name) { return head.indexOf(name); };
   const iStatus = at('status'), iCreated = at('created_at'), iClaimed = at('claimed_at'), iFinished = at('finished_at');
-  const iBeat = at('beat_at'), iStarted = at('started_at');
+  const iBeat = at('beat_at'), iStarted = at('started_at'), iPayload = at('payload');
   if (iStatus < 0) return { summary: { state: 'unknown', error: 'status 칸을 찾지 못했어요' }, lastActivityAt: '' };
 
   let pending = 0, waiting = 0, timeout = 0, review = 0, oldest = 0, last = 0;
@@ -510,6 +510,8 @@ function queueSheetStatus_(sheetId) {
     if (!st) continue;
     const created = iCreated >= 0 ? qsCellMs_(row[iCreated]) : 0;
     if (st === 'PENDING') {
+      // 포털(사람) 앞 대화는 아무도 실행하지 않는다 — 대기 건수·가장 오래된 대기에서 뺀다(2026-11-25)
+      if (iPayload >= 0 && qqPortalChatRaw_(row[iPayload])) continue;
       pending++;
       if (created && (!oldest || created < oldest)) oldest = created;
     } else if (st === 'WAITING_APPROVAL') waiting++;
@@ -1085,6 +1087,13 @@ function qqMentionMap_(fresh) {
   const map = {};
   Object.keys(QQ_TARGET_NAMES).forEach(function (nm) { map['@' + nm] = QQ_TARGET_NAMES[nm]; });
   QQ_TARGETS.forEach(function (id) { if (id !== 'all') map['@' + id] = id; });
+  // 2026-11-25 — 부계정(@큐2·@cue2·@부이2·@vooy2 …)은 명부에 등록되기 전에도 그 비서 앞으로 본다.
+  //  명부에 정식으로 올라오면 아래 루프가 덮어써서 그 아이디를 쓴다.
+  Object.keys(map).forEach(function (l) {
+    var id = map[l];
+    if (id === 'all') return;
+    for (var n = 2; n <= 9; n++) { if (!map[l + n]) map[l + n] = id; }
+  });
   try {
     agentRoster_().forEach(function (a) { map['@' + a.name] = a.id; map['@' + a.id] = a.id; });
   } catch (err) { /* 명부를 못 읽어도 기본 이름으로 충분 */ }
@@ -1415,8 +1424,14 @@ function qqItem_(r) {
     // 답장 추적(2026-11-25 v27) — 이 오더가 답장이면 원본 id, 끝난 오더면 누가 처리했는지.
     //  오더 id 는 대소문자를 가리므로(Q-2026…) reply_to 는 그대로 둔다.
     reply_to: clip(String(p.reply_to == null ? '' : p.reply_to).trim(), 60),
-    replied_by: (st === 'DONE' || st === 'FAILED' || st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW')
-      ? clip(String(r.claimed_by == null ? '' : r.claimed_by).trim().toLowerCase(), 20) : '',
+    // 2026-11-25 — 처리한 비서(claimed_by)가 버어진 옛 줄·다른 비서가 reply_to 로 마감한 줄도
+    //  답장자를 걺지 않게 발신자(source)로 채운다(화면이 '포털이 답한 것'처럼 보이던 문제).
+    replied_by: (function () {
+      if (st !== 'DONE' && st !== 'FAILED' && st !== 'REVIEW_NEEDED' && st !== 'TIMEOUT_REVIEW') return '';
+      var by = String(r.claimed_by == null ? '' : r.claimed_by).trim().toLowerCase();
+      if (!by) by = String(r.source == null ? '' : r.source).trim().toLowerCase();
+      return clip(by, 20);
+    })(),
     summary: qqSummary_(type, p),
     needs_decision: st === 'WAITING_APPROVAL'
   };
@@ -1834,6 +1849,16 @@ function qqAudit_(ctx, e) {
 }
 
 // ── 액션 ────────────────────────────────────────────
+/**
+ * payload 문자열만으로 '사람(포털) 앞 대화'인지 싸게 보기 — 건수 셀 때 400행을 JSON 파싱하지 않으려고.
+ *  아무도 실행하지 않는 줄이라 '대기' 건수에서는 빠진다(2026-11-25).
+ */
+function qqPortalChatRaw_(raw) {
+  if (!raw) return false;
+  const s = String(raw);
+  if (s.indexOf('"chat"') < 0 || s.indexOf('"portal"') < 0) return false;
+  return /"kind"\s*:\s*"chat"/.test(s) && /"target"\s*:\s*"portal"/.test(s);
+}
 /** 최근 오더 목록 + 건수 + 고를 수 있는 작업 위치. payload 는 요약만 나간다. */
 function queueList(body) {
   const ctx = qqOpen_();
@@ -1842,7 +1867,10 @@ function queueList(body) {
   const c = { pending: 0, waiting: 0, running: 0, timeout: 0, review: 0, done: 0, failed: 0 };
   for (let i = 0; i < rows.length; i++) {
     const st = String(rows[i].status == null ? '' : rows[i].status).trim().toUpperCase();
-    if (st === 'PENDING') c.pending++;
+    if (st === 'PENDING') {
+      if (qqPortalChatRaw_(rows[i].payload)) continue;   // 포털 앞 대화는 아무도 실행하지 않는다
+      c.pending++;
+    }
     else if (st === 'WAITING_APPROVAL') c.waiting++;
     else if (st === 'RUNNING') c.running++;
     else if (st === 'TIMEOUT_REVIEW') c.timeout++;
@@ -1885,7 +1913,12 @@ function queueList(body) {
     }
     // 이 오더에 답장이 달려 있으면 누가 달았는지 붙인다(끝난 오더의 claimed_by 와는 다른 정보)
     const rp = replied[it.id];
-    if (rp && !it.replied_by) { it.replied_by = rp.by; it.replied_at = rp.at; }
+    if (rp) {
+      // 2026-11-25 — 원글이 이미 DONE 이라 replied_by(처리한 비서)가 차 있어도
+      //  답장한 비서를 걺지 않게 따로 남긴다(answer_by). 비어 있으면 replied_by 도 채운다.
+      it.answer_by = rp.by; it.answered_at = rp.at;
+      if (!it.replied_by) { it.replied_by = rp.by; it.replied_at = rp.at; }
+    }
     items.push(it);
   }
   // 2026-11-25(v27): 큐에 한 번이라도 말을 건 비서는 화면이 자동으로 참여자 명부에 합류시킨다.
@@ -1929,7 +1962,9 @@ function queueHead(body) {
     const it = qqItem_(rows[i]);
     res.item = {
       id: it.id, created_at: it.created_at, status: it.status, source: it.source,
-      target: it.target || 'notebook', kind: it.kind, type: it.type
+      target: it.target || 'notebook', kind: it.kind, type: it.type,
+      // 2026-11-25 — 답장 주체·원글 추적도 같이 준다(기다리는 쪽이 누가 답했는지 알게)
+      claimed_by: it.claimed_by, replied_by: it.replied_by, reply_to: it.reply_to, finished_at: it.finished_at
     };
     return res;
   }
@@ -1967,6 +2002,20 @@ function qqWithWorkerNote_(type, payload) {
   return JSON.stringify(p);
 }
 
+/**
+ * 대화(kind='chat')가 '포털'(사람) 앞으로 온 것인가 — 아무도 실행하지 않는 순수 전달이다(2026-11-25).
+ *  · 노트북도 다른 비서도 portal 앞 오더는 집지 않는다. 그런데 PENDING 으로 저장되면 화면에
+ *    '차례를 기다려요' 대기 말풍선·'대기' 배지가 영원히 남고, 오더 큐 건수에도 섞인다.
+ *  · 그래서 접수 순간에 DONE 으로 닫는다(말은 payload·summary 그대로 남아 말풍선이 된다).
+ */
+function qqDeliveredOnly_(type, payload) {
+  if (type !== 'claude_prompt') return false;
+  const p = qqParse_(payload);
+  if (!isObj(p)) return false;
+  if (String(p.kind || '').toLowerCase() !== 'chat') return false;
+  return String(p.target || '').toLowerCase() === 'portal';
+}
+
 function queueEnqueue(body) {
   const type = String((body && body.type) || '').trim();
   const spec = QQ_TYPES[type];
@@ -1984,6 +2033,8 @@ function queueEnqueue(body) {
   const needsApproval = risk === 'HIGH' && !verdict.auto;
   const nowMs = Date.now();
   const ttlMin = Math.round(QQ_APPROVAL_TTL_MS / 60000);
+  // 사람(포털) 앞으로 온 대화는 아무도 실행하지 않는다 — 접수 순간에 전달 완료로 닫는다(2026-11-25).
+  const delivered = qqDeliveredOnly_(type, payload);
 
   return qqLock_(function () {
     const ctx = qqOpen_();
@@ -1999,8 +2050,8 @@ function queueEnqueue(body) {
     const row = {
       // source = 누가 낸 오더인가(portal·pi1·pi2·vooy·cue …). 모르는 모양이면 portal.
       id: qqMakeId_(nowMs), created_at: qqIso_(nowMs), source: qqSourceOf_(body && (body.source || body.client_id)), type: type, workspace: workspace,
-      payload: payload, status: needsApproval ? 'WAITING_APPROVAL' : 'PENDING', attempts: 0,
-      claimed_at: '', claimed_by: '', finished_at: '', duration_ms: '', exit_code: '', result: '', error: '', detail: '',
+      payload: payload, status: delivered ? 'DONE' : (needsApproval ? 'WAITING_APPROVAL' : 'PENDING'), attempts: 0,
+      claimed_at: '', claimed_by: '', finished_at: delivered ? qqIso_(nowMs) : '', duration_ms: delivered ? 0 : '', exit_code: '', result: '', error: '', detail: '',
       risk_level: risk, approval_expires_at: needsApproval ? qqIso_(nowMs + QQ_APPROVAL_TTL_MS) : '',
       approval_by: autoBy, approval_at: autoBy ? qqIso_(nowMs) : '',
       approval_note: autoBy ? verdict.reason : '', approval_hash: qqHashPayload_(payload)
@@ -2008,7 +2059,9 @@ function queueEnqueue(body) {
     qqAppend_(ctx, row);
     return {
       ok: true, duplicate: false, item: qqItem_(row),
-      note: needsApproval
+      note: delivered
+        ? '전달했어요 — 포털(사람) 앞 메시지라 실행 없이 바로 읽혀요.'
+        : needsApproval
         ? (type === 'content_render' ? '영상 렌더 오더예요 — ' : '파일을 고치는 오더예요 — ') + ttlMin + '분 안에 승인해야 노트북이 실행해요.'
         : (autoBy
           ? '자동 승인(위임) — 승인 없이 바로 실행 대기열에 들어갔어요.'
