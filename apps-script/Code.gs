@@ -22,8 +22,39 @@ const TZ            = 'Asia/Seoul';
 const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple', 'mc-white'];
 
 // ── 진입점 ─────────────────────────────────────────
+//  · POST: 모든 액션(쓰기 포함). 본문에 key.
+//  · GET : **읽기 전용 몇 개만**(2026-11-25 v27 — 큐·키링처럼 가볍게 훑는 비서용).
+//          `?action=queue_list&target=keyring&limit=5&key=…` 처럼 쓴다.
+//          쓰기 액션은 GET 으로 절대 받지 않는다(링크 미리보기·로그에 키가 남는 위험을 줄이기 위해
+//          읽기만 열고, 키는 여전히 64자 전체 비교다).
+//          `?action=queue_head` 는 **최신 1건의 id·시각·대상만** 돌려주는 초경량 확인용이다.
+const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'usage_get', 'agents_get'];
 function doGet(e) {
-  return out({ ok: false, error: 'POST로만 사용할 수 있어요.' });
+  const p = (e && e.parameter) || {};
+  const action = String(p.action || '').trim();
+  if (!action) return out({ ok: false, error: 'POST로만 사용할 수 있어요.' });
+  if (GET_ACTIONS.indexOf(action) < 0) {
+    return out({ ok: false, code: 'read_only', error: 'GET 으로는 읽기만 할 수 있어요: ' + GET_ACTIONS.join(' · ') });
+  }
+  if (!checkKey(p.key)) {
+    Utilities.sleep(300);
+    return out({ ok: false, error: 'unauthorized' });
+  }
+  try {
+    switch (action) {
+      case 'ping':         return out({ ok: true, at: new Date().toISOString() });
+      case 'queue_status': return out(queueStatus());
+      case 'queue_list':   return out(queueList({ target: p.target, limit: p.limit }));
+      case 'queue_head':   return out(queueHead({ target: p.target }));
+      case 'usage_get':    return out(usageGet());
+      case 'agents_get':   return out(agentListGet());
+      default:             return out({ ok: false, error: '알 수 없는 요청이에요.' });
+    }
+  } catch (err) {
+    const res = { ok: false, error: String((err && err.message) || err) };
+    if (err && err.code) res.code = String(err.code);
+    return out(res);
+  }
 }
 
 function doPost(e) {
@@ -55,6 +86,8 @@ function doPost(e) {
       case 'queue_list':        return out(queueList(body));      // 🤖 오더함 — 최근 오더
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
       case 'queue_decide':      return out(queueDecide(body));    // 🤖 오더함 — 승인/거절
+      case 'queue_claim':       return out(queueClaim(body));     // 🤖 외부 비서가 자기 앞 오더를 집어 감
+      case 'queue_done':        return out(queueDone(body));      // 🤖 집어 간 오더의 결과를 남김
       case 'agent_beat':        return out(agentBeat_(body));      // ⌨️ 노트북 직접작업 상태
       case 'usage_get':         return out(usageGet());           // 📊 비서 사용량(읽기)
       case 'usage_set':         return out(usageSet_(body));      // 📊 비서 사용량(남은 % 기록)
@@ -709,7 +742,7 @@ function usPublic_(items) {
 function usageGet() {
   const d = usageRead_();
   const items = usPublic_(d.items);
-  return { ok: true, at: d.updated_at || '', items: items, reported: items.length, ids: US_IDS.slice() };
+  return { ok: true, at: d.updated_at || '', items: items, reported: items.length, ids: qqWithRoster_(US_IDS), duties: agentDuties_() };
 }
 
 /**
@@ -789,7 +822,19 @@ const AG_FILE = '포털_비서목록.json';
 const AG_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
 const AG_MAX = 24;
 const AG_NAME_MAX = 16;
+const AG_DUTY_MAX = 60;
 const AG_RESERVED = ['all', 'portal', 'phone', 'telegram', 'notebook', 'pi1', 'pi2', 'cue', 'vooy', 'keyring'];
+// 기본 참여자와 담당 한 줄(2026-11-25 v28, 성래 님 지시) — API(agents_get·usage_get·queue_list)로도 보인다.
+//  화면(AGENT_SEED.duty)과 같은 글이다. 바뀌면 양쪽을 같이 고친다.
+const AG_BUILTINS = [
+  { id: 'pi1', name: '피원', icon: '🤖', group: '일일', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘' },
+  { id: 'pi2', name: '피투', icon: '🤖', group: '일일', duty: 'GitHub PR/이슈·분산 실행·SNS/커머스 보조' },
+  { id: 'cue', name: '큐', icon: '🎯', group: '일일', duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)' },
+  { id: 'vooy', name: '부이', icon: '🛟', group: '일일', duty: '후보 비교/체크리스트·채용/면접 리서치·PDF/HWP 문서 읽기' },
+  { id: 'keyring', name: '키링', icon: '🔑', group: '일일', duty: '전화 발신 검증·KTX/예약·대전 밥집/쇼핑커넥트 발굴' },
+  { id: 'notebook', name: '집 노트북', icon: '🏠', group: '일일', duty: '24시간 즉답·코드 실행·숏폼 무토큰 렌더' }
+];
+let AG_ROSTER_CACHE = { at: 0, items: null };
 
 /** 명부 파일을 읽어 {items, removed} 로. 없거나 깨졌으면 빈 명부. */
 function agentRead_() {
@@ -811,7 +856,8 @@ function agentRead_() {
       out.items[id] = {
         name: name, icon: clip(items[k].icon || '🤖', 2),
         group: items[k].group === '주간' ? '주간' : '일일',
-        at: clip(items[k].at, 40), auto: !!items[k].auto
+        at: clip(items[k].at, 40), auto: !!items[k].auto,
+        duty: clip(items[k].duty, AG_DUTY_MAX)
       };
     });
     // 뺀 기록(30일) — 다른 기기도 "내가 뺀 비서"를 다시 그리지 않게
@@ -828,19 +874,57 @@ function agentRead_() {
   return out;
 }
 
-/** 명부 → 화면 모양 [{id,name,icon,group,at,auto?}] */
+/** 명부 → 화면 모양 [{id,name,icon,group,at,auto?,duty?}] */
 function agentPublic_(items) {
   return Object.keys(items).map(function (id) {
     const x = items[id];
     const o = { id: id, name: x.name, icon: x.icon, group: x.group, at: x.at };
     if (x.auto) o.auto = true;
+    if (x.duty) o.duty = x.duty;
     return o;
   });
 }
 
+/**
+ * 참여자 전체 명부(기본 + 화면에서 추가한 비서) — 60초 캐시.
+ *  · 담당 역할(duty)을 API 로 바로 볼 수 있게 하는 자리다: agents_get.items,
+ *    usage_get.duties, queue_list.duties 가 모두 이걸 쓴다.
+ */
+function agentRoster_() {
+  const now = Date.now();
+  if (AG_ROSTER_CACHE.items && now - AG_ROSTER_CACHE.at < 60000) return AG_ROSTER_CACHE.items;
+  const list = AG_BUILTINS.map(function (b) {
+    return { id: b.id, name: b.name, icon: b.icon, group: b.group, duty: b.duty, builtin: true };
+  });
+  const cur = agentRead_();
+  Object.keys(cur.items).forEach(function (id) {
+    const x = cur.items[id];
+    list.push({ id: id, name: x.name, icon: x.icon, group: x.group, duty: x.duty || '', at: x.at, auto: !!x.auto });
+  });
+  AG_ROSTER_CACHE = { at: now, items: list };
+  return list;
+}
+/** id → 담당 한 줄 (읽기 응답에 싣는 작은 표) */
+function agentDuties_() {
+  const m = {};
+  agentRoster_().forEach(function (x) { if (x.duty) m[x.id] = x.duty; });
+  return m;
+}
+/** 기본 목록 + 화면에서 추가한 비서 id (targets·sources·usage ids 응답용) */
+function qqWithRoster_(base) {
+  const list = base.slice();
+  try {
+    agentRoster_().forEach(function (a) {
+      if (a.builtin) return;
+      if (list.indexOf(a.id) < 0) list.push(a.id);
+    });
+  } catch (err) { /* 명부를 못 읽으면 기본 목록만 */ }
+  return list;
+}
+
 function agentListGet() {
   const d = agentRead_();
-  const items = agentPublic_(d.items);
+  const items = agentRoster_();
   const removed = Object.keys(d.removed).map(function (id) { return { id: id, at: d.removed[id] }; });
   return { ok: true, at: d.updated_at || '', items: items, removed: removed, count: items.length, max: AG_MAX };
 }
@@ -867,7 +951,8 @@ function agentSave_(body) {
     incoming[id] = {
       name: name, icon: clip(x.icon || '🤖', 2),
       group: x.group === '주간' ? '주간' : '일일',
-      at: isFinite(Date.parse(at)) ? clip(at, 40) : now, auto: !!x.auto
+      at: isFinite(Date.parse(at)) ? clip(at, 40) : now, auto: !!x.auto,
+      duty: (x.duty === undefined || x.duty === null) ? null : clip(x.duty, AG_DUTY_MAX)
     };
   });
   const drop = [];
@@ -884,7 +969,12 @@ function agentSave_(body) {
       const old = cur.items[id];
       const oldAt = old ? (Date.parse(old.at) || 0) : 0;
       const newAt = Date.parse(incoming[id].at) || 0;
-      if (!old || newAt >= oldAt) { cur.items[id] = incoming[id]; saved++; }
+      if (!old || newAt >= oldAt) {
+        const next = Object.assign({}, incoming[id]);
+        // 담당을 안 보냈으면 지금 값을 지우지 않는다(이름만 바꿔도 역할은 남는다)
+        if (next.duty === null) next.duty = (old && old.duty) || '';
+        cur.items[id] = next; saved++;
+      }
     });
     drop.forEach(function (x) {
       delete cur.items[x.id];
@@ -907,7 +997,7 @@ function agentSave_(body) {
     const js = JSON.stringify({ v: 1, updated_at: now, items: cur.items, removed: cur.removed });
     const it = folder.getFilesByName(AG_FILE);
     if (it.hasNext()) it.next().setContent(js); else folder.createFile(AG_FILE, js, 'application/json');
-    const items = agentPublic_(cur.items);
+    const items = (function () { AG_ROSTER_CACHE = { at: 0, items: null }; return agentRoster_(); })();
     const removedOut = Object.keys(cur.removed).map(function (id) { return { id: id, at: cur.removed[id] }; });
     return { ok: true, at: now, saved: saved, removed: drop.length, items: items, removed_items: removedOut, count: items.length };
   });
@@ -984,33 +1074,56 @@ function qqTargetOf_(p) {
   return QQ_AGENT_ID_RE.test(t) ? t : '';
 }
 /**
- * 본문의 @이름만 적혀 있어도 대상 하나를 고른다("@큐 이거 봐줘") — 화면의 @멘션 칩과 같은 규칙.
- *  · 이름은 QQ_TARGET_NAMES(기본 참여자) + 명부(포털_비서목록.json)의 이름/ID. 긴 이름부터 본다.
- *  · 뒤에 영숫자가 붙으면 멘션이 아니다(@피원님이 → 허용, @피원a → 아님).
- *  · 명부를 읽다 실패해도 오더는 그대로 간다(빈 결과).
+ * @이름 → id 표. 기본 이름 + 명부(포털_비서목록.json).
+ *  · queue_list 는 아이템 20건에 각각 붙으므로 한 번 만든 표를 60초 쓴다(드라이브 읽기 월 1회꼼).
+ *  · 오더를 넣는 순간(qqPayloadOf_)은 fresh=true — 방금 추가한 비서 이름도 바로 알아본다.
  */
-function qqMentionOf_(text) {
-  const s = String(text == null ? '' : text);
-  if (s.indexOf('@') < 0) return '';
+let QQM_CACHE = { at: 0, map: null };
+function qqMentionMap_(fresh) {
+  const now = Date.now();
+  if (!fresh && QQM_CACHE.map && now - QQM_CACHE.at < 60000) return QQM_CACHE.map;
   const map = {};
   Object.keys(QQ_TARGET_NAMES).forEach(function (nm) { map['@' + nm] = QQ_TARGET_NAMES[nm]; });
   QQ_TARGETS.forEach(function (id) { if (id !== 'all') map['@' + id] = id; });
   try {
-    const items = agentRead_().items;
-    Object.keys(items).forEach(function (id) { map['@' + items[id].name] = id; map['@' + id] = id; });
+    agentRoster_().forEach(function (a) { map['@' + a.name] = a.id; map['@' + a.id] = a.id; });
   } catch (err) { /* 명부를 못 읽어도 기본 이름으로 충분 */ }
+  QQM_CACHE = { at: now, map: map };
+  return map;
+}
+/**
+ * 본문에서 멘션 하나하나를 뽑는다(나온 순서·중복 제거, 최대 max 개).
+ *  · 뒤에 영숫자가 붙으면 멘션이 아니다(@피원님이 → 허용, @피원a → 아님).
+ */
+function qqMentionAll_(text, max, fresh) {
+  const s = String(text == null ? '' : text);
+  const out = [];
+  if (s.indexOf('@') < 0) return out;
+  const map = qqMentionMap_(fresh);
   const labels = Object.keys(map).sort(function (a, b) { return b.length - a.length; });
   for (let i = 0; i < s.length; i++) {
     if (s.charAt(i) !== '@') continue;
     for (let j = 0; j < labels.length; j++) {
       const l = labels[j];
       if (s.substr(i, l.length) !== l) continue;
-      const next = s.charAt(i + l.length);
-      if (/[A-Za-z0-9_-]/.test(next)) continue;
-      return map[l];
+      if (/[A-Za-z0-9_-]/.test(s.charAt(i + l.length))) continue;
+      const id = map[l];
+      if (out.indexOf(id) < 0) out.push(id);
+      i += l.length - 1;
+      break;
     }
+    if (out.length >= (max || 6)) break;
   }
-  return '';
+  return out;
+}
+/**
+ * 본문의 @이름만 적혀 있어도 대상 하나를 고른다("@큐 이거 봐줘") — 화면의 @멘션 칩과 같은 규칙.
+ *  · 이름은 QQ_TARGET_NAMES(기본 참여자) + 명부(포털_비서목록.json)의 이름/ID. 긴 이름부터 본다.
+ *  · 명부를 읽다 실패해도 오더는 그대로 간다(빈 결과).
+ */
+function qqMentionOf_(text) {
+  const all = qqMentionAll_(text, 1, true);
+  return all.length ? all[0] : '';
 }
 const QQ_LIST_DEFAULT = 15;
 const QQ_LIST_MAX = 20;
@@ -1208,6 +1321,8 @@ function qqParse_(s) {
 
 // payload 안의 "target" 만 문자열에서 바로 꺼내는 정규식 (2026-11-25 — 목록 필터의 사전 거르기)
 const QQ_TARGET_JSON_RE = /"target"\s*:\s*(?:"([^"]{0,32})"|([^",}\s]{1,32}))/;
+// 답장 추적용 — 행마다 JSON 을 풀지 않고 reply_to 문자열만 싸게 본다(2026-11-25 v27).
+const QQ_REPLY_JSON_RE = /"reply_to"\s*:\s*"([A-Za-z0-9._:-]{1,60})"/;
 /**
  * 목록 필터용 target — **qqItem_ 을 만들지 않고** 시트 한 줄에서 싸게 읽는다.
  *  v25 는 target 필터에서도 행마다 qqItem_(payload 파싱 + 가림 정규식 + 속성 읽기 4~5회)을 돌려
@@ -1285,6 +1400,19 @@ function qqItem_(r) {
     // 대화(kind='chat')와 @멘션(target) — 예전 줄에는 없으니 빈 값으로 내려간다.
     kind: clip(String(p.kind == null ? '' : p.kind).toLowerCase(), 12),
     target: clip(String(p.target == null ? '' : p.target).toLowerCase(), 12),
+    // 본문에서 알아본 멘션 id 배열(2026-11-25 v27) — 비서가 이름 문자열 검색으로 놓치지 않게.
+    //  target 도 함께 넣는다(누구 앞으로 왔는지 배열 하나로 보이게). 'all' 은 사람이 아니라 뺀다.
+    mentions: (function () {
+      const list = qqMentionAll_(p.prompt, 6, false);
+      const tgt = String(p.target == null ? '' : p.target).trim().toLowerCase();
+      if (tgt && tgt !== 'all' && tgt !== 'portal' && QQ_AGENT_ID_RE.test(tgt) && list.indexOf(tgt) < 0) list.push(tgt);
+      return list;
+    })(),
+    // 답장 추적(2026-11-25 v27) — 이 오더가 답장이면 원본 id, 끝난 오더면 누가 처리했는지.
+    //  오더 id 는 대소문자를 가리므로(Q-2026…) reply_to 는 그대로 둔다.
+    reply_to: clip(String(p.reply_to == null ? '' : p.reply_to).trim(), 60),
+    replied_by: (st === 'DONE' || st === 'FAILED' || st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW')
+      ? clip(String(r.claimed_by == null ? '' : r.claimed_by).trim().toLowerCase(), 20) : '',
     summary: qqSummary_(type, p),
     needs_decision: st === 'WAITING_APPROVAL'
   };
@@ -1322,6 +1450,14 @@ function qqPayloadOf_(type, p) {
   if (isObj(p) && String(p.kind || '').toLowerCase() === 'chat') out.kind = 'chat';
   const target = qqTargetOf_(p) || qqMentionOf_(prompt);
   if (target && target !== 'notebook') out.target = target;
+  // 답장 추적(2026-11-25 v27) — 어느 오더에 대한 답장인지(선택). 비서끼리 중복 답장을 막는다.
+  const replyTo = String((isObj(p) && p.reply_to) || '').trim();
+  if (replyTo) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/.test(replyTo)) {
+      throw qqErr_('bad_request', 'reply_to 는 오더 id 형식이어야 해요(예: Q-20261125-180306-29rx).');
+    }
+    out.reply_to = replyTo;
+  }
   return JSON.stringify(out);
 }
 /**
@@ -1714,6 +1850,22 @@ function queueList(body) {
   const wantTarget = String((body && body.target) || '').trim().toLowerCase();
   const targetFilter = !!wantTarget && wantTarget !== 'notebook' && wantTarget !== 'all' &&
     (QQ_TARGETS.indexOf(wantTarget) >= 0 || QQ_AGENT_ID_RE.test(wantTarget));
+  // 답장이 달린 오더 표시(2026-11-25 v27) — 원본 오더 id → 답장한 비서·시각. 비서끼리 중복 답장 방지.
+  //  목록을 그리기 전에 만들어야 한다(아래 items 루프가 이걸 본다).
+  const replied = {};
+  for (let i = 0; i < rows.length; i++) {
+    const raw = rows[i].payload;
+    if (!raw) continue;
+    const m = QQ_REPLY_JSON_RE.exec(String(raw));
+    if (!m) continue;
+    const key = String(m[1]);                       // 오더 id 는 대소문자를 가린다(Q-2026…)
+    const st = String(rows[i].status == null ? '' : rows[i].status).trim().toUpperCase();
+    const by = String(rows[i].source == null ? '' : rows[i].source).trim().toLowerCase();
+    const prev = replied[key];
+    if (!prev || (prev.status !== 'DONE' && st === 'DONE')) {
+      replied[key] = { by: by, at: clip(rows[i].created_at, 40), status: st };
+    }
+  }
   const items = [];
   for (let i = rows.length - 1; i >= 0 && items.length < limit; i--) {
     // 2026-11-25: 무거운 qqItem_ 을 만들기 전에 payload 문자열에서 target 만 싸게 본다.
@@ -1727,6 +1879,9 @@ function queueList(body) {
       const tg = it.target || 'notebook';          // 최종 판정은 늘 qqItem_ 값으로
       if (tg !== wantTarget && tg !== 'all') continue;
     }
+    // 이 오더에 답장이 달려 있으면 누가 달았는지 붙인다(끝난 오더의 claimed_by 와는 다른 정보)
+    const rp = replied[it.id];
+    if (rp && !it.replied_by) { it.replied_by = rp.by; it.replied_at = rp.at; }
     items.push(it);
   }
   // 2026-11-25(v27): 큐에 한 번이라도 말을 건 비서는 화면이 자동으로 참여자 명부에 합류시킨다.
@@ -1744,9 +1899,37 @@ function queueList(body) {
     pending: c.pending, waiting: c.waiting, running: c.running, timeout: c.timeout,
     review: c.review, done: c.done, failed: c.failed,
     workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES), engines: QQ_ENGINES.slice(),
-    chat: true, targets: QQ_TARGETS.slice(), sources: QQ_SOURCES.slice(), sources_seen: srcSeen,
+    chat: true, targets: qqWithRoster_(QQ_TARGETS), sources: qqWithRoster_(QQ_SOURCES), sources_seen: srcSeen,
+    duties: agentDuties_(),
     approval_ttl_min: Math.round(QQ_APPROVAL_TTL_MS / 60000)
   };
+}
+
+/**
+ * 초경량 머리 확인 — 최신 1건의 id·시각·대상·상태만 돌려준다(2026-11-25 v27).
+ *  · 외부 비서가 "방에 새 말이 있나"만 싸게 볼 때 쓴다(payload·요약은 만들지 않는다).
+ *  · target 을 주면 그 비서 앞으로 온(또는 @전체) 최신 한 건을 찾는다.
+ */
+function queueHead(body) {
+  const ctx = qqOpen_();
+  const rows = qqRows_(ctx, QQ_SCAN_ROWS);
+  const res = { ok: true, at: qqNow_(), empty: !rows.length, item: null };
+  if (!rows.length) return res;
+  const want = String((body && body.target) || '').trim().toLowerCase();
+  const filter = !!want && want !== 'notebook' && want !== 'all' && QQ_AGENT_ID_RE.test(want);
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (filter) {
+      const t = qqRowTarget_(rows[i]);
+      if (t !== want && t !== 'all') continue;
+    }
+    const it = qqItem_(rows[i]);
+    res.item = {
+      id: it.id, created_at: it.created_at, status: it.status, source: it.source,
+      target: it.target || 'notebook', kind: it.kind, type: it.type
+    };
+    return res;
+  }
+  return res;
 }
 
 /** 오더 한 건 접수. 위험(파일 수정)이면 WAITING_APPROVAL 로 세워 승인을 기다린다. */
@@ -1883,6 +2066,95 @@ function queueDecide(body) {
       ok: true, id: id, decision: decision, changed: true,
       status: decision === 'approve' ? 'PENDING' : 'REJECTED', at: now, audit: true
     };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🤖 외부 비서의 오더 집기·결과 쓰기 — queue_claim · queue_done (2026-11-25 v27)
+//
+//  키링·큐·부이·피원·피투처럼 **늘 떠 있지 않은** 비서가 같은 오더를 두 번 처리하지 않게,
+//  자기 앞으로 온 PENDING 한 건을 「집고(RUNNING)」 → 「끝냈다(DONE/FAILED)」고 남긴다.
+//
+//  · 인증은 다른 쓰기와 같은 비밀 키(POST 본문 key). GET 으로는 절대 안 된다.
+//  · 자기 앞으로 온 것(target=나 또는 all)만 집는다. 노트북 앞(무 target) 오더는 안 집는다.
+//  · 승인 대기(WAITING_APPROVAL)는 집지 않는다 — 사람이 승인해야 실행된다.
+//  · 결과는 가리고(qqMask_) 500자까지만 쓴다. 다른 비서가 집은 오더의 결과는 덮지 않는다.
+//  · 잠금은 포털 스크립트 잠금 — 노트북 워커(CommandQueue.gs)와는 별개라 충돌할 수 있다.
+//    그래서 claim 은 쓰기 직전에 다시 읽어 PENDING 인지 확인하고, 이미 RUNNING 이면 changed:false 로 돌려준다.
+// ═══════════════════════════════════════════════════════════════
+function qqActorOf_(body) {
+  const as = String((body && (body.as || body.by || body.source)) || '').trim().toLowerCase();
+  if (!QQ_AGENT_ID_RE.test(as) || as === 'portal') {
+    throw qqErr_('bad_request', 'as 에 내 비서 id 를 넣어주세요(영소문자·숫자·_·- 12자, portal 제외).');
+  }
+  return as;
+}
+
+/** 내 앞으로 온 PENDING 한 건을 집는다. {action:'queue_claim', key, as:'keyring', id?} */
+function queueClaim(body) {
+  const as = qqActorOf_(body);
+  const wantId = clip((body && body.id) || '', 60).trim();
+  return qqLock_(function () {
+    const ctx = qqOpen_();
+    const rows = qqRows_(ctx, QQ_SCAN_ROWS);
+    let pick = null;
+    for (let i = 0; i < rows.length; i++) {
+      const st = String(rows[i].status == null ? '' : rows[i].status).trim().toUpperCase();
+      if (wantId) {
+        if (String(rows[i].id) !== wantId) continue;
+        const t = qqRowTarget_(rows[i]);
+        if (t !== as && t !== 'all') throw qqErr_('not_mine', '내 앞으로 온 오더가 아니에요(target=' + (t || 'notebook') + ').');
+        if (st !== 'PENDING') {
+          return { ok: true, changed: false, id: wantId, status: st || 'unknown',
+            reason: st === 'RUNNING' ? '이미 누가 집었어요(claimed_by=' + clip(rows[i].claimed_by, 20) + ').' : 'PENDING 오더가 아니에요.' };
+        }
+        pick = rows[i]; break;
+      }
+      if (st !== 'PENDING') continue;
+      const t = qqRowTarget_(rows[i]);
+      if (t !== as && t !== 'all') continue;
+      pick = rows[i]; break;
+    }
+    if (!pick) return { ok: true, changed: false, id: '', status: '', reason: '내 앞으로 온 PENDING 오더가 없어요.' };
+    const now = qqNow_();
+    const attempts = Number(pick.attempts || 0) + 1;
+    qqUpdateRow_(ctx, pick.__row, { status: 'RUNNING', claimed_at: now, claimed_by: as, attempts: attempts });
+    const row = qqFindRow_(ctx, String(pick.id)) || pick;
+    return { ok: true, changed: true, at: now, claimed_by: as, item: qqItem_(row) };
+  });
+}
+
+/** 집어 간 오더의 결과를 남긴다. {action:'queue_done', key, as, id, status:'DONE'|'FAILED', result?, error?, duration_ms?} */
+function queueDone(body) {
+  const as = qqActorOf_(body);
+  const id = clip((body && body.id) || '', 60).trim();
+  if (!id) throw qqErr_('bad_request', '오더 id 가 없어요.');
+  const status = String((body && body.status) || 'DONE').trim().toUpperCase();
+  if (status !== 'DONE' && status !== 'FAILED') throw qqErr_('bad_request', 'status 는 DONE 또는 FAILED 여야 해요.');
+  const result = qqMask_(clip((body && body.result) || '', 500), 500);
+  const error = qqMask_(clip((body && (body.error || (status === 'FAILED' ? body.result : ''))) || '', 300), 300);
+  const dur = Number((body && body.duration_ms));
+  return qqLock_(function () {
+    const ctx = qqOpen_();
+    const r = qqFindRow_(ctx, id);
+    if (!r) throw qqErr_('not_found', '그 오더를 찾지 못했어요.');
+    const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
+    if (st === 'WAITING_APPROVAL') throw qqErr_('not_approved', '승인 대기 오더예요 — 사람이 승인해야 끝낼 수 있어요.');
+    const by = String(r.claimed_by == null ? '' : r.claimed_by).trim().toLowerCase();
+    if (by && by !== as) throw qqErr_('not_mine', '다른 비서가 집은 오더예요(claimed_by=' + clip(by, 20) + ').');
+    if (st === 'DONE' || st === 'FAILED' || st === 'REJECTED' || st === 'EXPIRED') {
+      return { ok: true, changed: false, id: id, status: st, reason: '이미 끝난 오더예요.' };
+    }
+    const nowMs = Date.now();
+    const started = Date.parse(String(r.claimed_at || r.started_at || '')) || 0;
+    const duration = Number.isFinite(dur) && dur >= 0 ? Math.round(dur) : (started ? Math.max(0, nowMs - started) : '');
+    qqUpdateRow_(ctx, r.__row, {
+      status: status, claimed_by: by || as, finished_at: qqIso_(nowMs), duration_ms: duration,
+      result: status === 'DONE' ? result : '', error: status === 'DONE' ? error : (error || '실패'),
+      exit_code: status === 'DONE' ? 0 : 1
+    });
+    const row = qqFindRow_(ctx, id) || r;
+    return { ok: true, changed: true, id: id, status: status, at: qqIso_(nowMs), item: qqItem_(row) };
   });
 }
 

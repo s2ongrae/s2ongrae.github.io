@@ -250,6 +250,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .use-dev.danger{border-color:#FECACA;background:var(--red-l)}
 .use-top{display:flex;align-items:center;gap:5px;min-width:0}
 .use-name{font-size:11px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.use-duty{font-size:10px;color:var(--hint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .use-badge{margin-left:auto;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;
   background:var(--bg);color:var(--muted);white-space:nowrap;flex-shrink:0}
 .use-dev.ok .use-badge{background:var(--green-l);color:#047857}
@@ -1122,13 +1123,13 @@ const ORD_DECIDING = {};
 //  · status   : 상태 카드가 읽을 공개 파일(status/agent.json · status/pi2.json)
 //  사용자가 화면에서 추가한 비서는 localStorage(portal_agents_v1)에 쌓여 이 목록 뒤에 붙는다.
 const AGENT_SEED = [
-  {id: 'pi1',        name: '피원',                 icon: '🤖', role: '비서', color: 'pi1', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '본계정 비서 (pi1)', status: 'agent.json'},
-  {id: 'pi2',        name: '피투',                 icon: '🤖', role: '비서', color: 'pi2', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '부계정 비서 (pi2)', status: 'pi2.json'},
+  {id: 'pi1',        name: '피원',                 icon: '🍋', role: '비서', color: 'pi1', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '본계정 비서 (pi1)', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘', status: 'agent.json'},
+  {id: 'pi2',        name: '피투',                 icon: '🤖', role: '비서', color: 'pi2', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '부계정 비서 (pi2)', duty: 'GitHub PR/이슈·분산 실행·SNS/커머스 보조', status: 'pi2.json'},
   // 2026-11-25(v27) — 폰 부계정 비서 셋. 여기 한 줄씩 있으면 @멘션 칩·말풍선 배지·사용량 카드가 같이 생긴다.
-  {id: 'cue',        name: '큐',                   icon: '🎯', role: '비서', color: 'cue', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '리서치·외부 자동화 (cue)'},
-  {id: 'vooy',       name: '부이',                 icon: '🛟', role: '비서', color: 'vooy', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '일정·비교 정리 (vooy)'},
-  {id: 'keyring',    name: '키링',                 icon: '🔑', role: '비서', color: 'key', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '생활 예약·전화 보조 (keyring)'},
-  {id: 'notebook',   name: '집 노트북',            icon: '🏠', role: '실행', color: 'nb',  quota: false, mention: true,  mentionAs: '노트북', group: '일일', reset: 'daily04', sub: 'hub-agent — 오더를 실제로 실행'},
+  {id: 'cue',        name: '큐',                   icon: '🌀', role: '비서', color: 'cue', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '리서치·외부 자동화 (cue)', duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)'},
+  {id: 'vooy',       name: '부이',                 icon: '🫛', role: '비서', color: 'vooy', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '일정·비교 정리 (vooy)', duty: '후보 비교/체크리스트·채용/면접 리서치·PDF/HWP 문서 읽기'},
+  {id: 'keyring',    name: '키링',                 icon: '🔑', role: '비서', color: 'key', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '생활 예약·전화 보조 (keyring)', duty: '전화 발신 검증·KTX/예약·대전 밥집/쇼핑커넥트 발굴'},
+  {id: 'notebook',   name: '집 노트북',            icon: '🖥️', role: '실행', color: 'nb',  quota: false, mention: true,  mentionAs: '노트북', group: '일일', reset: 'daily04', sub: 'hub-agent — 오더를 실제로 실행', duty: '24시간 즉답·코드 실행·숏폼 무토큰 렌더'},
   {id: 'claude',     name: '집 노트북 · Claude',    icon: '⚡', role: '엔진', color: 'nb',  quota: true,  mention: false, group: '일일', reset: 'daily04', sub: '1순위 엔진'},
   {id: 'agy',        name: '집 노트북 · 제미나이',   icon: '✨', role: '엔진', color: 'nb',  quota: true,  mention: false, group: '일일', reset: 'daily04', sub: '폴백 엔진'},
   {id: 'freellmapi', name: '집 노트북 · FreeLLMAPI', icon: '🆓', role: '엔진', color: 'nb',  quota: true,  mention: false, group: '일일', reset: 'daily04', sub: '무료 게이트웨이'},
@@ -1162,7 +1163,7 @@ function agentReload(){
     id: String(a.id), name: String(a.name).slice(0, 16), icon: String(a.icon || '🤖').slice(0, 2),
     role: '비서', color: 'new', quota: true, mention: true, auto: !!a.auto,
     group: a.group === '주간' ? '주간' : '일일', reset: a.group === '주간' ? 'weekly' : 'daily04',
-    sub: String(a.sub || '내가 추가한 비서').slice(0, 40), custom: true
+    sub: String(a.sub || '내가 추가한 비서').slice(0, 40), duty: String(a.duty || '').slice(0, 60), custom: true
   })));
   return AGENTS;
 }
@@ -1177,13 +1178,15 @@ function agentQuotas(){ return agents().filter(a => a.quota); }
 /** @멘션으로 고를 수 있는 참여자(전체 제외) */
 function agentMentions(){ return agents().filter(a => a.mention); }
 /** 화면에서 비서를 추가한다 — 이름만 받고 id 는 기계적으로 만든다(한글 id 는 시트 규칙에 안 맞아요) */
-function agentAdd(name, group, icon){
+function agentAdd(name, group, icon, duty){
   const nm = String(name || '').trim().slice(0, 16);
   if(!nm) return null;
   const id = 'a' + Date.now().toString(36);
   const at = new Date().toISOString();
-  agentCustomSave(agentCustom().concat([{id: id, name: nm, icon: String(icon || '🤖').slice(0, 2), group: group === '주간' ? '주간' : '일일', at: at}]));
-  agentPush([{id: id, name: nm, icon: String(icon || '🤖').slice(0, 2), group: group === '주간' ? '주간' : '일일', at: at}]);
+  const rec = {id: id, name: nm, icon: String(icon || '🤖').slice(0, 2), group: group === '주간' ? '주간' : '일일',
+    at: at, duty: String(duty || '').slice(0, 60)};
+  agentCustomSave(agentCustom().concat([rec]));
+  agentPush([rec]);
   return id;
 }
 function agentRemove(id){
@@ -1223,12 +1226,14 @@ function agentMerge(list, removed){
       const oldAt = Date.parse(old.at || '') || 0, newAt = Date.parse(at) || 0;
       if(newAt <= oldAt) return;
       by[id] = Object.assign({}, old, {name: name, icon: String(x.icon || old.icon || '🤖').slice(0, 2),
-        group: x.group === '주간' ? '주간' : '일일', at: at, auto: !!x.auto});
+        group: x.group === '주간' ? '주간' : '일일', at: at, auto: !!x.auto,
+        duty: (x.duty === undefined) ? (old.duty || '') : String(x.duty).slice(0, 60)});
       changed = true;
       return;
     }
     by[id] = {id: id, name: name, icon: String((x && x.icon) || '🤖').slice(0, 2),
-      group: x.group === '주간' ? '주간' : '일일', at: at, auto: !!x.auto};
+      group: x.group === '주간' ? '주간' : '일일', at: at, auto: !!x.auto,
+      duty: String((x && x.duty) || '').slice(0, 60)};
     changed = true;
   });
   if(changed){ agentCustomSave(Object.keys(by).map(k => by[k])); renderRoom(); renderUse(true); }
@@ -1261,7 +1266,27 @@ async function agentPush(items, removed){
   } catch(e){ return null; }
 }
 /** 큐에 처음 말을 건 비서(sources_seen)를 참여자로 자동 합류 — 어느 기기에서든 @멘션으로 부를 수 있게 */
-const AGENT_KNOWN_NAMES = {cue: '큐', vooy: '부이', keyring: '키링', pi1: '피원', pi2: '피투'};
+// 2026-11-25(v28): 부계정 비서(cue2·vooy2·keyring2·pi3·*_2)도 **코드 수정 없이**
+//  베이스 모델의 닉네임·이모지를 따라가게 한다. 예: cue2 → 🌀 큐2 · pi3 → 🤖 피3
+const AGENT_BASES = {
+  cue:     {name: '큐',   icon: '🌀', duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)'},
+  vooy:    {name: '부이', icon: '🫛', duty: '후보 비교/체크리스트·채용/면접 리서치·PDF/HWP 문서 읽기'},
+  keyring: {name: '키링', icon: '🔑', duty: '전화 발신 검증·KTX/예약·대전 밥집/쇼핑커넥트 발굴'},
+  pi:      {name: '피',   icon: '🤖', duty: '피원·피투 보조 — 분산 실행·조사'},
+  notebook:{name: '노트북', icon: '🖥️', duty: '24시간 즉답·코드 실행·숏폼 무토큰 렌더'}
+};
+/** id → {name, icon, duty}. 모르는 이름은 id 그대로 */
+function agentAutoInfo(id){
+  const k = String(id || '').toLowerCase();
+  if(k === 'pi1') return {name: '피원', icon: '🍋', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘'};
+  if(k === 'pi2') return {name: '피투', icon: '🤖', duty: 'GitHub PR/이슈·분산 실행·SNS/커머스 보조'};
+  const m = /^([a-z][a-z_]*?)(?:_?(\d{1,2}))$/.exec(k);
+  const base = m ? m[1] : k;
+  const num = m ? m[2] : '';
+  const b = AGENT_BASES[base];
+  if(b) return {name: b.name + num, icon: b.icon, duty: b.duty};
+  return {name: k, icon: '🤖', duty: ''};
+}
 // 사람이 아닌 별칭(피원이 쓰던 이름)은 합류시키지 않는다 — 화면이 이미 pi1 로 읽는다.
 const AGENT_ALIAS = ['pickle', 'pk', 'hub-agent', 'nb', 'telegram', 'tg', 'phone', 'mobile'];
 function agentAutoJoin(ids){
@@ -1275,8 +1300,8 @@ function agentAutoJoin(ids){
     if(!/^[a-z0-9][a-z0-9_-]{0,11}$/.test(id) || have[id]) return;
     if(['all', 'portal', 'phone', 'telegram', 'notebook'].indexOf(id) >= 0) return;
     if(AGENT_ALIAS.indexOf(id) >= 0) return;
-    const nm = AGENT_KNOWN_NAMES[id] || id;
-    const rec = {id: id, name: nm, icon: '🤖', group: '일일', at: at, auto: true};
+    const info = agentAutoInfo(id);
+    const rec = {id: id, name: info.name, icon: info.icon, group: '일일', at: at, auto: true, duty: info.duty};
     custom.push(rec); have[id] = 1; added.push(rec);
   });
   if(!added.length) return [];
@@ -1579,7 +1604,8 @@ function ordSenderKey(it){
 }
 function ordSenderLabel(k){
   const a = agentById(k) || agentById('portal') || {name: '포털', icon: '🌐', color: 'me'};
-  return {name: a.name, icon: a.icon, cls: a.color};
+  // 말풍선에는 짧은 이름(@노트북 같은 부름말)을 쓴다 — '집 노트북'보다 읽기 좋다(2026-11-25 v28)
+  return {name: a.mentionAs || a.name, icon: a.icon, cls: a.color};
 }
 /** 상대(왼쪽)에서 말하는 비서인가 — 나(포털·폰·텔레그램)는 오른쪽 */
 function ordIsMine(it){ const k = ordSenderKey(it); return k === 'portal' || k === 'phone' || k === 'telegram'; }
@@ -1621,10 +1647,12 @@ function ordTargetFromText(text){
 }
 /** 대상 칩 설명 — 누가 언제 받는지(노트북은 바로, 나머지는 주기 체크 때) */
 function ordTargetTip(t){
-  if(t.id === 'all') return '모두에게 — 노트북이 먼저 받아요';
-  if(t.id === 'notebook') return '집 노트북 — 바로 실행해요';
-  if(t.id === 'pi1' || t.id === 'pi2') return t.name + ' — 다음 확인 때 읽어요';
-  return t.name + ' — 주기 체크 때 읽어요(바로 답은 노트북)';
+  const duty = String((agentById(t.id) && agentById(t.id).duty) || '');
+  const who = t.id === 'all' ? '모두에게 — 노트북이 먼저 받아요'
+    : t.id === 'notebook' ? '집 노트북 — 바로 실행해요'
+    : (t.id === 'pi1' || t.id === 'pi2') ? t.name + ' — 다음 확인 때 읽어요'
+    : t.name + ' — 주기 체크 때 읽어요(바로 답은 노트북)';
+  return who + (duty ? '\n담당: ' + duty : '');
 }
 /** 본문 속 @피원 · @피투 · @큐 · @노트북 · @전체 → 하이라이트 칩 (이미 esc() 한 글자열에만 적용) */
 function ordMentionHtml(s){
@@ -1901,6 +1929,7 @@ function useCard(def){
   const meta = [useLeftText(useResetAt(def) - Date.now())];
   if(x && x.at) meta.push(useAgoText(x.at));
   if(x && x.note) meta.push(String(x.note));
+  const duty = String(def.duty || def.sub || '');
   const act = editing
     ? `<div class="use-edit"><input class="use-inp" id="use-inp-${esc(def.id)}" type="number" min="0" max="100" step="0.1" inputmode="decimal" value="${pct === null ? '' : esc(String(pct))}" placeholder="잔여 %" onkeydown="useKey(event,'${esc(def.id)}')">` +
       `<button class="use-ok" onclick="useCommit('${esc(def.id)}')">저장</button>` +
@@ -1909,6 +1938,7 @@ function useCard(def){
       (def.custom ? `<button class="use-del" onclick="useRemove('${esc(def.id)}')" title="이 비서를 목록에서 빼기">🗑 빼기</button>` : '');
   return `<div class="use-dev ${st}">` +
     `<div class="use-top"><span class="use-name">${esc(def.icon + ' ' + def.name)}</span><span class="use-badge">${esc(USE_STATE_TXT[st])}</span></div>` +
+    (duty ? `<div class="use-duty" title="${esc(duty)}">${esc(duty)}</div>` : '') +
     `<div class="use-pct">${pct === null ? '— 미확인' : esc(String(Math.round(pct * 10) / 10)) + '<span>% 남음</span>'}</div>` +
     `<div class="use-bar"><i style="width:${w}%"></i></div>` +
     `<div class="use-meta">${esc(meta.join(' · '))}</div>` + act + '</div>';
@@ -1929,6 +1959,7 @@ function renderUse(force){
     });
     body.innerHTML = html + (USE_ADD
       ? `<div class="use-add-form"><input class="use-inp" id="use-new-name" placeholder="새 비서 이름 (예: 큐2 · 키링2)" maxlength="16" onkeydown="useAddKey(event)">
+           <input class="use-inp use-duty-inp" id="use-new-duty" placeholder="담당 한 줄 (선택 · 예: 예약 대행)" maxlength="60" onkeydown="useAddKey(event)">
            <select class="use-inp" id="use-new-group" aria-label="리셋 주기"><option value="일일">일일</option><option value="주간">주간</option></select>
            <button class="use-ok" onclick="useAddCommit()">추가</button>
            <button class="use-no" onclick="useAddCancel()">취소</button></div>`
@@ -1960,15 +1991,17 @@ function useAddKey(e){
 }
 function useAddCommit(){
   const el = document.getElementById('use-new-name');
+  const dutyEl = document.getElementById('use-new-duty');
   const g = document.getElementById('use-new-group');
   const name = String((el && el.value) || '').trim();
+  const duty = String((dutyEl && dutyEl.value) || '').trim().slice(0, 60);
   if(!name){ sync('비서 이름을 적어주세요', 3000); return; }
-  const id = agentAdd(name, g && g.value, '🤖');
+  const id = agentAdd(name, g && g.value, '🤖', duty);
   USE_ADD = false;
   if(!id){ sync('추가하지 못했어요 — 이름을 확인해 주세요', 3200); return; }
   USE_EDIT = '';
   renderUse(true); renderRoom();
-  sync('🤖 ' + name + ' 을(를) 참여자로 추가했어요 — @' + name + ' 로 부를 수 있어요', 4200);
+  sync('🤖 ' + name + ' 을(를) 참여자로 추가했어요' + (duty ? ' — 담당: ' + duty : '') + ' (@' + name + ')', 4600);
 }
 function useRemove(id){
   const a = agentById(id);
@@ -2090,8 +2123,11 @@ function chatIn(it){
   const isChat = ordIsChat(it);
   const tg = ordTargetKey(it);
   const body = ordBody(it);
-  const av = '<div class="chat-av">🏠</div>';
-  const meta = `<div class="chat-meta"><b>집 노트북</b>` +
+  // 2026-11-25(v28): 왼쪽 말풍선은 **누가 말했는지**(실제 닉네임·이모지)로 그린다.
+  //   예전엔 모든 왼쪽 말풍선이 '🏠 집 노트북'이었다 — 큐·키링 답장도 노트북 이름으로 보였다.
+  const who = ordSenderLabel(ordSenderKey(it));
+  const av = `<div class="chat-av">${esc(who.icon || '🤖')}</div>`;
+  const meta = `<div class="chat-meta"><b>${esc(who.icon + ' ' + who.name)}</b>` +
     (tg !== 'notebook' ? `<span class="chat-to">→ ${esc(ordTargetLabel(tg).label)}</span>` : '') +
     `<span class="ord-chip ${s.c}">${esc(s.t)}</span>` + ordEngineChip(it) +
     `<span class="ord-when">${esc(ordWhen(ordReplyAt(it)))}</span></div>`;
@@ -2156,7 +2192,11 @@ function ordMergeById(id){
 /** 회의실 머리말 — 참여 비서 수 · 사용량 요약 · 오더 건수 */
 function renderRoom(){
   const people = document.getElementById('room-people');
-  if(people) people.textContent = '👥 ' + agentMentions().length + '명';
+  if(people){
+    people.textContent = '👥 ' + agentMentions().length + '명';
+    // 누가 무슨 일을 맡았는지 — 칩·카드에 다 안 보이므로 머리말 title 에 전체 역할표를 둔다
+    people.title = agentMentions().map(a => a.name + '(' + a.id + ') — ' + (a.duty || a.sub || '')).join('\n');
+  }
   renderUse(false);
   ordMentionRender();
   ordPresetRender();

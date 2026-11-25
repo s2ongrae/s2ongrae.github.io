@@ -1129,5 +1129,73 @@ console.log('W) 👥 큐·부이·키링 기본 탑재 · 서버 명부 공유 �
   D14.run('AG_SRV = null');
 }
 
+console.log('X) 🏷️ 말풍선 닉네임·이모지 · 부계정(*2·_2·pi3) 자동 합류 · 담당(duty) 표시');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const S17 = mk();
+  const nowMs = Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, source, target, status) => {
+    const r = [id, at(nowMs - 60000), source, 'claude_prompt', 'gaegyebu', '{}', status || 'DONE', 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    r[HEAD.indexOf('payload')] = JSON.stringify({prompt: '@포털 확인했어요', mode: 'ask', kind: 'chat', target: target || 'portal'});
+    r[HEAD.indexOf('finished_at')] = at(nowMs - 30000);
+    r[HEAD.indexOf('result')] = '확인했습니다';
+    r[HEAD.indexOf('claimed_by')] = source;
+    return r;
+  };
+  S17.props.QUEUE_SHEET_ID = 'SHEETidNick001';
+  S17.addSheet('SHEETidNick001', {'Command_Queue': [HEAD.slice(0)].concat([
+    row('Q-n1', 'cue'), row('Q-n2', 'keyring'), row('Q-n3', 'notebook'), row('Q-n4', 'pi1'), row('Q-n5', 'vooy')
+  ])});
+  const D17 = makeDevice(S17);
+  D17.config();
+  await D17.run('loadOrders()');
+  const feed17 = () => D17.el('ord-list').innerHTML;
+
+  // ① 왼쪽 말풍선 — 각 비서의 진짜 닉네임·이모지
+  ok(/<b>🌀 큐<\/b>/.test(feed17()) && /<b>🔑 키링<\/b>/.test(feed17()), '큐는 🌀 큐 · 키링은 🔑 키링');
+  ok(/<b>🖥️ 노트북<\/b>/.test(feed17()) && /<b>🍋 피원<\/b>/.test(feed17()) && /<b>🫛 부이<\/b>/.test(feed17()), '노트북·피원·부이도 전용 이모지');
+  ok(!/🏠/.test(feed17()), '예전 고정 아바타(🏠)·“집 노트북” 만능 헤더가 사라졌다');
+  ok((feed17().match(/chat-av/g) || []).length >= 5, '말풍선마다 아바타가 있다');
+  ok(D17.run("ordSenderLabel('cue').name") === '큐' && D17.run("ordSenderLabel('cue').icon") === '🌀', '발신 라벨 = 닉네임·이모지');
+  ok(D17.run("ordSenderLabel('portal').name") === '포털', '내 말(portal)은 포털 그대로');
+
+  // ② 부계정 비서 자동 합류 — 코드 수정 없이 베이스 닉네임·이모지를 따라간다
+  const added = D17.run("agentAutoJoin(['cue2','vooy2','keyring2','pi3','keyring_2'])");
+  ok(added.length === 5, '부계정 5개가 한 번에 합류');
+  ok(D17.run("agentById('cue2').name") === '큐2' && D17.run("agentById('cue2').icon") === '🌀', 'cue2 → 🌀 큐2');
+  ok(D17.run("agentById('vooy2').name") === '부이2' && D17.run("agentById('vooy2').icon") === '🫛', 'vooy2 → 🫛 부이2');
+  ok(D17.run("agentById('keyring2').name") === '키링2' && D17.run("agentById('keyring2').icon") === '🔑', 'keyring2 → 🔑 키링2');
+  ok(D17.run("agentById('pi3').name") === '피3' && D17.run("agentById('pi3').icon") === '🤖', 'pi3 → 🤖 피3');
+  ok(D17.run("agentById('keyring_2').name") === '키링2', 'keyring_2 도 같은 규칙(_2)');
+  ok(D17.run("agentById('cue2').duty") === D17.run("agentById('cue').duty"), '부계정은 베이스의 담당을 물려받는다');
+  ok(D17.run("agentAutoInfo('pi1').name") === '피원' && D17.run("agentAutoInfo('pi4').name") === '피4', 'pi1 은 피원, pi4 는 피4');
+  D17.run('renderRoom()');
+  const ment17 = D17.el('ord-mentions').innerHTML;
+  ok(/@큐2/.test(ment17) && /@부이2/.test(ment17) && /@키링2/.test(ment17) && /@피3/.test(ment17), '@큐2·@부이2·@키링2·@피3 멘션 칩이 바로 생긴다');
+  ok(D17.run("ordTargetFromText('@큐2 팩트체크')") === 'cue2', '글로 적은 @큐2 도 그 비서 앞으로 간다');
+  const push17 = (() => { let b = null; D17.calls.forEach(c => { const x = JSON.parse(c.opts.body); if (x.action === 'agent_save') b = x; }); return b; })();
+  ok(push17 && push17.items.some(x => x.id === 'cue2' && x.name === '큐2' && x.icon === '🌀'), '합류 정보가 서버(agent_save)에도 이름·이모지와 함께 간다');
+
+  // ③ 담당(duty)이 화면에 보인다 — 사용량 카드 한 줄 + 머리말 title(전체 역할표)
+  ok(/총괄 조율/.test(D17.el('use-grid').innerHTML) && /팩트체크/.test(D17.el('use-grid').innerHTML), '사용량 카드에 담당 한 줄');
+  ok(/피원\(pi1\) — 총괄 조율/.test(D17.el('room-people').title) && /키링\(keyring\) — 전화 발신/.test(D17.el('room-people').title), '참여자 수 title 에 전체 역할표');
+  ok(/담당: 최신 정보 리서치/.test(D17.run("ordTargetTip(ordTargetList().filter(t=>t.id==='cue')[0])")), '대상 칩 툴팁에 담당');
+
+  // ④ ＋추가 폼의 담당 칸 — 서버까지 같이 간다
+  D17.run('useAddStart()');
+  D17.el('use-new-name').value = '키링3';
+  D17.el('use-new-duty').value = 'KTX 예약 보조';
+  D17.run('useAddCommit()');
+  await new Promise(r => setTimeout(r, 30));
+  let last = null;
+  D17.calls.forEach(c => { const x = JSON.parse(c.opts.body); if (x.action === 'agent_save' && x.items) last = x; });
+  ok(last && last.items.some(x => x.name === '키링3' && x.duty === 'KTX 예약 보조'), '추가할 때 적은 담당이 agent_save 로 간다');
+  ok(/KTX 예약 보조/.test(D17.el('use-grid').innerHTML), '카드에도 바로 보인다');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
