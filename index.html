@@ -187,53 +187,93 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .memo-icon-btn:hover{background:rgba(0,0,0,.12)}
 .memo-empty{text-align:center;padding:32px 0;color:var(--muted);font-size:13px}
 
-/* ── 💬 비서 통합 회의실 (2026-11-25) — 오더(CommandQueue)를 카톡처럼 주고받는 한 창구 ── */
-.room-card.order-card{padding:0;overflow:hidden}
-.room-head{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;
-  padding:13px 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#fff,#F8FAFF);min-width:0}
-.room-title{display:flex;align-items:center;gap:7px;min-width:0;font-size:14.5px;font-weight:800;color:var(--text)}
-.room-hash{color:var(--blue);font-weight:900}
+/* ── 💬 비서 통합 회의실 (2026-11-25 · v34 모던 리뉴얼) — 오더(CommandQueue)를 카톡처럼 주고받는 한 창구 ── */
+/* 디자인 토큰은 카드 안에서만 쓴다 — 관제·오더함(다른 카드)의 색은 그대로 둔다. */
+.room-card{--rl:#E6EBF7;--rl2:#D5DEF3;--rink:#1B2438;--rink2:#3B4560;--rmut:#6B768F;--rhint:#8791A8;
+  --racc:#4F6BFF;--racc-d:#3B53E8;--rsoft:#F7F9FE;
+  --rgrad:linear-gradient(135deg,#5B7CFA 0%,#4F6BFF 58%,#6C5CF7 100%)}
+.room-card.order-card{padding:0;overflow:clip;border:1px solid var(--rl);border-radius:20px;
+  background:linear-gradient(180deg,#FFFFFF 0%,#FBFCFE 100%);
+  box-shadow:0 1px 2px rgba(16,24,40,.04),0 26px 52px -36px rgba(16,24,40,.45)}
+.room-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 16px;
+  padding:18px 22px 15px;border-bottom:1px solid var(--rl);min-width:0;
+  background:linear-gradient(180deg,#FFFFFF 0%,#F6F8FF 100%)}
+.room-title-wrap{min-width:0}
+.room-title{display:flex;align-items:center;gap:9px;min-width:0;font-size:16px;font-weight:800;
+  color:var(--rink);letter-spacing:-.02em;line-height:1.3}
+.room-hash{display:inline-grid;place-items:center;width:27px;height:27px;border-radius:9px;flex-shrink:0;
+  background:var(--rgrad);color:#fff;font-size:15px;font-weight:900;line-height:1;
+  box-shadow:0 6px 14px -6px rgba(79,107,255,.85)}
 .room-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.room-people{white-space:nowrap;flex-shrink:0}
-.room-body{padding:12px 18px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
-.room-sub{font-size:11px;color:var(--hint);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.room-use{background:var(--bg);border:1px solid var(--border);border-radius:12px;min-width:0}
-.room-use>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;
-  font-size:12px;font-weight:700;color:var(--text2);flex-wrap:wrap}
+.room-people{white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;
+  background:#EEF2FF;color:#3B4FC4;border:1px solid #DCE4FF;border-radius:999px;padding:2px 9px;
+  font-size:10.5px;font-weight:800;letter-spacing:0}
+.room-sub{font-size:11px;color:var(--rmut);display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px}
+.room-sub .badge{background:#EEF2FF;color:#3B4FC4;border:1px solid #DCE4FF;border-radius:999px;
+  font-size:10px;font-weight:800;padding:2px 8px;line-height:1.4}
+.room-body{padding:16px 22px 22px;display:flex;flex-direction:column;gap:12px;min-width:0;background:transparent}
+.room-chat{display:flex;flex-direction:column;gap:12px;min-width:0}
+.room-head .ord-head-right{gap:6px;justify-content:flex-end}
+.room-head .ord-hint{font-size:10px;color:var(--rmut);max-width:230px;line-height:1.45}
+.room-head .ord-refresh{width:34px;height:34px;border-radius:11px;background:#fff;border:1px solid var(--rl);
+  color:#5A6480;font-size:15px;box-shadow:0 1px 2px rgba(16,24,40,.04);
+  transition:border-color .15s,background .15s,color .15s,transform .12s}
+.room-head .ord-refresh:hover{border-color:#C9D6FF;background:#F3F6FF;color:var(--racc-d);transform:translateY(-1px)}
+.room-head .ord-refresh:active{transform:none}
+
+/* 📊 비서 사용량 — 접기/펼치기 패널 */
+.room-use{background:#fff;border:1px solid var(--rl);border-radius:16px;min-width:0;overflow:hidden;
+  transition:border-color .15s,box-shadow .15s}
+.room-use[open]{border-color:#D9E2FA;box-shadow:0 12px 28px -24px rgba(16,24,40,.5)}
+.room-use>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;padding:12px 14px;
+  font-size:12.5px;font-weight:800;color:var(--rink);flex-wrap:wrap;min-height:46px}
+.room-use>summary:hover{background:#FAFBFE}
 .room-use>summary::-webkit-details-marker{display:none}
-.room-use-t{white-space:nowrap}
-.room-use-s{margin-left:auto;font-size:10.5px;color:var(--hint);font-weight:600;white-space:nowrap}
-.room-use-c{color:var(--hint);font-size:11px;transition:transform .15s}
+.room-use-t{white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.room-use-s{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:800;
+  color:var(--rmut);white-space:nowrap;font-variant-numeric:tabular-nums}
+.room-use-s .ru{display:inline-flex;align-items:center;gap:4px}
+.room-use-s .ru::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--rhint)}
+.room-use-s .ru.danger::before{background:#EF4444}
+.room-use-s .ru.soon::before{background:#F59E0B}
+.room-use-s .ru.ok::before{background:#10B981}
+.room-use-c{color:var(--rhint);font-size:11px;transition:transform .18s;line-height:1}
 .room-use[open] .room-use-c{transform:rotate(180deg)}
-.use-wrap{padding:0 12px 12px}
-.use-sum{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
-.use-pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 10px;font-size:10.5px;
-  font-weight:700;background:#fff;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
-.use-pill i{width:7px;height:7px;border-radius:50%;background:var(--hint);display:inline-block;flex-shrink:0}
-.use-pill.danger{color:#991B1B;border-color:#FECACA;background:var(--red-l)}
-.use-pill.danger i{background:var(--red)}
-.use-pill.soon{color:#92400E;border-color:#FDE68A;background:var(--gold-l)}
-.use-pill.soon i{background:var(--gold)}
-.use-pill.ok{color:#047857;border-color:#BBF7D0;background:var(--green-l)}
-.use-pill.ok i{background:var(--green)}
+.use-wrap{padding:0 14px 14px}
+/* 요약 숫자는 접힌 머리말(.room-use-s)에서 한 번만 보여준다 — 펼쳤을 때 같은 줄을 또 그리지 않는다 */
+.use-sum{display:none}
+.use-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px 3px 9px;
+  font-size:10.5px;font-weight:700;background:#fff;border:1px solid var(--rl);color:var(--rmut);white-space:nowrap}
+.use-pill i{width:6px;height:6px;border-radius:50%;background:var(--rhint);display:inline-block;flex-shrink:0}
+.use-pill b{font-weight:800;color:var(--rink);font-variant-numeric:tabular-nums}
+.use-pill.danger{color:#B42318;border-color:#FBD5D5;background:#FFF5F5}
+.use-pill.danger i{background:#EF4444}
+.use-pill.soon{color:#92400E;border-color:#F8E3B4;background:#FFFBF0}
+.use-pill.soon i{background:#F59E0B}
+.use-pill.ok{color:#047857;border-color:#CBEFDC;background:#F2FCF7}
+.use-pill.ok i{background:#10B981}
 .use-body{min-width:0}
-.use-grp{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.3px;margin:10px 2px 6px}
+.use-grp{font-size:9.5px;font-weight:800;color:#7A859C;letter-spacing:.08em;margin:10px 2px 6px}
 .use-grp:first-child{margin-top:2px}
-.ord-opt{background:var(--bg);border:1px solid var(--border);border-radius:10px;min-width:0}
-.ord-opt>summary{list-style:none;cursor:pointer;padding:9px 12px;font-size:12px;font-weight:700;color:var(--text2)}
+.ord-opt{background:var(--rsoft);border:1px solid var(--rl);border-radius:14px;min-width:0}
+.ord-opt>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 14px;
+  font-size:12px;font-weight:800;color:var(--rink2)}
+.ord-opt-c{margin-left:auto;color:var(--rhint);font-size:11px;transition:transform .18s}
+.ord-opt[open] .ord-opt-c{transform:rotate(180deg)}
 .ord-opt>summary::-webkit-details-marker{display:none}
 .ord-opt .ord-quick{padding:0 12px 10px;margin-bottom:0}
-.who{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:800}
+.who{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:1px 7px;font-size:9.5px;
+  font-weight:800;line-height:1.6;letter-spacing:.01em}
 .who.w-pi1{background:#E7F8EF;color:#047857}
 .who.w-pi2{background:#F3E8FF;color:#6B21A8}
 .who.w-nb{background:#FFF3E0;color:#B45309}
 .who.w-cue{background:#CCFBF1;color:#0F766E}
 .who.w-vooy{background:#FFE4E6;color:#BE123C}
 .who.w-key{background:#E2E8F0;color:#334155}
-.who.w-me{background:var(--blue-l);color:var(--blue-d)}
-.chat-to{font-size:9.5px;color:var(--hint);font-weight:700}
-.mt{display:inline-block;border-radius:999px;padding:0 6px;font-size:11px;font-weight:800;
-  background:#fff;border:1px solid var(--border2);color:var(--blue-d)}
+.who.w-me{background:#EEF2FF;color:#3B4FC4}
+.chat-to{font-size:9px;color:var(--rhint);font-weight:700}
+.mt{display:inline-block;border-radius:999px;padding:0 6px;font-size:10.5px;font-weight:800;
+  background:#fff;border:1px solid var(--rl2);color:var(--racc-d);line-height:1.65}
 .mt-pi1{background:#E7F8EF;border-color:#A7F3D0;color:#047857}
 .mt-pi2{background:#F3E8FF;border-color:#E9D5FF;color:#6B21A8}
 .mt-notebook{background:#FFF3E0;border-color:#FDE68A;color:#B45309}
@@ -243,105 +283,181 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .mt-new{background:#E0F2FE;border-color:#BAE6FD;color:#075985}
 .mt-all{background:#EEF2FF;border-color:#C7D2FE;color:#3730A3}
 .who.w-new{background:#E0F2FE;color:#075985}
-.chat-bubble.ok{border-color:#BBF7D0;background:var(--green-l)}
-.use-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px;min-width:0}
-.use-dev{background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 11px;min-width:0}
-.use-dev.soon{border-color:#FDE68A;background:var(--gold-l)}
-.use-dev.danger{border-color:#FECACA;background:var(--red-l)}
+.chat-bubble.ok{border-color:#CBEFDC;background:linear-gradient(180deg,#F8FEFB,#EFFBF5)}
+.use-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;min-width:0}
+.use-dev{background:linear-gradient(180deg,#FFFFFF,#FAFBFE);border:1px solid var(--rl);border-radius:14px;
+  padding:11px 12px 12px;min-width:0;transition:border-color .15s,box-shadow .15s}
+.use-dev:hover{border-color:#D3DDF7;box-shadow:0 10px 22px -18px rgba(16,24,40,.5)}
+.use-dev.soon{background:linear-gradient(180deg,#FFFDF6,#FFF9EC);border-color:#F7E3B4}
+.use-dev.danger{background:linear-gradient(180deg,#FFF8F8,#FFF1F1);border-color:#F8CFCF}
 .use-top{display:flex;align-items:center;gap:5px;min-width:0}
-.use-name{font-size:11px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.use-duty{font-size:10px;color:var(--hint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.use-badge{margin-left:auto;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;
-  background:var(--bg);color:var(--muted);white-space:nowrap;flex-shrink:0}
-.use-dev.ok .use-badge{background:var(--green-l);color:#047857}
+.use-name{font-size:11.5px;font-weight:800;color:var(--rink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.use-duty{font-size:10px;color:#7A859C;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.use-badge{margin-left:auto;font-size:9px;font-weight:800;padding:1px 6px;border-radius:999px;
+  background:#F1F4FA;color:var(--rmut);white-space:nowrap;flex-shrink:0}
+.use-dev.ok .use-badge{background:#EAFBF2;color:#047857}
 .use-dev.soon .use-badge{background:#FEF3C7;color:#92400E}
 .use-dev.danger .use-badge{background:#FEE2E2;color:#991B1B}
-.use-pct{font-size:19px;font-weight:900;color:var(--text);line-height:1.25;margin-top:4px;font-variant-numeric:tabular-nums}
-.use-pct span{font-size:10px;font-weight:700;color:var(--hint);margin-left:2px}
-.use-dev.unknown .use-pct{font-size:12.5px;color:var(--hint);font-weight:800}
-.use-bar{height:6px;border-radius:999px;background:#E9EEF9;overflow:hidden;margin-top:5px}
-.use-bar i{display:block;height:100%;border-radius:999px;background:var(--green);transition:width .3s}
-.use-dev.soon .use-bar i{background:var(--gold)}
-.use-dev.danger .use-bar i{background:var(--red)}
-.use-meta{font-size:9.5px;color:var(--hint);line-height:1.55;margin-top:5px;overflow-wrap:anywhere}
-.use-act{margin-top:6px;width:100%;background:#fff;border:1px solid var(--border2);border-radius:7px;padding:4px 8px;
-  font-size:10.5px;font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit}
-.use-act:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
-.use-edit{display:flex;gap:4px;margin-top:6px;align-items:center;min-width:0}
-.use-inp{flex:1;min-width:0;border:1px solid var(--blue);border-radius:7px;padding:3px 6px;font-size:11px;font-family:inherit}
-.use-ok,.use-no{border-radius:6px;padding:3px 7px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;
-  border:1px solid var(--border);flex-shrink:0}
-.use-ok{background:var(--blue);color:#fff;border-color:var(--blue)}
-.use-no{background:#fff;color:var(--muted)}
-.use-note{font-size:10px;color:var(--hint);line-height:1.55;margin-top:8px}
-.use-del{margin-top:4px;width:100%;background:none;border:1px dashed var(--border2);border-radius:7px;padding:3px 8px;
-  font-size:10px;font-weight:700;color:var(--hint);cursor:pointer;font-family:inherit}
-.use-del:hover{color:var(--red);border-color:#FECACA}
-.use-add{margin-top:9px;width:100%;background:#fff;border:1px dashed var(--border2);border-radius:9px;padding:7px 10px;
-  font-size:11px;font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit}
-.use-add:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
-.use-add-form{display:flex;gap:5px;margin-top:9px;flex-wrap:wrap;align-items:center}
-.use-add-form .use-inp{flex:1 1 140px;border-color:var(--border2);padding:6px 8px;font-size:11.5px}
+.use-pct{font-size:23px;font-weight:800;letter-spacing:-.03em;line-height:1.15;margin-top:3px;
+  font-variant-numeric:tabular-nums;color:#111A2E}
+.use-pct span{font-size:9.5px;font-weight:700;color:var(--rhint);margin-left:3px;letter-spacing:0}
+.use-dev.unknown .use-pct{font-size:12.5px;color:var(--rhint);font-weight:800}
+.use-bar{height:4px;border-radius:999px;background:#EDF1F9;overflow:hidden;margin-top:8px}
+.use-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#34D399,#10B981);
+  transition:width .35s ease}
+.use-dev.soon .use-bar i{background:linear-gradient(90deg,#FBBF24,#F59E0B)}
+.use-dev.danger .use-bar i{background:linear-gradient(90deg,#F87171,#EF4444)}
+.use-meta{font-size:9.5px;color:#7A859C;line-height:1.5;margin-top:6px;overflow-wrap:anywhere}
+.use-act{margin-top:8px;width:100%;background:#fff;border:1px solid var(--rl);border-radius:9px;padding:5px 8px;
+  font-size:10.5px;font-weight:700;color:#5A6480;cursor:pointer;font-family:inherit;
+  transition:border-color .15s,background .15s,color .15s}
+.use-act:hover{border-color:#C9D6FF;color:var(--racc-d);background:#F5F8FF}
+.use-edit{display:flex;gap:4px;margin-top:8px;align-items:center;min-width:0}
+.use-inp{flex:1;min-width:0;border:1px solid #9DB0FF;border-radius:9px;padding:4px 7px;font-size:11px;
+  font-family:inherit;background:#fff;color:var(--rink)}
+.use-inp:focus{outline:none;border-color:var(--racc);box-shadow:0 0 0 3px rgba(79,107,255,.14)}
+.use-ok,.use-no{border-radius:8px;padding:4px 8px;font-size:10.5px;font-weight:800;cursor:pointer;
+  font-family:inherit;border:1px solid var(--rl);flex-shrink:0}
+.use-ok{background:var(--rgrad);color:#fff;border-color:transparent}
+.use-no{background:#fff;color:var(--rmut)}
+.use-no:hover{border-color:var(--rl2);color:var(--rink2)}
+.use-note{font-size:10px;color:var(--rhint);line-height:1.6;margin-top:10px}
+.use-del{margin-top:5px;width:100%;background:none;border:1px dashed var(--rl2);border-radius:8px;padding:4px 8px;
+  font-size:10px;font-weight:700;color:var(--rhint);cursor:pointer;font-family:inherit}
+.use-del:hover{color:#B42318;border-color:#F8CFCF;background:#FFF8F8}
+.use-add{margin-top:10px;width:100%;background:#fff;border:1px dashed var(--rl2);border-radius:11px;padding:8px 10px;
+  font-size:11px;font-weight:700;color:#5A6480;cursor:pointer;font-family:inherit;transition:all .15s}
+.use-add:hover{border-color:#9DB0FF;color:var(--racc-d);background:#F5F8FF}
+.use-add-form{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.use-add-form .use-inp{flex:1 1 140px;border-color:var(--rl2);padding:6px 8px;font-size:11.5px}
 .use-add-form select.use-inp{flex:0 0 78px}
 
+/* 👥 역할표 — 누가 무엇을 맡는지 한눈에 */
+.room-roles{background:#fff;border:1px solid var(--rl);border-radius:16px;min-width:0;overflow:hidden;
+  transition:border-color .15s,box-shadow .15s}
+.room-roles[open]{border-color:#D9E2FA;box-shadow:0 12px 28px -24px rgba(16,24,40,.5)}
+.room-roles>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:12px 14px;
+  font-size:12px;font-weight:800;color:var(--rink);min-height:46px}
+.room-roles>summary:hover{background:#FAFBFE}
+.room-roles>summary::-webkit-details-marker{display:none}
+.rr-n{margin-left:auto;font-size:10px;font-weight:800;color:var(--rmut);background:var(--rsoft);
+  border:1px solid var(--rl);border-radius:999px;padding:2px 8px}
+.rr-c{color:var(--rhint);font-size:11px;transition:transform .18s;line-height:1}
+.room-roles[open] .rr-c{transform:rotate(180deg)}
+.role-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:8px;padding:0 14px 14px}
+.role-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid #EDF1F9;border-radius:12px;
+  background:#FAFBFE;min-width:0}
+.role-ico{width:28px;height:28px;border-radius:10px;background:#fff;border:1px solid var(--rl);display:grid;
+  place-items:center;font-size:14px;flex-shrink:0}
+.role-txt{min-width:0;display:flex;flex-direction:column;gap:1px}
+.role-txt b{font-size:11.5px;font-weight:800;color:var(--rink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.role-txt i{font-style:normal;font-size:10px;color:#6F7A93;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.role-id{margin-left:auto;font-size:9px;font-weight:700;color:var(--rhint);background:#fff;
+  border:1px solid #EDF1F9;border-radius:999px;padding:1px 7px;flex-shrink:0}
+
 /* 채팅 타임라인 · 입력바 */
-.room-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
-.room-filters .rf-sep{width:1px;height:15px;background:var(--border);margin:0 2px;flex-shrink:0}
-.rf{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 11px;font-size:10.5px;
-  font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap}
-.rf.on{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
-.rf:hover{border-color:var(--border2)}
-.room-feed{display:flex;flex-direction:column;gap:9px;max-height:520px;overflow-y:auto;padding:12px;
-  background:#F7F9FE;border:1px solid var(--border);border-radius:12px;min-width:0}
-.chat-row{display:flex;gap:6px;align-items:flex-end;min-width:0;max-width:100%}
+.room-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0;padding:1px 0}
+.room-filters .rf-sep{width:1px;height:14px;background:var(--rl);margin:0 3px;flex-shrink:0}
+.rf{border:1px solid var(--rl);background:#fff;border-radius:10px;padding:4px 10px;font-size:10.5px;
+  font-weight:700;color:#606B85;cursor:pointer;font-family:inherit;white-space:nowrap;
+  transition:border-color .15s,background .15s,color .15s,box-shadow .15s}
+.rf:hover{border-color:#C9D6FF;color:var(--racc-d);background:#F7F9FF}
+.rf.on{border-color:transparent;background:var(--rgrad);color:#fff;box-shadow:0 6px 14px -8px rgba(79,107,255,.9)}
+.rf[data-k="who"].on{background:#28324A;box-shadow:0 6px 14px -8px rgba(16,24,40,.55)}
+.room-feed{display:flex;flex-direction:column;gap:12px;max-height:min(58vh,540px);overflow-y:auto;
+  padding:16px 14px;border:1px solid var(--rl);border-radius:18px;min-width:0;
+  background-color:#F6F8FF;background-image:radial-gradient(rgba(91,124,250,.16) 1px,transparent 1px);
+  background-size:20px 20px;background-position:0 0;
+  scrollbar-width:thin;scrollbar-color:#C9D3E8 transparent}
+.room-feed::-webkit-scrollbar{width:8px;height:8px}
+.room-feed::-webkit-scrollbar-thumb{background:#D3DBEC;border-radius:999px;border:2px solid #F7F9FF}
+.chat-row{display:flex;gap:8px;align-items:flex-end;min-width:0;max-width:100%}
 .chat-row.out{justify-content:flex-end}
-.chat-av{width:26px;height:26px;border-radius:50%;background:#fff;border:1px solid var(--border);
-  display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
-.chat-bubble{max-width:min(86%,560px);background:#fff;border:1px solid var(--border);border-radius:14px;
-  padding:9px 12px;min-width:0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
-.chat-row.out .chat-bubble{background:var(--blue-l);border-color:#C7D7FE;border-bottom-right-radius:4px}
-.chat-bubble.side-in{border-bottom-left-radius:4px}
-.chat-bubble.in{border-bottom-left-radius:4px}
-.chat-bubble.warn{background:var(--gold-l);border-color:#FDE68A}
-.chat-bubble.bad{background:var(--red-l);border-color:#FECACA}
-.chat-bubble.sys{background:#fff;border-style:dashed;color:var(--muted)}
-.chat-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:10px;color:var(--hint);margin-bottom:4px;min-width:0}
-.chat-meta b{font-size:10.5px;color:var(--text2);font-weight:800}
-.chat-meta .ord-when{margin-left:auto;font-size:9.5px;color:var(--hint);white-space:nowrap}
-.chat-text{font-size:12.5px;color:var(--text2);line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
-.chat-text.err{color:var(--red)}
-.chat-text b{color:var(--text)}
-.chat-acts{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
-.chat-a{background:#fff;border:1px solid var(--border);border-radius:7px;padding:4px 9px;font-size:10.5px;
-  font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
-.chat-a:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
-.chat-day{align-self:center;font-size:9.5px;color:var(--hint);background:#EAF0FB;border-radius:999px;padding:2px 10px}
-.chat-typing{display:inline-flex;align-items:center;gap:4px;color:var(--hint);font-size:11px}
-.chat-typing i{width:5px;height:5px;border-radius:50%;background:var(--hint);display:inline-block;animation:monPulse 1.2s ease-in-out infinite}
+.chat-av{width:30px;height:30px;border-radius:11px;background:#fff;border:1px solid var(--rl);color:var(--rink2);
+  display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;
+  box-shadow:0 2px 6px -3px rgba(16,24,40,.35)}
+.chat-bubble{max-width:min(82%,560px);background:#fff;border:1px solid var(--rl);border-radius:16px;
+  padding:9px 12px 10px;min-width:0;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.chat-row.out .chat-bubble{background:var(--rgrad);border-color:transparent;border-bottom-right-radius:6px;
+  color:#fff;box-shadow:0 10px 22px -14px rgba(79,107,255,.85)}
+.chat-bubble.side-in{border-bottom-left-radius:6px}
+.chat-bubble.in{border-bottom-left-radius:6px}
+.chat-bubble.warn{background:linear-gradient(180deg,#FFFDF4,#FFF7E6);border-color:#F7E3B4}
+.chat-bubble.bad{background:linear-gradient(180deg,#FFF8F8,#FFF0F0);border-color:#F8CFCF}
+.chat-bubble.sys{background:#F8FAFF;border:1px dashed #DCE4F5;color:var(--rmut)}
+.chat-meta{display:flex;align-items:center;gap:4px 6px;flex-wrap:wrap;font-size:9.5px;color:#6F7A93;
+  margin-bottom:5px;min-width:0}
+.chat-meta b{font-size:10.5px;color:var(--rink);font-weight:800}
+.chat-meta .ord-when{margin-left:auto;font-size:9px;color:var(--rhint);white-space:nowrap;padding-left:6px}
+.chat-row.out .chat-meta{color:rgba(255,255,255,.72)}
+.chat-row.out .chat-meta b{color:#fff}
+.chat-row.out .chat-to{color:rgba(255,255,255,.78)}
+.chat-row.out .ord-when{color:rgba(255,255,255,.62)}
+.chat-row.out .who{background:rgba(255,255,255,.18);color:#fff}
+.chat-row.out .ord-chip{background:rgba(255,255,255,.18);color:#fff}
+.chat-row.out .mt{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.34);color:#fff}
+.chat-row.out .ord-sub{color:rgba(255,255,255,.72)}
+.chat-text{font-size:12.8px;color:var(--rink2);line-height:1.62;white-space:pre-wrap;overflow-wrap:anywhere}
+.chat-row.out .chat-text{color:#F4F7FF}
+.chat-text.err{color:#B42318}
+.chat-row.out .chat-text.err{color:#FFE0E0}
+.chat-text b{color:var(--rink)}
+.room-feed .ord-chip{border:1px solid rgba(16,24,40,.06)}
+.chat-acts{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.chat-a{background:#fff;border:1px solid var(--rl);border-radius:999px;padding:3px 9px;font-size:10px;
+  font-weight:700;color:#5A6480;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.chat-a:hover{border-color:#C9D6FF;color:var(--racc-d);background:#F5F8FF}
+.chat-day{align-self:center;display:flex;align-items:center;gap:8px;font-size:9.5px;color:#8A94AA;
+  background:none;border-radius:0;padding:0}
+.chat-day::before,.chat-day::after{content:'';width:36px;height:1px;background:#DCE3F0}
+.chat-typing{display:inline-flex;align-items:center;gap:4px;color:var(--racc);font-size:11px}
+.chat-typing i{width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block;
+  animation:monPulse 1.2s ease-in-out infinite}
 .chat-typing i:nth-child(2){animation-delay:.2s}.chat-typing i:nth-child(3){animation-delay:.4s}
-.chat-quote{font-size:10px;color:var(--muted);background:var(--bg);border-left:3px solid var(--border2);
-  border-radius:0 6px 6px 0;padding:4px 8px;margin-bottom:6px;overflow-wrap:anywhere}
-.room-compose{border-top:1px solid var(--border);padding-top:10px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.chat-quote{font-size:10.5px;color:var(--rink2);background:#F3F6FF;border-left:3px solid #9DB0FF;
+  border-radius:0 9px 9px 0;padding:5px 9px;margin-bottom:6px;overflow-wrap:anywhere}
+.room-compose{display:flex;flex-direction:column;gap:8px;min-width:0;padding:12px;border:1px solid var(--rl);
+  border-radius:18px;background:linear-gradient(180deg,#FFFFFF,#FBFCFE);
+}
+.room-tools{display:flex;flex-direction:column;gap:8px;min-width:0}
+.room-plus{display:none}
 .room-presets,.room-mentions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
-.room-hint{font-size:10px;color:var(--hint);font-weight:800;margin-right:1px;white-space:nowrap}
-.rp{border:1px dashed var(--border2);background:#fff;border-radius:999px;padding:4px 10px;font-size:10.5px;
-  color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
-.rp:hover{border-color:var(--blue);color:var(--blue-d);background:var(--blue-l)}
-.rm{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 11px;font-size:11px;
-  font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;white-space:nowrap}
-.rm.on{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
+.room-hint{font-size:9.5px;color:var(--rhint);font-weight:800;margin-right:2px;white-space:nowrap;letter-spacing:.02em}
+.rp{border:1px solid var(--rl);background:#fff;border-radius:9px;padding:4px 9px;font-size:10px;
+  font-weight:600;color:#5A6480;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.rp:hover{border-color:#C9D6FF;color:var(--racc-d);background:#F5F8FF}
+.rm{border:1px solid transparent;background:var(--rsoft);border-radius:999px;padding:4px 10px;font-size:10.5px;
+  font-weight:700;color:#606B85;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.rm:hover{background:#EEF3FF;color:var(--racc-d)}
+.rm.on{background:var(--rgrad);border-color:transparent;color:#fff;box-shadow:0 6px 14px -8px rgba(79,107,255,.9)}
 .room-inp-row{display:flex;gap:8px;align-items:flex-end;min-width:0}
-.room-inp-row .ord-inp{flex:1;min-width:0;border-radius:18px;min-height:46px;padding:11px 15px}
-.room-send{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:none;background:var(--blue);color:#fff;
-  font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1}
-.room-send:hover{background:var(--blue-d)}
-.room-send:disabled{background:var(--border2);cursor:default}
-.ord-who{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:4px 7px;font-size:10.5px;
-  font-family:inherit;color:var(--text2);max-width:130px;min-width:0}
-.ord-mode{display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden;flex-shrink:0}
-.ord-mode button{border:none;background:#fff;font-family:inherit;font-size:10.5px;font-weight:700;color:var(--muted);
-  padding:4px 9px;cursor:pointer;white-space:nowrap}
-.ord-mode button.on{background:var(--blue-l);color:var(--blue-d)}
+.room-inp-row .ord-inp{flex:1;min-width:0;border-radius:14px;min-height:46px;padding:12px 14px;font-size:13.5px;
+  background:var(--rsoft);border:1px solid var(--rl);box-shadow:inset 0 1px 2px rgba(16,24,40,.03);resize:none}
+.room-inp-row .ord-inp:focus{background:#fff;border-color:#8FA6FF;box-shadow:0 0 0 4px rgba(91,124,250,.14)}
+.room-inp-row .ord-inp::placeholder{color:#9AA4BC}
+.room-send{flex:0 0 auto;width:46px;height:46px;border-radius:14px;border:none;background:var(--rgrad);color:#fff;
+  font-size:18px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1;
+  box-shadow:0 10px 20px -10px rgba(79,107,255,.9);transition:transform .12s,box-shadow .15s,background .15s}
+.room-send:hover{transform:translateY(-1px);box-shadow:0 12px 22px -10px rgba(79,107,255,.95)}
+.room-send:active{transform:none}
+.room-send:disabled{background:#E2E7F2;color:#A0AAC0;box-shadow:none;cursor:default;transform:none}
+.ord-who{background:var(--rsoft);border:1px solid var(--rl);border-radius:10px;padding:5px 8px;font-size:10.5px;
+  font-family:inherit;color:#4A5570;max-width:140px;min-width:0}
+.ord-who:focus{outline:none;border-color:#8FA6FF;box-shadow:0 0 0 3px rgba(79,107,255,.14)}
+.ord-mode{display:inline-flex;border:1px solid var(--rl);border-radius:11px;background:#F4F6FC;padding:2px;gap:2px;
+  flex-shrink:0}
+.ord-mode button{border:none;background:transparent;font-family:inherit;font-size:10.5px;font-weight:700;
+  color:#6B768F;padding:5px 10px;cursor:pointer;white-space:nowrap;border-radius:9px;transition:all .15s}
+.ord-mode button:hover{color:var(--racc-d)}
+.ord-mode button.on{background:#fff;color:var(--racc-d);box-shadow:0 1px 3px rgba(16,24,40,.14)}
+.room-compose .ord-foot{gap:8px;padding:0 2px}
+.room-compose .ord-edit{font-size:10.5px;color:#6B768F;gap:5px}
+.room-compose .ord-edit input{accent-color:var(--racc)}
+.room-compose .ord-recent{margin-bottom:0;gap:5px}
+.room-compose .ord-rec{border:1px solid var(--rl);background:#fff;border-radius:999px;padding:4px 9px;font-size:10.5px;color:#5A6480}
+.room-compose .ord-rec:hover{border-color:#C9D6FF;color:var(--racc-d);background:#F5F8FF}
+.room-compose .ord-chars{font-size:10px;color:var(--rhint)}
+.room-card :is(button,select,textarea,input,summary):focus-visible{outline:2px solid #7C93FF;outline-offset:2px}
 
 /* ── 🤖 노트북 오더함 ── */
 .order-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
@@ -383,7 +499,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ord-inp::placeholder{color:var(--hint)}
 .ord-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .ord-edit{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;min-width:0}
-.ord-list{display:flex;flex-direction:column;gap:8px;max-height:460px;overflow-y:auto;min-width:0}
+.ord-list{display:flex;flex-direction:column;min-width:0}
 .ord-item{display:flex;gap:10px;padding:11px 12px;background:var(--bg);border:1px solid var(--border);
   border-radius:10px;min-width:0}
 .ord-item.st-wait{background:var(--gold-l);border-color:#FDE68A}
@@ -590,6 +706,66 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .day-ev,.day-more{display:none}
   .day-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;padding:1px 0 3px}
   .cal-agenda{display:block}}
+/* ── 💬 회의실 모던 리뉴얼 — 반응형 (기존 폰 규칙 뒤에 와서 이긴다) ── */
+@media(max-width:900px){
+  .use-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+  .role-grid{grid-template-columns:repeat(auto-fill,minmax(176px,1fr))}
+}
+@media(max-width:700px){
+  .room-head{grid-template-columns:minmax(0,1fr);gap:9px;padding:14px 14px 12px}
+  .room-title{font-size:15.5px}
+  .room-head .ord-head-right{justify-content:space-between;width:100%;gap:8px}
+  .room-head .ord-hint{text-align:left;font-size:9.5px;max-width:none}
+  .room-body{padding:12px;gap:10px}
+  .room-use>summary,.room-roles>summary{padding:11px 12px;min-height:44px}
+  .room-use>summary{display:grid;grid-template-columns:1fr auto;gap:7px 8px}
+  .room-use-t{grid-column:1;grid-row:1}
+  .room-use-c{grid-column:2;grid-row:1;justify-self:end}
+  .room-use-s{grid-column:1/-1;grid-row:2;justify-content:flex-start;margin-left:0}
+  .use-wrap{padding:0 12px 12px}
+  .use-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .use-dev{padding:10px 11px 11px}
+  .use-pct{font-size:20px}
+  .role-grid{grid-template-columns:repeat(auto-fill,minmax(148px,1fr));padding:0 12px 12px}
+  .room-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .room-filters::-webkit-scrollbar{display:none}
+  .room-filters .room-hint{display:inline;flex:0 0 auto}
+  .room-filters .rf-sep{flex:0 0 auto}
+  .rf{flex:0 0 auto;padding:5px 11px}
+  .room-feed{max-height:none;padding:12px 10px;gap:10px;border-radius:14px}
+  .chat-bubble{max-width:90%;border-radius:15px;padding:8px 11px 9px}
+  .chat-av{width:28px;height:28px;border-radius:10px;font-size:14px}
+  .chat-text{font-size:12.6px}
+  .chat-day::before,.chat-day::after{width:22px}
+  .room-tools{display:none}
+  .room-tools.on{display:flex}
+  .room-plus{display:grid;place-items:center;flex:0 0 auto;width:40px;height:44px;border-radius:13px;
+    border:1px solid var(--rl);background:#fff;color:#5A6480;font-size:18px;font-family:inherit;
+    cursor:pointer;line-height:1;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .room-plus:hover,.room-plus[aria-expanded="true"]{border-color:#C9D6FF;background:#F3F6FF;color:var(--racc-d)}
+  .room-compose{position:sticky;bottom:0;z-index:8;margin:2px -12px -12px;
+    padding:8px 12px calc(9px + env(safe-area-inset-bottom));border-left:0;border-right:0;border-bottom:0;
+    border-radius:16px 16px 0 0;background:rgba(255,255,255,.94);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    box-shadow:0 -12px 28px -22px rgba(16,24,40,.65);gap:6px}
+  .room-compose .ord-edit{display:none}
+  .room-compose .ord-foot{flex-wrap:nowrap;gap:6px}
+  .room-compose .ord-who{max-width:96px}
+  .room-compose .ord-mode button{padding:5px 8px}
+  .room-presets{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
+  .room-presets::-webkit-scrollbar{display:none}
+  .room-send{width:44px;height:44px;border-radius:13px}
+  .room-inp-row .ord-inp{min-height:44px;padding:11px 13px;font-size:13px}
+  .ord-who{max-width:112px}
+}
+@media(max-width:420px){
+  .room-title{font-size:15px}
+  .room-hash{width:25px;height:25px;border-radius:8px;font-size:14px}
+  .room-use-s{font-size:9.5px;gap:8px}
+  .use-grid{grid-template-columns:1fr 1fr}
+  .room-compose .ord-foot{gap:6px}
+  .room-compose .ord-chars{font-size:9.5px}
+}
 </style>
 </head>
 <body>
@@ -696,9 +872,12 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   <!-- ④ 💬 비서 통합 회의실 — 오더(CommandQueue)를 카톡처럼 주고받는 한 창구 -->
   <div class="order-card room-card" id="order-card">
     <div class="room-head">
-      <div class="room-title">
-        <span class="room-hash">#</span><span class="room-name">비서-통합-회의실</span>
-        <span class="badge badge-blue room-people" id="room-people"></span>
+      <div class="room-title-wrap">
+        <div class="room-title">
+          <span class="room-hash" aria-hidden="true">#</span><span class="room-name">비서-통합-회의실</span>
+          <span class="badge badge-blue room-people" id="room-people"></span>
+        </div>
+        <div class="room-sub">🤖 노트북 오더함 · CommandQueue 시트와 같은 큐 <span class="badge badge-blue" id="ord-count"></span></div>
       </div>
       <div class="ord-head-right">
         <span class="ord-hint" id="ord-state"></span>
@@ -707,7 +886,6 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       </div>
     </div>
     <div class="room-body">
-    <div class="room-sub">🤖 노트북 오더함 · CommandQueue 시트와 같은 큐를 씁니다 <span class="badge badge-blue" id="ord-count"></span></div>
 
     <!-- 📊 비서 사용량 — 접기/펼치기. 잔여 %는 이 기기에 저장(0원), 서버가 알면 함께 저장 -->
     <details class="room-use" id="room-use" ontoggle="useToggle()">
@@ -723,8 +901,18 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
       </div>
     </details>
 
+    <!-- 👥 역할표 — 누가 무엇을 맡는지(명부 한 곳에서 카드·멘션·표가 같이 움직인다) -->
+    <details class="room-roles" id="room-roles">
+      <summary>
+        <span class="room-use-t">👥 역할표 — 누가 무엇을 맡나</span>
+        <span class="rr-n" id="role-count"></span>
+        <span class="rr-c" aria-hidden="true">▾</span>
+      </summary>
+      <div class="role-grid" id="role-table"></div>
+    </details>
+
     <details class="ord-opt" id="ord-opt">
-      <summary>⚙️ 오더 설정 — 작업 위치 · AI 엔진 · 빠른 실행</summary>
+      <summary><span>⚙️ 오더 설정 — 작업 위치 · AI 엔진 · 빠른 실행</span><span class="ord-opt-c" aria-hidden="true">▾</span></summary>
     <div class="ord-quick">
       <select class="ord-ws" id="ord-ws" aria-label="작업 위치" title="어느 저장소에서 할 일인지"></select>
       <select class="ord-ws ord-engine" id="ord-engine" aria-label="AI 엔진" onchange="ordEngineSave()" title="AI 엔진 — 자동이면 정품 Claude → 제미나이 agy → FreeLLMAPI 순으로 넘어갑니다">
@@ -774,29 +962,35 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
         </div>
       </div>
     </details>
-    <div class="room-filters" id="ord-filters"></div>
-    <div class="room-feed ord-list" id="ord-list"><div class="ord-empty">첫 말을 걸면 여기에 카톡처럼 쌓여요</div></div>
-    <div class="ord-pause" id="ord-paused"></div>
+    <div class="room-chat">
+      <div class="room-filters" id="ord-filters"></div>
+      <div class="room-feed ord-list" id="ord-list"><div class="ord-empty">첫 말을 걸면 여기에 카톡처럼 쌓여요</div></div>
+      <div class="ord-pause" id="ord-paused"></div>
 
-    <div class="room-compose">
-      <div class="ord-recent" id="ord-recent" style="display:none"></div>
-      <div id="ord-quote"></div>
-      <div class="room-presets" id="ord-presets"></div>
-      <div class="room-mentions" id="ord-mentions"></div>
-      <div class="room-inp-row">
-        <textarea class="ord-inp" id="ord-inp" rows="1" placeholder="하고 싶은 말을 그냥 적으세요 (예: 이번 주 블로그 소재 좀 뽑아줘)"
-          onkeydown="ordKey(event)" oninput="ordTyped()"></textarea>
-        <button class="room-send" id="ord-send" onclick="sendOrder()" title="보내기 (Enter)" aria-label="보내기">↑</button>
-      </div>
-      <div class="ord-foot">
-        <span class="ord-mode" id="ord-mode">
-          <button type="button" data-m="chat" onclick="ordModeSet('chat')">💬 대화</button>
-          <button type="button" data-m="ask" onclick="ordModeSet('ask')">📦 오더</button>
-          <button type="button" data-m="edit" onclick="ordModeSet('edit')">✏️ 수정</button>
-        </span>
-        <label class="ord-edit"><input type="checkbox" id="ord-edit-mode" onchange="ordModeFromBox()"> 파일 수정 허용</label>
-        <select class="ord-who" id="ord-who" onchange="ordWhoSave()" title="이 메시지를 누구 이름으로 넣을지 (발신자)"></select>
-        <span class="ord-chars" id="ord-chars"></span>
+      <div class="room-compose">
+        <div class="room-tools" id="room-tools">
+          <div class="ord-recent" id="ord-recent" style="display:none"></div>
+          <div class="room-presets" id="ord-presets"></div>
+          <div class="room-mentions" id="ord-mentions"></div>
+        </div>
+        <div id="ord-quote"></div>
+        <div class="room-inp-row">
+          <button class="room-plus" type="button" id="room-plus" onclick="roomToolsToggle()"
+            aria-label="빠른 오더·대상 열기" aria-expanded="false" title="빠른 오더 · 대상 열기">＋</button>
+          <textarea class="ord-inp" id="ord-inp" rows="1" placeholder="하고 싶은 말을 적으세요"
+            onkeydown="ordKey(event)" oninput="ordTyped()"></textarea>
+          <button class="room-send" id="ord-send" onclick="sendOrder()" title="보내기 (Enter)" aria-label="보내기">↑</button>
+        </div>
+        <div class="ord-foot">
+          <span class="ord-mode" id="ord-mode">
+            <button type="button" data-m="chat" onclick="ordModeSet('chat')">대화</button>
+            <button type="button" data-m="ask" onclick="ordModeSet('ask')">오더</button>
+            <button type="button" data-m="edit" onclick="ordModeSet('edit')">수정</button>
+          </span>
+          <label class="ord-edit"><input type="checkbox" id="ord-edit-mode" onchange="ordModeFromBox()"> 파일 수정 허용</label>
+          <select class="ord-who" id="ord-who" onchange="ordWhoSave()" title="이 메시지를 누구 이름으로 넣을지 (발신자)"></select>
+          <span class="ord-chars" id="ord-chars"></span>
+        </div>
       </div>
     </div>
     </div>
@@ -1897,7 +2091,7 @@ function ordFilterRender(){
   if(!box) return;
   const stC = [['all', '전체'], ['live', '진행'], ['wait', '승인'], ['done', '끝남']].map(x =>
     `<button class="rf${ORD_FILTER === x[0] ? ' on' : ''}" data-k="st" data-v="${x[0]}" onclick="ordFilterSet(this)">${esc(x[1])}</button>`).join('');
-  const whoC = [{id: 'all', label: '전체'}].concat(ordFilterWhoList().map(a => ({id: a.id, label: (a.icon || '🌐') + ' ' + a.name}))).map(x =>
+  const whoC = [{id: 'all', label: '모두'}].concat(ordFilterWhoList().map(a => ({id: a.id, label: (a.icon || '🌐') + ' ' + a.name}))).map(x =>
     `<button class="rf${ORD_WHO === x.id ? ' on' : ''}" data-k="who" data-v="${esc(x.id)}" onclick="ordFilterSet(this)">${esc(x.label)}</button>`).join('');
   const shown = ORD_ITEMS.filter(ordVisible).length;
   box.innerHTML = '<span class="room-hint">상태</span>' + stC + '<span class="rf-sep"></span>' +
@@ -2078,7 +2272,8 @@ function renderUse(force){
       (USE_SRV === false ? ' · 서버 저장은 Apps Script 재배포 후' : '');
   }
   const sm = document.getElementById('room-use-sum');
-  if(sm) sm.textContent = '위험 ' + c.danger + ' · 임박 ' + c.soon + ' · 정상 ' + c.ok + ' · 미확인 ' + c.unknown;
+  if(sm) sm.innerHTML = ['danger', 'soon', 'ok', 'unknown'].map(k =>
+    `<span class="ru ${k}">${esc(USE_STATE_TXT[k])} <b>${c[k]}</b></span>`).join('');
 }
 function useToggle(){ renderUse(true); }
 let USE_ADD = false;
@@ -2304,6 +2499,20 @@ function ordMergeById(id){
   if(!it) return;
   ordCopyText(ordMergeCmd(it), null);
 }
+/** 👥 역할표 — 참여 비서와 담당 한 줄. 명부(agents)만 고치면 카드·멘션·표가 같이 바뀐다. */
+function renderRoles(){
+  const box = document.getElementById('role-table');
+  const cnt = document.getElementById('role-count');
+  const list = agentMentions();
+  if(cnt) cnt.textContent = list.length + '명';
+  if(!box) return;
+  box.innerHTML = list.map(a => {
+    const duty = String(a.duty || a.sub || a.role || '');
+    return `<div class="role-row"><span class="role-ico">${esc(a.icon || '🤖')}</span>` +
+      `<span class="role-txt"><b>${esc(a.mentionAs || a.name)}</b><i title="${esc(duty)}">${esc(duty)}</i></span>` +
+      `<span class="role-id">${esc(a.id)}</span></div>`;
+  }).join('');
+}
 /** 회의실 머리말 — 참여 비서 수 · 사용량 요약 · 오더 건수 */
 function renderRoom(){
   const people = document.getElementById('room-people');
@@ -2313,12 +2522,21 @@ function renderRoom(){
     people.title = agentMentions().map(a => a.name + '(' + a.id + ') — ' + (a.duty || a.sub || '')).join('\n');
   }
   renderUse(false);
+  renderRoles();
   ordMentionRender();
   ordPresetRender();
   ordWhoRender();
   ordModeRender();
   ordFilterRender();
   ordQuoteRender();
+}
+/** 폰 입력바의 ＋ — 빠른 오더·대상 칸을 접었다 편다(넓은 화면에서는 늘 보인다) */
+function roomToolsToggle(){
+  const box = document.getElementById('room-tools');
+  const btn = document.getElementById('room-plus');
+  if(!box) return;
+  const on = box.classList ? box.classList.toggle('on') : true;
+  if(btn && btn.setAttribute) btn.setAttribute('aria-expanded', on ? 'true' : 'false');
 }
 function renderOrdersSafe(){ try { renderOrders(); } catch(e) {} }
 
