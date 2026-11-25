@@ -359,6 +359,7 @@ function roomOnlineCount(items, hb, now){
     wss: [], ws: lsGet('room_ws')
   };
   let pinned = true, toastTimer = null;
+  const SEND_ICON = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20V5M12 5l-6.6 6.6M12 5l6.6 6.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   /* ── 저장소 ── */
   function lsGet(k){ try { return localStorage.getItem(k) || ''; } catch(e) { return ''; } }
@@ -459,7 +460,7 @@ function roomOnlineCount(items, hb, now){
     const plain = roomIsPlainReply(it);
     const meta = [
       '<span class="nm">' + esc(who.icon + ' ' + (mine ? '성래 님' : who.name)) + '</span>',
-      '<span class="to">→ ' + esc(tg.label) + '</span>',
+      (mine && tg.id === 'portal') ? '' : '<span class="to">→ ' + esc(tg.label) + '</span>',
       plain ? '' : '<span class="chip ' + st.c + '">' + esc(st.t) + '</span>',
       it.auto_approved ? '<span class="chip">자동(위임)</span>' : '',
       '<span class="tm">' + esc(roomWhen(it.created_at)) + '</span>'
@@ -693,7 +694,7 @@ function roomOnlineCount(items, hb, now){
     } finally {
       S.sending = false;
       btn.disabled = false;
-      btn.textContent = '↑';
+      btn.innerHTML = SEND_ICON;
     }
   }
 
