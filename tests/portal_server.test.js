@@ -1236,6 +1236,10 @@ console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한�
   ok(b1.id === w.item.id && b1.target === 'cue2' && b1.created_at === w.item.created_at, 'id · target · created_at 이 큐 줄과 같다');
   ok(Array.isArray(b1.mentions) && b1.mentions.indexOf('cue2') >= 0, 'mentions 에 큐투가 들어 있다');
   ok(typeof b1.summary === 'string' && b1.summary.indexOf('이거 봐줘') >= 0, 'summary 에 본문이 담긴다');
+  // 발사 결과는 6시간 캐시에 코드만 남고, GET webhook_last 로 볼 수 있다
+  let lw = JSON.parse(S.sb.doGet({parameter:{action:'webhook_last', key:K4}}).getContent());
+  ok(lw.ok === true && lw.last.cue2 && lw.last.cue2.code === 200, 'GET webhook_last 에 응답 코드 200 이 남는다');
+  ok(!JSON.stringify(lw).includes('hook.test'), 'webhook_last 응답에 웹훅 주소가 없다');
 
   // ② 본인이 낸 글에는 본인을 깨우지 않는다(무한루프 방지)
   S.fetchCalls.length = 0;
@@ -1269,6 +1273,7 @@ console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한�
   const survived = post(enq(chat('cue2', '@큐투 살아있니', 'portal')));
   S.setFetchFail(false);
   ok(survived.ok === true && survived.item && survived.item.id, '웹훅이 실패해도 queue_enqueue 는 성공');
+  ok(JSON.parse(S.sb.doGet({parameter:{action:'webhook_last', key:K4}}).getContent()).last.cue2.error !== '', '실패한 호출은 webhook_last 에 오류로 남는다');
 
   // ⑦ target 이 다른 비서면 그 비서만
   S.fetchCalls.length = 0;

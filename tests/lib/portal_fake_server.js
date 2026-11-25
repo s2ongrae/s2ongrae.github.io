@@ -15,6 +15,7 @@ module.exports = function makePortalServer(){
     createFile(n,c){const f=new FakeFile(n,c,this);this.files.push(f);return f;} }
   const ROOT=new FakeFolder('',null), props={}; let lockBusy=false;
   const fetchCalls=[]; let fetchFail=false;   // 웹훅 호출 기록 / 실패 주입 스위치
+  const cacheStore=new Map();                   // CacheService(웹훅 발사 결과 기록)
   // 스프레드시트 (queue_status 읽기 · 오더함 쓰기 시험용. rows 배열을 그대로 들여다보고 고친다)
   const books={};   // id -> { 탭이름: rows[][] }
   class FakeSheet{
@@ -67,6 +68,7 @@ module.exports = function makePortalServer(){
       getFileById:id=>allFiles().find(f=>f.id===id)||null},
     MimeType:{PLAIN_TEXT:'t'}, PropertiesService:{getScriptProperties:()=>({getProperty:k=>props[k]===undefined?null:props[k],setProperty:(k,v)=>{props[k]=v;}})},
     LockService:{getScriptLock:()=>({tryLock:()=>!lockBusy,releaseLock(){}})},
+    CacheService:{getScriptCache:()=>({get:k=>cacheStore.has(k)?cacheStore.get(k):null,put:(k,v)=>{cacheStore.set(k,String(v));}})},
     Utilities:{ sleep(){ sb.__sleeps++; }, getUuid:()=>nodeCrypto.randomUUID(),
       DigestAlgorithm:{SHA_256:'SHA_256'}, Charset:{UTF_8:'UTF_8'},
       computeDigest:(alg,s)=>Array.from(nodeCrypto.createHash('sha256').update(String(s==null?'':s),'utf8').digest()),

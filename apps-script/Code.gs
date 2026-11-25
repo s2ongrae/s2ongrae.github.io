@@ -28,7 +28,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 //          쓰기 액션은 GET 으로 절대 받지 않는다(링크 미리보기·로그에 키가 남는 위험을 줄이기 위해
 //          읽기만 열고, 키는 여전히 64자 전체 비교다).
 //          `?action=queue_head` 는 **최신 1건의 id·시각·대상만** 돌려주는 초경량 확인용이다.
-const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'usage_get', 'agents_get'];
+const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -48,6 +48,8 @@ function doGet(e) {
       case 'queue_head':   return out(queueHead({ target: p.target }));
       case 'usage_get':    return out(usageGet());
       case 'agents_get':   return out(agentListGet());
+      case 'webhook_last': return out(queueWebhookLast());
+      case 'auth_link':    return out(queueAuthLink());
       default:             return out({ ok: false, error: '알 수 없는 요청이에요.' });
     }
   } catch (err) {
@@ -1065,6 +1067,8 @@ const QQ_AGENT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
 //   {"cue":"https://…","cue2":"https://…"}  ← 에이전트 id 키만 늘리면 새 비서도 바로 깨어진다.
 const QQ_WEBHOOK_PROP = 'WEBHOOK_TRIGGERS_JSON';
 const QQ_WEBHOOK_MENTION_MAX = 6;
+// 발사 결과(응답 코드)만 6시간 캐시에 남긴다 — 주소는 절대 남기지 않는다. GET `webhook_last` 로 확인.
+const QQ_WEBHOOK_LOG_KEY = 'webhook_last';
 // 대상(target, @멘션) — 누구에게 시키는가. all=전체, notebook=집 노트북(기본 실행자).
 const QQ_TARGETS = ['all', 'pi1', 'pi2', 'notebook', 'cue', 'vooy', 'keyring'];
 // @이름 → 대상 id. 본문에만 @큐 처럼 적어도 그 비서 앞으로 가게 한다(화면 칩과 같은 규칙).
@@ -2076,6 +2080,41 @@ function qqWebhookBody_(row, p, agentId) {
     created_at: String((row && row.created_at) || '')
   };
 }
+/** 웹훅 발사 결과(상태 코드)를 6시간 캐시에 남긴다 — 주소는 안 남긴다. 실패해도 조용히 넘긴다. */
+function qqWebhookLog_(agentId, code, err) {
+  try {
+    const cache = CacheService.getScriptCache();
+    let cur = qqWebhookLogAll_();
+    cur[agentId] = { at: qqIso_(Date.now()), code: code === null || code === undefined ? null : Number(code), error: String(err || '').slice(0, 80) };
+    cache.put(QQ_WEBHOOK_LOG_KEY, JSON.stringify(cur), 21600);
+  } catch (e) { /* 진단용 기록이 실패해도 발사·접수에는 영향 없다 */ }
+}
+function qqWebhookLogAll_() {
+  try {
+    const raw = CacheService.getScriptCache().get(QQ_WEBHOOK_LOG_KEY) || '{}';
+    const m = JSON.parse(raw);
+    return isObj(m) ? m : {};
+  } catch (e) { return {}; }
+}
+/**
+ * 이 배포에 빠진 권한이 있으면 승인 링크를 준다(읽기 전용). 계정(소유자)만 열 수 있는 주소다.
+ *  · UrlFetchApp 같은 바깥 요청 권한이 나중에 붙으면, 스크립트 소유자가 한 번 승인해야 한다.
+ */
+function queueAuthLink() {
+  try {
+    const info = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL);
+    const status = String(info.getAuthorizationStatus());
+    return { ok: true, status: status, url: status === 'REQUIRED' ? String(info.getAuthorizationUrl() || '') : '',
+      note: status === 'REQUIRED' ? '승인이 필요해요 — 소유자 계정으로 이 주소를 열어 허용하면 됩니다.' : '지금 필요한 권한은 모두 승인되어 있어요.' };
+  } catch (err) {
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+}
+/** 최근 웹훅 발사 결과(읽기 전용) — 비서별 마지막 응답 코드·시각·오류. 주소는 없다. */
+function queueWebhookLast() {
+  return { ok: true, last: qqWebhookLogAll_(), registered: Object.keys(qqWebhookMap_()).length,
+    note: '최근 6시간 안에 쏜 웹훅의 응답 코드만 남겨요(주소는 저장하지 않아요).' };
+}
 /**
  * 접수된 오더를 기다리는 비서를 실시간으로 깨운다.
  *  조건: source !== agentId 이고 (target === agentId · target === 'all' · mentions 에 agentId).
@@ -2097,13 +2136,18 @@ function qqFireWebhooks_(row, p) {
       if (!(target === agentId || target === 'all' || mentioned.indexOf(agentId) >= 0)) return;
       try {
         if (typeof UrlFetchApp === 'undefined') throw new Error('no UrlFetchApp');
-        UrlFetchApp.fetch(map[agentId], {
+        const res = UrlFetchApp.fetch(map[agentId], {
           method: 'post', contentType: 'application/json',
           payload: JSON.stringify(qqWebhookBody_(row, p, agentId)),
           muteHttpExceptions: true
         });
+        let code = 0;
+        try { code = res && res.getResponseCode ? Number(res.getResponseCode()) : 0; } catch (e2) { code = 0; }
+        qqWebhookLog_(agentId, code);
         fired.push(agentId);
-      } catch (err) { /* 웹훅 실패가 접수를 막지 않는다 */ }
+      } catch (err) {
+        qqWebhookLog_(agentId, null, (err && err.message) || '웹훅 호출 실패');
+      }
     });
     return fired;
   } catch (err) { return []; }
