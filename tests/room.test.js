@@ -189,6 +189,8 @@ function coreTests() {
   ok(C.roomIsPlainReply({kind: 'chat', target: 'portal', source: 'cue2'}) === true, '순수 답장 판정');
   ok(C.roomShowReply({kind: 'chat', target: 'portal', source: 'cue2', status: 'DONE', summary: '출석!', result: '출석!'}) === false, '본문=결과인 순수 답장은 한 번만');
   ok(C.roomShowReply({kind: 'chat', target: 'portal', source: 'cue2', status: 'DONE', summary: '질문', result: '다른 답'}) === true, '내용이 다르면 답장 말풍선도');
+  ok(C.roomShowReply({kind: 'chat', source: 'portal', target: 'portal', status: 'DONE', summary: '오더 답변', result: '네, 알겠습니다.'}) === false, '나에게 온 답장을 내가 단 것처럼 그리지 않음');
+  ok(C.roomShowReply({kind: 'chat', source: 'portal', target: 'notebook', status: 'DONE', summary: '시험', result: '네'}) === true, '내가 @노트북 에 보낸 말의 답장은 그림');
 
   console.log('I) 본문 정리 · 상태 · 시각');
   ok(C.roomMsgText({kind: 'chat', summary: '클로드: 안녕'}) === '안녕', '"클로드: " 머리말 제거');

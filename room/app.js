@@ -151,6 +151,8 @@ function roomNeedsWorker(it){
 /** 비서가 남긴 순수 답장 — 그 말 자체가 내용이라 대기·진행 뱃지를 붙이지 않는다 */
 function roomIsPlainReply(it){ return roomIsChat(it) && !roomIsMine(it) && !roomNeedsWorker(it); }
 function roomShowReply(it){
+  // 나(portal)에게 온 오더를 내가 답한 것처럼 그리지 않는다 — 답한 주체를 모를 때의 자리표시
+  if(roomIsMine(it) && roomReplyWhoKey(it) === 'portal') return false;
   if(!roomIsPlainReply(it)) return true;
   if(String((it && it.status) || '').toUpperCase() === 'PENDING') return false;
   const t = String((it && (it.result || it.error)) || '').trim();
