@@ -982,6 +982,27 @@ function qqParse_(s) {
   try { const o = JSON.parse(String(s)); return isObj(o) ? o : {}; } catch (_) { return {}; }
 }
 
+// payload 안의 "target" 만 문자열에서 바로 꺼내는 정규식 (2026-11-25 — 목록 필터의 사전 거르기)
+const QQ_TARGET_JSON_RE = /"target"\s*:\s*(?:"([^"]{0,32})"|([^",}\s]{1,32}))/;
+/**
+ * 목록 필터용 target — **qqItem_ 을 만들지 않고** 시트 한 줄에서 싸게 읽는다.
+ *  v25 는 target 필터에서도 행마다 qqItem_(payload 파싱 + 가림 정규식 + 속성 읽기 4~5회)을 돌려
+ *  400행이면 50초를 넘겼다(2026-11-25 실측). 값의 최종 판정은 여전히 qqItem_ 이 하고,
+ *  여기서는 무거운 일을 할 행을 고르는 데만 쓴다. 없으면 'notebook'(qqItem_ 의 기본값과 같다).
+ */
+function qqRowTarget_(r) {
+  const raw = r && r.payload;
+  if (isObj(raw)) {
+    const t = String(raw.target == null ? '' : raw.target).trim().toLowerCase();
+    return t ? clip(t, 12) : 'notebook';
+  }
+  if (!raw) return 'notebook';
+  const m = QQ_TARGET_JSON_RE.exec(String(raw));
+  if (!m) return 'notebook';
+  const t = String(m[1] != null ? m[1] : m[2]).trim().toLowerCase();
+  return t ? clip(t, 12) : 'notebook';
+}
+
 /** 목록에 보일 한 줄 요약 — 긴 프롬프트는 줄이고 가린다. payload 원문은 내보내지 않는다. */
 function qqSummary_(type, p) {
   let s = '';
@@ -1471,9 +1492,15 @@ function queueList(body) {
     (QQ_TARGETS.indexOf(wantTarget) >= 0 || QQ_AGENT_ID_RE.test(wantTarget));
   const items = [];
   for (let i = rows.length - 1; i >= 0 && items.length < limit; i--) {
+    // 2026-11-25: 무거운 qqItem_ 을 만들기 전에 payload 문자열에서 target 만 싸게 본다.
+    //   (매칭이 드문 타겟이면 400행 전부를 파싱하다 30초 타임아웃이 났음 — v25 실측 57초)
+    if (targetFilter) {
+      const cheap = qqRowTarget_(rows[i]);
+      if (cheap !== wantTarget && cheap !== 'all') continue;
+    }
     const it = qqItem_(rows[i]);
     if (targetFilter) {
-      const tg = it.target || 'notebook';
+      const tg = it.target || 'notebook';          // 최종 판정은 늘 qqItem_ 값으로
       if (tg !== wantTarget && tg !== 'all') continue;
     }
     items.push(it);

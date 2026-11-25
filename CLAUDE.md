@@ -79,9 +79,12 @@
   서버도 `QQ_AGENT_ID_RE`·`US_ID_RE` 로 같은 규칙을 받으므로 **GAS 재배포 없이** 새 이름이 동작한다.
 - **서버(Code.gs)**: `queue_list` 가 `source·kind·target` 을 돌려주고 `chat:true`·`targets`·`sources` 를 알린다.
   `queue_enqueue` 는 `source`(화이트리스트+규칙)와 `payload.kind/target` 을 기록한다. `queue_list target=pi1|pi2` = 내 멘션만.
+  **`target` 필터 성능(2026-11-25, v26)**: 행마다 `qqItem_`(payload 파싱 + 가림 정규식 + 스크립트 속성 읽기 4~5회)을 만들면
+  400행에서 실측 **57초** → GAS 30초 타임아웃. 그래서 `queueList` 는 이제 `qqRowTarget_(r)` 로 **payload 문자열에서 `"target"` 만 싸게 보고**
+  매칭(또는 `all`) 행에만 `qqItem_` 을 만든다. 값의 최종 판정은 늘 `qqItem_`(스캔 상한 `QQ_SCAN_ROWS` 400행). `target` 없는 줄 = `notebook`.
   `agent_beat target=pi1|pi2` → `agent_status.pi1/pi2`. 새 액션 `usage_get`/`usage_set`.
 - **피투 상태 파일**: `status/pi2.json`(피원은 지금처럼 `status/agent.json`). 카드 6칸 = 직접·허브·회사PC·피원·피투·오더 큐.
-- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터) · 15)절(사용량·pi 비트) · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS).
+- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS).
 
 ## 🤖 노트북 오더함 (2026-11-15)
 

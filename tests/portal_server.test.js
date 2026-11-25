@@ -844,6 +844,46 @@ console.log('14) 💬 회의실 — 발신(source)·대상(target)·대화(kind)
   const seen = {};
   all.items.forEach(x => { seen[x.source] = (seen[x.source] || 0) + 1; });
   ok(seen.pi1 >= 1 && seen.pi2 >= 1 && seen.portal >= 1 && seen.vooy >= 1, 'source 별로 셀 수 있다(pi1·pi2·portal·vooy)');
+
+  // ⑤ 대용량 — 매칭이 드문 target 도 행마다 qqItem_ 을 만들지 않는다 (2026-11-25 타임아웃 수정)
+  {
+    const mk = (id, payload, status) => {
+      const row = new Array(HEAD.length).fill('');
+      row[HEAD.indexOf('id')] = id;
+      row[HEAD.indexOf('created_at')] = '2026-11-25T10:00:00+09:00';
+      row[HEAD.indexOf('source')] = 'portal';
+      row[HEAD.indexOf('type')] = 'claude_prompt';
+      row[HEAD.indexOf('payload')] = payload;
+      row[HEAD.indexOf('status')] = status || 'DONE';
+      return row;
+    };
+    for (let i = 0; i < 500; i++) qrows().push(mk('Q-BULK-' + i, JSON.stringify({prompt: '잡무 ' + i, mode: 'ask'})));
+    qrows().push(mk('Q-CUE-1', JSON.stringify({prompt: '부이 확인', mode: 'ask', kind: 'chat', target: 'cue'})));
+    qrows().push(mk('Q-ALL-1', JSON.stringify({prompt: '전체 공지', mode: 'ask', kind: 'chat', target: 'all'})));
+
+    const orig = S.sb.qqItem_;
+    let calls = 0;
+    S.sb.qqItem_ = function (r) { calls++; return orig(r); };
+    let t0 = Date.now();
+    const cue = post({action: 'queue_list', key: K9, target: 'cue', limit: 10});
+    const msCue = Date.now() - t0, callsCue = calls;
+    calls = 0; t0 = Date.now();
+    const none = post({action: 'queue_list', key: K9, target: 'vooy', limit: 10});
+    const msNone = Date.now() - t0, callsNone = calls;
+    calls = 0; t0 = Date.now();
+    const plain = post({action: 'queue_list', key: K9, limit: 10});
+    const msPlain = Date.now() - t0;
+    S.sb.qqItem_ = orig;
+
+    ok(cue.ok === true && cue.items.length === 2, '500행 뒤에서도 cue·전체 멘션 2건만 온다');
+    ok(cue.items.every(x => x.target === 'cue' || x.target === 'all'), 'target=cue 는 cue·all 만');
+    ok(callsCue <= 5, '사전 거르기 — 매칭 행에만 qqItem_ 을 만든다(호출 ' + callsCue + '회/502행)');
+    ok(none.ok === true && none.items.length === 1 && none.items[0].target === 'all', '매칭 0건이면 @전체 한 건만');
+    ok(callsNone <= 2, '매칭 0건이면 qqItem_ 을 거의 만들지 않는다(호출 ' + callsNone + '회/502행)');
+    ok(msCue < 2000 && msNone < 2000 && msPlain < 2000,
+      '대용량에서도 2초 안에 끝난다(cue ' + msCue + 'ms · 0건 ' + msNone + 'ms · 필터없음 ' + msPlain + 'ms)');
+    ok(plain.items.length === 10 && plain.items[0].id === 'Q-ALL-1', '필터 없이 부르면 최근 것부터 10건 그대로');
+  }
 }
 
 console.log('15) 📊 비서 사용량 (usage_get · usage_set) 과 피원·피투 상태 비트');
