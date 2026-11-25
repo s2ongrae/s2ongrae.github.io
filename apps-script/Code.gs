@@ -1063,6 +1063,13 @@ const QQ_AGENT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
 const QQ_TARGETS = ['all', 'pi1', 'pi2', 'notebook', 'cue', 'vooy', 'keyring'];
 // @이름 → 대상 id. 본문에만 @큐 처럼 적어도 그 비서 앞으로 가게 한다(화면 칩과 같은 규칙).
 const QQ_TARGET_NAMES = { '전체': 'all', '피원': 'pi1', '피투': 'pi2', '노트북': 'notebook', '큐': 'cue', '부이': 'vooy', '키링': 'keyring' };
+// 2026-11-25 사용자 확정 — 부계정 호칭. 명부에 오르기 전에도 @멘션이 그 비서 앞으로 간다.
+//  · 큐투(cue2) · 뷔투(vooy2) · 키투(keyring2) — 옛 부름(@큐2·@부이2·@키링2)도 같은 사람.
+const QQ_SECONDARY = {
+  cue2:     ['큐투', '큐2', 'cue2'],
+  vooy2:    ['뷔투', '부이2', '부이투', 'vooy2'],
+  keyring2: ['키투', '키링2', '키링투', 'keyring2']
+};
 /** source 값 → 시트에 남길 이름. 규칙에 맞으면 그대로, 아니면 portal. */
 function qqSourceOf_(v) {
   const t = String(v == null ? '' : v).trim().toLowerCase();
@@ -1087,12 +1094,17 @@ function qqMentionMap_(fresh) {
   const map = {};
   Object.keys(QQ_TARGET_NAMES).forEach(function (nm) { map['@' + nm] = QQ_TARGET_NAMES[nm]; });
   QQ_TARGETS.forEach(function (id) { if (id !== 'all') map['@' + id] = id; });
-  // 2026-11-25 — 부계정(@큐2·@cue2·@부이2·@vooy2 …)은 명부에 등록되기 전에도 그 비서 앞으로 본다.
-  //  명부에 정식으로 올라오면 아래 루프가 덮어써서 그 아이디를 쓴다.
+  // 2026-11-25 — 숫자 부계정(@피원2·@큐3 …)은 명부에 오르기 전에도 베이스 비서 앞으로.
+  //  사용자 확정 호칭(큐투·뷔투·키투)은 그 뒤에 넣어 "@큐2" 가 cue2 로 잡히게 한다.
   Object.keys(map).forEach(function (l) {
     var id = map[l];
     if (id === 'all') return;
     for (var n = 2; n <= 9; n++) { if (!map[l + n]) map[l + n] = id; }
+  });
+  // 사용자 확정 부계정 호칭 — 명부에 같은 이름이 있으면 아래 루프가 덮어쓴다
+  Object.keys(QQ_SECONDARY).forEach(function (id) {
+    map['@' + id] = id;
+    QQ_SECONDARY[id].forEach(function (nm) { map['@' + nm] = id; });
   });
   try {
     agentRoster_().forEach(function (a) { map['@' + a.name] = a.id; map['@' + a.id] = a.id; });

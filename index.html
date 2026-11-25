@@ -1267,6 +1267,28 @@ async function agentPush(items, removed){
   } catch(e){ return null; }
 }
 /** 큐에 처음 말을 건 비서(sources_seen)를 참여자로 자동 합류 — 어느 기기에서든 @멘션으로 부를 수 있게 */
+// 2026-11-25 사용자 확정 — 부계정 비서 호칭. 명부에 오르기 전에도 @멘션·표시 이름이 맞아야 한다.
+//  · 큐투(cue2) · 뷔투(vooy2) · 키투(keyring2) — 옛 부름(@큐2·@부이2·@키링2)도 같은 사람으로 본다.
+const AGENT_SECONDARY = {
+  cue2:     {name: '큐투', icon: '🌀', color: 'cue', duty: '큐의 부계정 — 리서치·팩트체크 보조', aliases: ['큐투', '큐2', 'cue2']},
+  vooy2:    {name: '뷔투', icon: '🫛', color: 'vooy', duty: '부이의 부계정 — 비교·정리 보조', aliases: ['뷔투', '부이2', '부이투', 'vooy2']},
+  keyring2: {name: '키투', icon: '🔑', color: 'key', duty: '키링의 부계정 — 예약·전화 보조', aliases: ['키투', '키링2', '키링투', 'keyring2']}
+};
+/** id → 부계정 정보(명부에 없을 때 화면·멘션이 쓰는 기본값) */
+function agentSecondaryById(id){ return AGENT_SECONDARY[String(id || '').toLowerCase()] || null; }
+/** @이름 → id 표 — 명부 + 부계정 호칭. **명부가 먼저**라 등록된 이름이 이긴다. */
+function agentMentionMap(){
+  const map = {};
+  map['@전체'] = 'all';
+  agentMentions().forEach(a => { map['@' + (a.mentionAs || a.name)] = a.id; map['@' + a.id] = a.id; });
+  Object.keys(AGENT_SECONDARY).forEach(id => {
+    const s = AGENT_SECONDARY[id];
+    if(!map['@' + id]) map['@' + id] = id;
+    // 명부에 같은 이름이 있으면 그쪽이 이긴다 — 비어 있는 부름말만 채운다
+    (s.aliases || []).forEach(al => { if(!map['@' + al]) map['@' + al] = id; });
+  });
+  return map;
+}
 // 2026-11-25(v28): 부계정 비서(cue2·vooy2·keyring2·pi3·*_2)도 **코드 수정 없이**
 //  베이스 모델의 닉네임·이모지를 따라가게 한다. 예: cue2 → 🌀 큐2 · pi3 → 🤖 피3
 const AGENT_BASES = {
@@ -1281,6 +1303,8 @@ function agentAutoInfo(id){
   const k = String(id || '').toLowerCase();
   if(k === 'pi1') return {name: '피원', icon: '🍋', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘'};
   if(k === 'pi2') return {name: '피투', icon: '🤖', duty: 'GitHub PR/이슈·분산 실행·SNS/커머스 보조'};
+  const sec = agentSecondaryById(k);          // 사용자 확정 호칭: cue2→큐투 · vooy2→뷔투 · keyring2→키투
+  if(sec) return {name: sec.name, icon: sec.icon, duty: sec.duty};
   const m = /^([a-z][a-z_]*?)(?:_?(\d{1,2}))$/.exec(k);
   const base = m ? m[1] : k;
   const num = m ? m[2] : '';
@@ -1626,7 +1650,7 @@ function ordSenderKey(it){
   return 'portal';
 }
 function ordSenderLabel(k){
-  const a = agentById(k) || agentById('portal') || {name: '포털', icon: '🌐', color: 'me'};
+  const a = agentById(k) || agentSecondaryById(k) || agentById('portal') || {name: '포털', icon: '🌐', color: 'me'};
   // 말풍선에는 짧은 이름(@노트북 같은 부름말)을 쓴다 — '집 노트북'보다 읽기 좋다(2026-11-25 v28)
   return {name: a.mentionAs || a.name, icon: a.icon, cls: a.color};
 }
@@ -1698,9 +1722,7 @@ function ordShowReply(it){
 function ordTargetFromText(text){
   const s = String(text == null ? '' : text);
   if(s.indexOf('@') < 0) return '';
-  const map = {};
-  map['@전체'] = 'all';
-  agentMentions().forEach(a => { map['@' + (a.mentionAs || a.name)] = a.id; map['@' + a.id] = a.id; });
+  const map = agentMentionMap();
   const labels = Object.keys(map).sort((a, b) => b.length - a.length);
   for(let i = 0; i < s.length; i++){
     if(s.charAt(i) !== '@') continue;
@@ -1730,9 +1752,7 @@ function ordTargetTip(t){
 /** 본문 속 @피원 · @피투 · @큐 · @노트북 · @전체 → 하이라이트 칩 (이미 esc() 한 글자열에만 적용) */
 function ordMentionHtml(s){
   const txt = String(s == null ? '' : s);
-  const map = {};
-  map['@전체'] = 'all';
-  agentMentions().forEach(a => { map['@' + (a.mentionAs || a.name)] = a.id; map['@' + a.id] = a.id; });
+  const map = agentMentionMap();
   const labels = Object.keys(map).sort((a, b) => b.length - a.length);
   if(!labels.length) return txt;
   let out = '', i = 0;
@@ -1743,7 +1763,8 @@ function ordMentionHtml(s){
       // 이름 뒤에 글자가 붙으면(예: @피원님) 멘션이 아니다 — 다만 한글 조사는 붙는 게 자연스러워 허용
       if(!/[A-Za-z0-9_-]/.test(next)){
         const id = map[hit];
-        const cls = id === 'all' ? 'all' : (agentById(id) ? (agentById(id).color || 'new') : 'nb');
+        const a = agentById(id) || agentSecondaryById(id);
+        const cls = id === 'all' ? 'all' : (a ? (a.color || 'new') : 'nb');
         out += `<span class="mt mt-${cls}">${hit}</span>`;
         i += hit.length;
         continue;
@@ -2178,7 +2199,7 @@ function useMerge(list){
 /* ── 채팅 말풍선 ── */
 /** 참여자 색 — 말풍선·이름 배지(명부의 color). 모르는 사람은 me */
 function ordWhoCls(k){
-  const a = agentById(k);
+  const a = agentById(k) || agentSecondaryById(k);
   return 'w-' + ((a && a.color) || 'me');
 }
 function ordWhoBadge(k){

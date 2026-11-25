@@ -1192,19 +1192,19 @@ console.log('X) 🏷️ 말풍선 닉네임·이모지 · 부계정(*2·_2·pi3)
   // ② 부계정 비서 자동 합류 — 코드 수정 없이 베이스 닉네임·이모지를 따라간다
   const added = D17.run("agentAutoJoin(['cue2','vooy2','keyring2','pi3','keyring_2'])");
   ok(added.length === 5, '부계정 5개가 한 번에 합류');
-  ok(D17.run("agentById('cue2').name") === '큐2' && D17.run("agentById('cue2').icon") === '🌀', 'cue2 → 🌀 큐2');
-  ok(D17.run("agentById('vooy2').name") === '부이2' && D17.run("agentById('vooy2').icon") === '🫛', 'vooy2 → 🫛 부이2');
-  ok(D17.run("agentById('keyring2').name") === '키링2' && D17.run("agentById('keyring2').icon") === '🔑', 'keyring2 → 🔑 키링2');
+  ok(D17.run("agentById('cue2').name") === '큐투' && D17.run("agentById('cue2').icon") === '🌀', 'cue2 → 🌀 큐투');
+  ok(D17.run("agentById('vooy2').name") === '뷔투' && D17.run("agentById('vooy2').icon") === '🫛', 'vooy2 → 🫛 뷔투');
+  ok(D17.run("agentById('keyring2').name") === '키투' && D17.run("agentById('keyring2').icon") === '🔑', 'keyring2 → 🔑 키투');
   ok(D17.run("agentById('pi3').name") === '피3' && D17.run("agentById('pi3').icon") === '🤖', 'pi3 → 🤖 피3');
   ok(D17.run("agentById('keyring_2').name") === '키링2', 'keyring_2 도 같은 규칙(_2)');
-  ok(D17.run("agentById('cue2').duty") === D17.run("agentById('cue').duty"), '부계정은 베이스의 담당을 물려받는다');
+  ok(/부계정/.test(D17.run("agentById('cue2').duty")) && D17.run("agentById('cue2').icon") === D17.run("agentById('cue').icon"), '부계정은 자기 담당(부계정 일)과 베이스 이모지를 가진다');
   ok(D17.run("agentAutoInfo('pi1').name") === '피원' && D17.run("agentAutoInfo('pi4').name") === '피4', 'pi1 은 피원, pi4 는 피4');
   D17.run('renderRoom()');
   const ment17 = D17.el('ord-mentions').innerHTML;
-  ok(/@큐2/.test(ment17) && /@부이2/.test(ment17) && /@키링2/.test(ment17) && /@피3/.test(ment17), '@큐2·@부이2·@키링2·@피3 멘션 칩이 바로 생긴다');
+  ok(/@큐투/.test(ment17) && /@뷔투/.test(ment17) && /@키투/.test(ment17) && /@피3/.test(ment17), '@큐투·@뷔투·@키투·@피3 멘션 칩이 바로 생긴다');
   ok(D17.run("ordTargetFromText('@큐2 팩트체크')") === 'cue2', '글로 적은 @큐2 도 그 비서 앞으로 간다');
   const push17 = (() => { let b = null; D17.calls.forEach(c => { const x = JSON.parse(c.opts.body); if (x.action === 'agent_save') b = x; }); return b; })();
-  ok(push17 && push17.items.some(x => x.id === 'cue2' && x.name === '큐2' && x.icon === '🌀'), '합류 정보가 서버(agent_save)에도 이름·이모지와 함께 간다');
+  ok(push17 && push17.items.some(x => x.id === 'cue2' && x.name === '큐투' && x.icon === '🌀'), '합류 정보가 서버(agent_save)에도 이름·이모지와 함께 간다');
 
   // ③ 담당(duty)이 화면에 보인다 — 사용량 카드 한 줄 + 머리말 title(전체 역할표)
   ok(/총괄 조율/.test(D17.el('use-grid').innerHTML) && /팩트체크/.test(D17.el('use-grid').innerHTML), '사용량 카드에 담당 한 줄');
@@ -1292,12 +1292,27 @@ console.log('X) 💬 회의실 말풍선 — 답장 주체·대기 말풍선 정
   const failB = DX.run("chatIn(ordById('Q-b5'))");
   ok(/options\.cwd/.test(failB) && failB.indexOf('내일 일정 알려줘') < 0, '실패 말풍선에 내 말이 또 들어가지 않는다');
 
-  // ⑤ 멘션 부계정 — 명부 등록 전에도 기본 이름으로 잡는다
-  ok(DX.run("ordTargetFromText('@큐2 팩트체크')") === 'cue', '@큐2 → cue');
-  ok(DX.run("ordTargetFromText('@부이2 비교')") === 'vooy', '@부이2 → vooy');
-  ok(DX.run("ordTargetFromText('@키링2 예약')") === 'keyring', '@키링2 → keyring');
-  ok(DX.run("ordTargetFromText('@cue2 확인')") === 'cue', '@cue2 → cue');
+  // ⑤ 멘션 부계정 — 사용자 확정 호칭(큐투·뷔투·키투)은 명부 등록 전에도 그 비서 앞으로
+  ok(DX.run("ordTargetFromText('@큐투 팩트체크')") === 'cue2', '@큐투 → cue2');
+  ok(DX.run("ordTargetFromText('@큐2 팩트체크')") === 'cue2', '@큐2 → cue2');
+  ok(DX.run("ordTargetFromText('@cue2 확인')") === 'cue2', '@cue2 → cue2');
+  ok(DX.run("ordTargetFromText('@뷔투 비교')") === 'vooy2', '@뷔투 → vooy2');
+  ok(DX.run("ordTargetFromText('@부이2 비교')") === 'vooy2', '@부이2 → vooy2');
+  ok(DX.run("ordTargetFromText('@부이투 비교')") === 'vooy2', '@부이투 → vooy2');
+  ok(DX.run("ordTargetFromText('@vooy2 비교')") === 'vooy2', '@vooy2 → vooy2');
+  ok(DX.run("ordTargetFromText('@키투 예약')") === 'keyring2', '@키투 → keyring2');
+  ok(DX.run("ordTargetFromText('@키링2 예약')") === 'keyring2', '@키링2 → keyring2');
+  ok(DX.run("ordTargetFromText('@키링투 예약')") === 'keyring2', '@키링투 → keyring2');
+  ok(DX.run("ordTargetFromText('@keyring2 예약')") === 'keyring2', '@keyring2 → keyring2');
   ok(DX.run("ordTargetFromText('@피원님 확인')") === 'pi1', '조사 붙은 @피원님 은 그대로');
+  ok(DX.run("ordTargetFromText('@피원2 확인')") === 'pi1', '확정되지 않은 숫자 부계정은 베이스 비서로');
+
+  // ⑤-1 표시 이름도 자연스럽다 — 명부에 오르기 전에도 큐투·뷔투·키투
+  ok(DX.run("agentAutoInfo('cue2').name") === '큐투' && DX.run("agentAutoInfo('vooy2').name") === '뷔투' && DX.run("agentAutoInfo('keyring2').name") === '키투',
+    '자동 합류 이름이 큐투·뷔투·키투');
+  ok(DX.run("ordSenderLabel('cue2').name") === '큐투' && DX.run("ordSenderLabel('vooy2').icon") === '🫛', '말풍선 라벨도 큐투·뷔투(명부 전)');
+  ok(/mt-cue/.test(DX.run("ordMentionHtml('@큐투 이거 봐')")) && /mt-vooy/.test(DX.run("ordMentionHtml('@뷔투 이거 봐')")), '멘션 칲도 베이스 색으로 보인다');
+  ok(DX.run("agentMentionMap()['@큐투']") === 'cue2', '@큐투 가 멘션표에 있다');
 
   // ⑥ 발신자 서명 — 답장자가 바뀌면 목록을 다시 그린다
   const sigA = DX.run("ordSig([{id:'Q-x', status:'DONE', source:'portal', claimed_by:'notebook'}])");
