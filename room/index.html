@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>💬 AI 비서 회의실</title>
+<meta name="description" content="AI 비서 9명과 한 방에서 이야기하는 전용 앱 — 포털 회의실과 같은 큐를 씁니다.">
+<meta name="theme-color" content="#111A2C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AI 회의실">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- 머리말 — 방 제목 · 참여자/온라인 배지(누르면 편대 서랍) · 새로고침 -->
+  <header class="hd">
+    <div class="hd-txt">
+      <div class="hd-t"><span class="ttl">💬 AI 비서 회의실</span>
+        <button class="ppl" id="ppl" type="button" aria-haspopup="dialog" aria-controls="drawer"
+          title="편대 9명 · 사용량 · 역할 보기">
+          <i class="dot" aria-hidden="true"></i><span id="ppl-t">👥 9명</span>
+        </button>
+      </div>
+      <div class="hd-s" id="hd-s">연결 확인 중…</div>
+    </div>
+    <button class="hd-btn" id="refresh" type="button" title="새로고침" aria-label="새로고침">⟳</button>
+  </header>
+
+  <!-- 연결 안내 — 설정 전·키 오류·서버 응답 실패일 때만 -->
+  <div class="strip" id="strip" role="status">
+    <span id="strip-t"></span>
+    <button type="button" id="strip-b">설정</button>
+  </div>
+
+  <!-- 타임라인 -->
+  <main class="feed" id="feed" aria-live="polite">
+    <div class="empty">
+      <div class="big">💬</div>
+      <h3>불러오는 중…</h3>
+      <p>AI 비서 9명과 한 방에서 이야기해요.</p>
+    </div>
+  </main>
+
+  <button class="jump" id="jump" type="button">새 메시지 ↓</button>
+
+  <!-- 입력바 — 빠른 멘션 칩 · 입력창 · 전송 -->
+  <footer class="cmp">
+    <div class="chips" id="chips" role="toolbar" aria-label="빠른 멘션"></div>
+    <div class="crow">
+      <textarea class="inp" id="inp" rows="1" maxlength="2000"
+        placeholder="하고 싶은 말을 적으세요 (@노트북 …)"
+        aria-label="메시지 입력" enterkeyhint="send"></textarea>
+      <button class="send" id="send" type="button" title="보내기 (Enter)" aria-label="보내기">↑</button>
+    </div>
+    <div class="cfoot">
+      <span class="to" id="to">→ <b>@노트북</b></span>
+      <span class="n" id="cnt">0/2000</span>
+    </div>
+  </footer>
+</div>
+
+<!-- 편대 서랍 — 9명 · 사용량 % · 역할 -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-t" aria-hidden="true">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="dh">
+    <h2 id="drawer-t">👥 편대 현황</h2>
+    <button class="x" id="drawer-x" type="button" aria-label="닫기">✕</button>
+  </div>
+  <div class="dsum" id="dsum"></div>
+  <div class="dlist" id="dlist"></div>
+  <div class="dfoot">
+    <div class="ln" id="dfoot"></div>
+    <div class="btns">
+      <button type="button" id="d-refresh">⟳ 새로고침</button>
+      <button type="button" class="primary" id="d-settings">⚙️ 서버 설정</button>
+    </div>
+  </div>
+</aside>
+
+<!-- 서버 설정 — 포털과 같은 localStorage 키(portal_server_url · portal_server_key)를 씁니다 -->
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t">
+  <div class="bg" id="sheet-bg"></div>
+  <div class="card">
+    <h2 id="sheet-t">⚙️ 서버 연결</h2>
+    <p>포털과 같은 Apps Script 주소·비밀 키를 씁니다. 이미 포털에서 넣었다면 <b>자동으로 인식</b>돼요.
+      값은 이 기기에만 저장되고 코드에는 들어 있지 않습니다.</p>
+    <label for="s-url">Apps Script 웹 앱 주소</label>
+    <input id="s-url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+      placeholder="https://script.google.com/macros/s/…/exec">
+    <label for="s-key">비밀 키</label>
+    <input id="s-key" type="password" autocomplete="off" spellcheck="false"
+      placeholder="포털 시크릿 키 (32자 이상)">
+    <div class="msg" id="s-msg"></div>
+    <div class="acts">
+      <button type="button" id="s-cancel">닫기</button>
+      <button type="button" class="ok" id="s-save">연결 테스트 후 저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>

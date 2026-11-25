@@ -251,3 +251,13 @@
 
 - `affaan-m/ECC` v2.2.3에서 포털에 맞는 2개만 골라 `.claude/skills/ecc-*/`에 넣었다 — `ecc-security-review`(공개 저장소·GAS 키·`esc()` 누락·민감정보 노출) · `ecc-make-interfaces-feel-better`(폰 헤더·칩·달력의 여백·터치·모션).
 - 본문은 영어 원문 그대로, 앞머리에 이 레포 기준 한국어 메모. 고른 이유·갱신은 `.claude/skills/ECC.md`. **부딪히면 이 CLAUDE.md의 폰 화면·메모 동기화 규칙이 우선한다.**
+
+## 전용 앱 — AI 비서 회의실 (`room/`, 2026-11-25)
+
+- 포털 회의실을 **폰 홈 화면 앱**으로 따로 띄우는 화면이다: `https://s2ongrae.github.io/room/`. 포털의 다른 메뉴(달력·주식·보험)는 없다 — 방 제목·편대/사용량 서랍·타임라인·입력바뿐.
+- **`index.html`·`apps-script/Code.gs` 를 건드리지 않는다.** `room/` 폴더 안에서만 고친다(`index.html`, `app.css`, `app.js`, `manifest.webmanifest`, `sw.js`, `icons/`).
+- 같은 큐·같은 키를 쓴다: `queue_list`(limit ≤ 20) · `usage_get` · `queue_status` · 전송은 `queue_enqueue`(`type:'claude_prompt'`, `payload.kind:'chat'`, `payload.target`). 인증은 포털과 같은 localStorage `portal_server_url`·`portal_server_key` 라서 포털에 넣은 기기면 자동 인식된다. **주소·키는 코드에 넣지 않는다.**
+- 편대 9명(피원·피투·노트북·큐·큐투·부이·뷔투·키링·키투)과 `@전체` 멘션 칩은 `app.js` 의 `ROOM_AGENTS`·`ROOM_CHIPS` 한 곳에서만 고친다.
+- 앱 안에서 승인·오더 실행은 하지 않는다(대화 전용). 승인은 포털 회의실에서.
+- `sw.js` 는 **네트워크 우선**이라 예전 화면이 남지 않는다(캐시는 오프라인 껍데기용, `room-` 접두사만 지운다).
+- 테스트: `node tests/room.test.js` (매니페스트·아이콘·SW·문법·`<ROOM_CORE>` 순수 로직 150건). `npm test` 에 포함돼 있다.
