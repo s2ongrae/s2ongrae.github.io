@@ -130,7 +130,13 @@ function roomReplyKey(it){
 }
 function roomReplyWhoKey(it){
   const st = String((it && it.status) || '').toUpperCase();
-  if(ROOM_ANSWERED[st]) return roomReplyKey(it);
+  if(ROOM_ANSWERED[st]){
+    const k = roomReplyKey(it);
+    if(k !== 'portal') return k;            // 실제로 답한 비서
+    // 답한 사람 기록이 없는 오래된 줄은 "나"가 아니라 **시킨 상대**가 답한 것으로 그린다
+    const tg = roomTargetKey(it);
+    return tg === 'portal' ? k : (tg === 'all' ? 'notebook' : tg);
+  }
   const tg = roomTargetKey(it);
   return (tg === 'all' || tg === 'portal') ? roomSenderKey(it) : tg;
 }
@@ -201,6 +207,13 @@ function roomAgo(min){
   const h = Math.floor(n / 60), m = Math.round(n % 60);
   if(h < 24) return m ? h + '시간 ' + m + '분 전' : h + '시간 전';
   return Math.floor(h / 24) + '일 전';
+}
+/** 받침에 맞는 조사 — '부이'→가, '노트북'→이, 모르는 글자(영문)는 '이(가)' */
+function roomJosa(word, withBatchim, noBatchim){
+  const s = String(word || '').trim();
+  const last = s.charCodeAt(s.length - 1);
+  if(last >= 0xAC00 && last <= 0xD7A3) return ((last - 0xAC00) % 28) ? (withBatchim || '이') : (noBatchim || '가');
+  return (withBatchim || '이') + '(' + (noBatchim || '가') + ')';
 }
 /** 잔여 % → 상태 (포털과 같은 기준: 위험 <10 · 임박 <30) */
 function roomUseState(pct){
@@ -465,9 +478,10 @@ function roomOnlineCount(items, hb, now){
     if(st === 'PENDING'){
       cls = 'sys';
       const tg = roomTargetKey(it);
+      const tl = roomTargetLabel(tg);
       const wait = (tg === 'notebook' || tg === 'all')
         ? '노트북이 60초마다 확인해요'
-        : roomTargetLabel(tg).label + '가 다음 확인 때 읽어요';
+        : tl.label + roomJosa(tl.name, '이', '가') + ' 다음 확인 때 읽어요';
       inner = '<span class="typing"><i></i><i></i><i></i></span>차례를 기다려요 — ' + esc(wait);
     } else if(st === 'WAITING_APPROVAL'){
       inner = (chat ? '이건 실행이 필요해 보여요. ' : '') + '승인은 포털 회의실에서 해주세요 (15분 안에).';

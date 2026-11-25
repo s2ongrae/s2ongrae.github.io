@@ -136,7 +136,7 @@ function coreTests() {
   const names = ['ROOM_AGENTS', 'ROOM_CHIPS', 'ROOM_ALIASES', 'roomAgentById', 'roomMentionMap', 'roomTargetFromText',
     'roomSenderKey', 'roomIsMine', 'roomTargetKey', 'roomTargetLabel', 'roomReplyKey', 'roomReplyWhoKey',
     'roomNeedsWorker', 'roomIsPlainReply', 'roomShowReply', 'roomMsgText', 'roomStatus', 'roomWhen', 'roomDay',
-    'roomAgo', 'roomUseState', 'roomMd', 'roomLinks', 'roomWsPick', 'roomWsName', 'roomLastActivity', 'roomOnlineCount', 'esc'];
+    'roomAgo', 'roomUseState', 'roomMd', 'roomLinks', 'roomWsPick', 'roomWsName', 'roomJosa', 'roomLastActivity', 'roomOnlineCount', 'esc'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -181,6 +181,8 @@ function coreTests() {
   ok(C.roomTargetLabel('keyring2').label === '@키투', '부계정 라벨 @키투');
   ok(C.roomReplyKey({status: 'DONE', source: 'portal', replied_by: 'cue2'}) === 'cue2', '답장은 실제 답한 비서(cue2)');
   ok(C.roomReplyWhoKey({status: 'PENDING', target: 'cue', source: 'portal'}) === 'cue', '대기 중이면 받을 비서(cue) 앞에서 기다림');
+  ok(C.roomReplyWhoKey({status: 'DONE', source: 'portal', target: 'notebook'}) === 'notebook', '답한 사람 기록이 없으면 나(성래 님)가 아니라 시킨 상대가 답한 것으로');
+  ok(C.roomReplyWhoKey({status: 'DONE', source: 'portal', target: 'all'}) === 'notebook', '@전체 오더는 노트북이 답함');
   ok(C.roomReplyWhoKey({status: 'PENDING', target: 'all', source: 'portal'}) === 'portal', '@전체 대기는 말한 사람 앞');
   ok(C.roomNeedsWorker({kind: 'chat', target: 'cue', source: 'portal'}) === true, '내가 @큐 앞에 남긴 말은 처리자가 있음');
   ok(C.roomNeedsWorker({kind: 'chat', target: 'portal', source: 'cue2'}) === false, '비서가 나에게 남긴 순수 답장은 처리자 없음');
@@ -205,6 +207,9 @@ function coreTests() {
   ok(C.roomAgo(0.4) === '방금', '방금');
   ok(C.roomAgo(3) === '3분 전', '3분 전');
   ok(C.roomAgo(65) === '1시간 5분 전', '1시간 5분 전');
+  ok(C.roomJosa('부이', '이', '가') === '가' && C.roomJosa('큐', '이', '가') === '가', '받침 없으면 가');
+  ok(C.roomJosa('노트북', '이', '가') === '이' && C.roomJosa('키링', '이', '가') === '이', '받침 있으면 이');
+  ok(C.roomJosa('cue', '이', '가') === '이(가)', '한글이 아니면 이(가)');
   ok(C.roomUseState(5) === 'danger' && C.roomUseState(20) === 'soon' && C.roomUseState(50) === 'ok' && C.roomUseState(null) === 'unknown', '잔여 % 기준(위험<10·임박<30)');
 
   console.log('J) 말풍선 마크다운 — 안전(escape) + 줄바꿈·굵게·목록·코드·멘션');
