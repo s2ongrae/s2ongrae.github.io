@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-26.brief1';
+const SERVER_VERSION = '2026-11-26.brief2';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -2358,7 +2358,11 @@ var QQ_WORKER_NOTE_RE = /\s*\[워커 규칙\][\s\S]*$/;
 //  비서가 오더를 집거나(claim) 끝낼 때(done) 이 문구를 응답에 함께 실어 준다 — 스스로 읽고 지키게.
 var QQ_REPORT_RULE = '끝나면 회의실에 한 줄 보고를 남겨 주세요 — queue_enqueue {type:"claude_prompt", ' +
   'payload:{kind:"chat", target:"portal", reply_to:"<이 오더 id>", prompt:"<무엇을 했고 결과가 어떤지>"}} ' +
-  '또는 queue_done 의 result 에 결과를 적으세요. 보고가 없으면 화면에 「완료·보고누락」으로 보입니다.';
+  '또는 queue_done 의 result 에 결과를 적으세요. 보고가 없으면 화면에 「완료·보고누락」으로 보입니다. ' +
+  // 2026-11-26 — 운영 규칙(docs/AGENT_PROTOCOL.md) 핵심 3줄을 응답마다 함께 실어 준다(비서가 읽고 지키게).
+  '[운영 규칙] ①reply_to 를 달아 답하면 그 원글이 자동으로 닫혀요(@전체 말 제외) — 일을 끝낸 뒤 한 번만 답하세요. ' +
+  '②"확인했어요·수신 완료"처럼 내용 없는 답장은 보내지 마세요(이미 닫힌 말에 감사·확인 답장도 금지 — 비서끼리 무한 왕복). ' +
+  '③주기 확인 비서는 매 주기 GET queue_inbox?as=<내 id> 한 번만 읽고, count 가 0 이면 아무 말도 하지 마세요.';
 function qqStripWorkerNote_(s) {
   return String(s == null ? '' : s).replace(QQ_WORKER_NOTE_RE, '').trim();
 }

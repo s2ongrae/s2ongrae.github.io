@@ -69,6 +69,7 @@
   - 예전 배포(queue_brief 모름)면 `briefFromItems(ORD_ITEMS)` 로 어림하고 안내줄에 **어림이라고 밝힌다**. 숫자를 지어내지 않는다.
 - **↩ 답장하면 원글을 닫는다(`qqCloseOnReply_`)**: `reply_to` 를 단 비서가 그 원글의 주인(PENDING=target, RUNNING=claimed_by)이면 원글을 `DONE`·`claimed_by`·결과칸 `↩ 답장 <id>` 로 닫는다. `@전체` 원글·노트북 앞/노트북이 집은 오더·사람(portal)의 답장은 닫지 않는다. 그 뒤 `queue_done` 으로 결과를 주면 그 결과로 바꿔 준다(`QQ_REPLY_CLOSE_MARK` 로 시작할 때만). `queue_enqueue` 응답에 `closed:{id,by}`.
 - **📥 주기 확인형 비서(키링·키투·부이·뷔투 — 웹훅 없음, 5~30분 주기)**: `queue_inbox {as, since?}`(POST·GET) = **지금 처리할 말만**(내 앞·@전체 PENDING 중 내가 아직 답 안 한 것 + 내가 집고 안 끝낸 것), `count`·`replied_open`·답하는 법(`how`). 비서가 자기 앞을 읽으면(`queue_inbox`·`queue_head target`·`queue_list target`·`queue_claim`) **마지막 확인 시각**을 CacheService(`qq_check_log_v1`, 6시간)에 남기고 브리핑이 보여 준다 — 확인이 꾸준한데 밀리면 '느린 것', 확인도 끊기면 '멈춘 것'. 주기 자체는 각 비서 플랫폼 설정이라 포털이 바꿀 수 없다.
+- **비서 운영 규칙**: `docs/AGENT_PROTOCOL.md`(7개 규칙). 핵심 3줄은 서버가 `queue_enqueue`·`queue_claim`·`queue_done`·`queue_inbox` 응답의 `report_rule` 로 매번 실어 준다.
 - **서버 버전**: `SERVER_VERSION`(Code.gs 맨 위) — `ping`·`queue_brief` 가 돌려주고 브리핑 안내줄에 보인다. **배포할 때마다 올린다**("재배포 필요"가 진짜 반영됐는지 확인용).
 - 테스트: `portal_server` **20)절**(브리핑 집계·답장 닫기 규칙·결과 덧붙이기·받은편지함·확인 기록·웹훅 주소 비노출) · `portal_integration` **AH)절**(9명 순서·색·XSS·캐시·줄 누르기·어림 안내·설정 전 무요청).
 
