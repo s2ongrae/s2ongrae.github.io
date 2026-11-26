@@ -1949,7 +1949,7 @@ function agentAutoInfo(id){
 // 사람이 아닌 별칭(피원이 쓰던 이름)은 합류시키지 않는다 — 화면이 이미 pi1 로 읽는다.
 /* ── 🎨 비서 마크 (2026-11-26) ─────────────────────────────
  *  아이콘만 보고는 9명이 안 구분된다는 요청(피원·피투 / 큐·큐투 / 부이·뷔투 / 키링·키투).
- *  · 계열 = 글리프 + 색 : 피클(ㄹ·초록) · 큐(손·슬레이트) · 부이(V·보라) · 키링(열쇠·앰버) · 노트북(모니터·블루)
+ *  · 계열 = 글리프 + 색 : 피클(오이·초록) · 큐(손·슬레이트) · 부이(V·보라) · 키링(열쇠·앰버) · 노트북(모니터·블루)
  *  · 호기 = 1호기 채움 / 2호기 밝은 바탕 + 계열 테두리 + 숫자 배지 — 색을 못 가려도 모양으로 읽힌다.
  *  외부 CDN·이미지 없이 인라인 SVG 라서 오프라인·작은 화면에서도 깨지지 않는다.
  */
@@ -1971,8 +1971,11 @@ const MARK_SEED = {
 /** 집합 이름 → 계열(새 부계정 큐3·피4 도 코드 수정 없이 같은 계열로) */
 const MARK_BASE = {pi: 'pi', cue: 'cue', vooy: 'vooy', buy: 'vooy', key: 'key', keyring: 'key', nb: 'nb', notebook: 'nb', portal: 'me'};
 const MARK_GLYPH = {
-  // 피클 — 내 캐릭터 자음 ㄹ
-  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 5.6H18.8V11.4H6.9V17.2H18.8" fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  // 피클 — 피클(오이) 실루엣 + 꼭지
+  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
+    '<path d="M12 4.1c1.5 0 2.5.8 3.1 2 1.4.3 2.3 1.4 2.5 2.7 1 .6 1.6 1.7 1.6 2.9 0 .9-.4 1.8-1 2.4.5.6.8 1.3.8 2.1 0 1.7-1.3 3-3 3-.6 0-1.2-.2-1.6-.5-.6.6-1.5 1-2.4 1s-1.8-.4-2.4-1c-.5.3-1 .5-1.6.5-1.7 0-3-1.3-3-3 0-.8.3-1.5.8-2.1-.6-.6-1-1.5-1-2.4 0-1.2.6-2.3 1.6-2.9.2-1.3 1.1-2.4 2.5-2.7C9.5 4.9 10.5 4.1 12 4.1z"/>' +
+    '<path d="M12.4 4.4c-.1-1.1.3-1.9 1.2-2.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>' +
+    '</g></svg>',
   // 큐(Manus) — 손바닥과 세 손가락(마누스의 손 마크 감각)
   cue: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
     '<rect x="7.4" y="10.2" width="9.4" height="9" rx="3.4"/>' +

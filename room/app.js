@@ -52,7 +52,7 @@ function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
 }
 /* ── 🎨 비서 마크 (2026-11-26) — 아이콘만으로 9명이 안 구분돼서 (포털 index.html 과 같은 규칙)
- *  계열 = 글리프 + 색(피클 ㄹ·초록 / 큐 손·슬레이트 / 부이 V·보라 / 키링 열쇠·앰버 / 노트북 모니터·블루)
+ *  계열 = 글리프 + 색(피클 오이·초록 / 큐 손·슬레이트 / 부이 V·보라 / 키링 열쇠·앰버 / 노트북 모니터·블루)
  *   호기 = 1호기 채움 / 2호기 밝은 바탕 + 계열 테두리 + 숫자 배지 — 작은 폰 화면에서도 모양으로 읽힌다. */
 const ROOM_MARKS = {
   pi1:      {c: 'mk-pi1',   g: 'pi',   n: 1},
@@ -69,7 +69,10 @@ const ROOM_MARKS = {
 };
 const ROOM_MARK_BASE = {pi: 'pi', cue: 'cue', vooy: 'vooy', buy: 'vooy', key: 'key', keyring: 'key', nb: 'nb', notebook: 'nb', portal: 'me'};
 const ROOM_GLYPH = {
-  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 5.6H18.8V11.4H6.9V17.2H18.8" fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
+    '<path d="M12 4.1c1.5 0 2.5.8 3.1 2 1.4.3 2.3 1.4 2.5 2.7 1 .6 1.6 1.7 1.6 2.9 0 .9-.4 1.8-1 2.4.5.6.8 1.3.8 2.1 0 1.7-1.3 3-3 3-.6 0-1.2-.2-1.6-.5-.6.6-1.5 1-2.4 1s-1.8-.4-2.4-1c-.5.3-1 .5-1.6.5-1.7 0-3-1.3-3-3 0-.8.3-1.5.8-2.1-.6-.6-1-1.5-1-2.4 0-1.2.6-2.3 1.6-2.9.2-1.3 1.1-2.4 2.5-2.7C9.5 4.9 10.5 4.1 12 4.1z"/>' +
+    '<path d="M12.4 4.4c-.1-1.1.3-1.9 1.2-2.4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>' +
+    '</g></svg>',
   cue: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
     '<rect x="7.4" y="10.2" width="9.4" height="9" rx="3.4"/>' +
     '<rect x="8.2" y="5.8" width="2.4" height="6.6" rx="1.2"/>' +
