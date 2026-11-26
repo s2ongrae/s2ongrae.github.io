@@ -70,11 +70,12 @@
   `＋ 비서 추가`/🗑. 값은 이 기기 `localStorage.portal_use_v1` 이 기본이고, 서버가 알면 `usage_set`/`usage_report` 로 Drive
   `김성래포털/포털_비서사용량.json` 에도 남긴다(at 이 더 최근인 값이 이김). **사람이 안 넣어도 비서가 자기 줄을 보고한다**(v27 — 아래). **토큰 0원.**
 - **타임라인**: 오더 하나가 말풍선 두 개다 — 오른쪽(`chat-row out`) = 보낸 말, 왼쪽(`chat-row in`) = 비서의 진행·승인·답장·결과.
-  **비서가 낸 말은 오른쪽이 아니라 왼쪽에 그린다(2026-11-25 v28)** — `chatOut(it, !ordIsMine(it))` 로 `chat-row in`·`chat-bubble side-in`, 아바타는 그 비서 이모지. 오른쪽 파란 말풍선은 `source`가 portal·phone·telegram(레이 님)일 때만.
+  **비서가 낸 말은 오른쪽이 아니라 왼쪽에 그린다(2026-11-25 v28)** — `chatOut(it, !ordIsMine(it))` 로 `chat-row in`·`chat-bubble side-in`, 아바타는 그 비서 **마크**(`agentMark` — 계열 색·글리프 + 1·2 배지, 2026-11-26). 오른쪽 파란 말풍선은 `source`가 portal·phone·telegram(레이 님)일 때만.
   `ordVisible()` 필터(상태: 전체/진행/승인/끝남 · 발신: 전체/피원/피투/포털)를 거쳐 **오래된 것 위 → 새 것 아래**로 그린다.
-  **왼쪽 말풍선 머리(2026-11-25 v28)**: 그 말을 낸 비서의 **닉네임·전용 이모지**를 그린다 — 🍋 피원 · 🤖 피투 · 🌀 큐 · 🫛 부이 · 🔑 키링 · 🖥️ 노트북(`ordSenderLabel`, 아바타도 같은 이모지).
+  **왼쪽 말풍선 머리(2026-11-25 v28 · 2026-11-26 마크)**: 그 말을 낸 비서의 **닉네임·마크**를 그린다 — 피클(오이·초록) 피원·피투 / 큐(손·슬레이트) / 부이(V·바이올렛) / 키링(열쇠·앰버) / 노트북(모니터·블루).
+  **🎨 비서 마크(2026-11-26)**: `agentMark(id)` 한 곳이 아바타·이름 배지·대상 칩·발신 필터·지금 작업 중·사용량 카드·역할표를 모두 그린다. **계열 = 글리프+색**, **호기 = 1호기 채움 / 2호기 밝은 바탕+계열 테두리+숫자 배지**(색을 못 가려도 모양·숫자로 읽힌다). 외부 CDN 없이 인라인 SVG(`MARK_GLYPH`) — 오프라인·작은 화면에서 안 깨진다. `icon`(이모지)은 **데이터·select option·토스트**에만 남는다. 회의실 PWA 는 `roomMark`/`ROOM_GLYPH` 로 같은 규칙을 복제한다(`<ROOM_CORE>` 안, DOM 없음).
   예전처럼 모든 왼쪽 말풍선이 '🏠 집 노트북'으로 보이지 않는다(`ordSenderKey` 가 발신 id 를 명부에서 찾는다).
-  **부계정 비서 자동 이름(2026-11-25 v28)**: `cue2` · `vooy2` · `keyring2` · `pi3` · `*_2` 처럼 번호가 붙은 id 는 `agentAutoInfo()` 가 베이스 이름+번호·같은 이모지·같은 담당으로 읽는다(🌀 큐2 · 🫛 부이2 · 🔑 키링2 · 🤖 피3). 코드 수정 없이 합류된다.
+  **부계정 비서 자동 이름(2026-11-25 v28)**: `cue2` · `vooy2` · `keyring2` · `pi3` · `*_2` 처럼 번호가 붙은 id 는 `agentAutoInfo()` 가 베이스 이름+번호·같은 담당으로 읽고, 마크는 `markInfo()` 가 **같은 계열 + 2호기 테두리 + 숫자 배지**로 그린다(큐/큐투 · 부이/뷔투 · 키링/키투 · 피3). 코드 수정 없이 합류된다.
 - **입력바**: 프리셋(`ORD_PRESETS`, 채우기만) · 대상 칩(`@전체 @피원 @피투 @노트북`) · 모드(💬대화 / 📦오더 / ✏️수정 — 체크박스 `#ord-edit-mode` 와 같은 값을 본다) · 발신 select.
 - **대화(kind='chat')**: `claude_prompt` + `payload.kind='chat'` + `target`. 노트북(`hub-agent lib/chat.js`)이 코드가 아니라
   "이렇게 하겠습니다" 답장을 `result` 에 쓴다. 같은 큐·같은 시트 규격이라 **Queue 타입 추가 없음**.
@@ -89,7 +90,7 @@
 - **명부 서버 공유(2026-11-25, v27)**: `agents_get`/`agent_save` — 드라이브 `김성래포털/포털_비서목록.json`.
   `＋추가`·`🗑 빼기` 가 서버에 오르고, 앱을 열 때 `agentServerGet()` 이 합친다(id 같으면 `at` 최신 이름이 이김).
   빼기는 `removed:[{id, at}]` 로 **뺀 시각**까지 남겨 다른 기기에서도 다시 그려지지 않는다(최근 50건).
-  **자동 합류**: `queue_list.sources_seen`(최근 400행의 발신자, portal 제외)에 처음 보이는 비서는 `agentAutoJoin` 이 참여자로 넣고 서버에도 올린다 — `cue2`·`keyring2` 처럼 나중에 붙는 부계정 비서도 어느 폰에서든 `@멘션` 된다. 이름·이모지·담당은 `agentAutoInfo` 가 베이스에서 추론한다.
+  **자동 합류**: `queue_list.sources_seen`(최근 400행의 발신자, portal 제외)에 처음 보이는 비서는 `agentAutoJoin` 이 참여자로 넣고 서버에도 올린다 — `cue2`·`keyring2` 처럼 나중에 붙는 부계정 비서도 어느 폰에서든 `@멘션` 된다. 이름·담당은 `agentAutoInfo` 가, 마크는 `markInfo` 가 베이스에서 추론한다.
   `queue_list.targets`·`sources`·`usage_get.ids` 는 기본 목록 + 명부의 추가 비서 id 를 함께 준다(새 비서도 바로 필터·멘션에 잡힌다).
   기본 참여자(예약 id)는 서버 파일에 쌓지 않는다(화면 `AGENT_SEED`·서버 `AG_BUILTINS` 가 진짜). 예전 배포면 `AG_SRV=false` 로 조용히 이 기기 명부만 쓴다.
 - **@멘션 → 대상**: 칩을 누르지 않고 본문에 `@큐`·`@키링`·`@부이2` 라고 써도 그 비서 앞으로 간다(`ordTargetFromText`, 서버도 `qqMentionOf_` 로 한 번 더).
@@ -103,7 +104,7 @@
   · `qqSummary_` 는 저장된 프롬프트에서 `\s*\[워커 규칙\][\s\S]*$` 를 떼고 요약한다(**이미 저장된 옛 줄도 같이 깨끗해진다** — 요약은 저장값이 아니라 payload 에서 매번 만든다). 대화 요약에는 `클로드: ` 접두사도 붙이지 않는다.
   · 화면은 `ordStripNote`/`ordSumLine`(index.html)으로 말풍선·실행 중 카드·관제 카드·오더 요약에서 문구를 한 번 더 뗀다(옛 줄·다른 경로 방어).
   · 같은 규칙을 노트북 쪽 `hub-agent/gas/CommandQueue.gs`(`cqWithWorkerNote_`·`cqPayloadSummary_`)와 `lib/approval.js` 에도 넣었다 — **양쪽 재배포가 있어야 완전**하다.
-- **말풍선 주체는 '답한 비서'(2026-11-25, v32)**: 답장·진행·결과 말풍선의 이름·이모지는 원 질문자 `source` 가 아니라
+- **말풍선 주체는 '답한 비서'(2026-11-25, v32)**: 답장·진행·결과 말풍선의 이름·마크는 원 질문자 `source` 가 아니라
   `replied_by`/`claimed_by` 다(`ordReplyKey`·`ordReplyWhoKey`). 노트북이 답한 말이 `🌐 포털` 로 보여 "내가 답하려는 것 같다"로 읽혔다.
   RUNNING·PENDING 이면 받을 비서(`ordTargetKey`)가 왼쪽에 선다.
 - **순수 답장에는 대기 말풍선을 달지 않는다(2026-11-25, v32)**: 비서가 포털·다른 비서 앞에 남긴 `kind='chat'` 답장은 아무도 집지 않는다.
@@ -165,10 +166,10 @@
   **깨면 안 되는 계약(테스트가 문자열로 본다)**: `class="order-card room-card"` · `<details class="room-use"` · `chat-row in/out` · `chat-av` · `chat-bubble side-in` · `chat-day` · `mt mt-…` · `who w-…` · `#room-people`·`#ord-presets`·`#ord-mentions`·`#ord-mode`·`#ord-who` · `#room-live`(지금 작업 중 판).
 - **🔴 지금 작업 중(2026-11-26)**: 회의실 머리말 바로 아래 `#room-live`(`renderLive()`)가 **지금 도는 일**과 **누가 일하는지**를 한 판에 보여준다.
   · **작업중 리스트** = 처리할 사람이 있는 오더(`RUNNING`·`WAITING_APPROVAL`·`REVIEW_NEEDED`·`PENDING`)를 `실행 중 → 승인 → 검토 → 차례 대기` 순으로 한 줄씩.
-    줄에는 **담당(이모지+이름) · 요청 요약(70자, `[워커 규칙]`·`클로드:` 제거) · 상태 알약 · 경과**(`.ord-elapsed` 1초 갱신, 승인은 `.ord-cd` 카운트다운)이 들어가고, 1시간 넘게 신호가 없으면 `⚠ 정체 의심`.
+    줄에는 **담당(마크+이름) · 요청 요약(70자, `[워커 규칙]`·`클로드:` 제거) · 상태 알약 · 경과**(`.ord-elapsed` 1초 갱신, 승인은 `.ord-cd` 카운트다운)이 들어가고, 1시간 넘게 신호가 없으면 `⚠ 정체 의심`.
     순수 답장(`ordIsPlainReply`)은 일이 아니라서 뺀다 — 머리말 '대기' 수와 같은 규칙.
   · **담당 판정(`ordLiveOwner`)**: 실행 중이면 잡은 사람(`claimed_by`), 아니면 받을 사람(`payload.target`). `@전체`는 아직 주인 없어 `👥 전체`,
-    대상 칸이 빈 옛 줄은 본문 `@이름`(`ordTargetFromText`)으로 한 번 더 본다. 명부에 없는 부계정도 `agentAutoInfo` 로 이름·이모지가 붙는다.
+    대상 칸이 빈 옛 줄은 본문 `@이름`(`ordTargetFromText`)으로 한 번 더 본다. 명부에 없는 부계정도 `agentAutoInfo` 로 이름이, `markInfo` 로 마크가 붙는다.
   · **가동 상태(`ordAgentAct`)**: ① 그 일을 잡고 있나(**작업 중**) → ② 이번 주기 잔여 0%(**한도 소진**) → ③ 30분 안 신호·회의실 활동(**대기**)
     → ④ 하루 안 신호(**쉬는 중**) → ⑤ 하루 넘음(**응답 없음**) → ⑥ 근거 없음(**미확인**). 신호는 `status/agent.json`·`status/pi2.json`·`agent_beat`(=`AGENT_DATA`),
     상태 파일이 없는 비서는 **회의실 활동**(`source`/`claimed_by`/`replied_by`), 노트북은 `queue_status` 하트비트(`state:'unknown'` 은 신호로 안 침)까지 본다.
