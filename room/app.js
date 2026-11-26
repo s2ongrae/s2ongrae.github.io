@@ -593,7 +593,7 @@ function roomOnlineCount(items, hb, now){
   }
   function emptyChat(){
     return '<div class="empty"><div class="big">💬</div><h3>AI 비서 9명이 기다리고 있어요</h3>' +
-      '<p>아래에 말을 걸면 노트북이 바로 답하고,<br>@이름 으로 부르면 그 비서 몫으로 남아요.</p>' +
+      '<p>아래에 말을 걸면 등록된 비서들이 다음 확인 때 답하고,<br>@노트북 을 부르면 집 노트북이 바로 실행해요.</p>' +
       '<div class="eg">' +
       '<button type="button" data-fill="@노트북 지금 큐에 밀린 것 3줄로 알려줘"><b>지금 상황 3줄로</b><i>@노트북 · 바로 답해요</i></button>' +
       '<button type="button" data-fill="@큐 이번 주 대전 로컬 맛집 후보 3곳만 근거랑 같이"><b>맛집 후보 3곳</b><i>@큐 · 리서치</i></button>' +
