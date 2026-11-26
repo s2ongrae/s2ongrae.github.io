@@ -1162,7 +1162,9 @@ const QQ_SCAN_ROWS = 400;                          // 목록·중복 확인용�
 const QQ_DEDUPE_MS = 5 * 60000;                    // 같은 비멱등 오더 재접수 방지 창
 const QQ_APPROVAL_TTL_MS = 15 * 60000;             // 승인 대기 15분 (워커와 같은 값)
 const QQ_MAX_PAYLOAD = 4000;                       // CommandQueue 와 같은 payload 상한(자)
-const QQ_MAX_PROMPT = 2000;                        // 오더 글 길이 상한
+const QQ_MAX_PROMPT = 2000;                        // 오더 글 길이 상한(입력)
+// 2026-11-26 — 화면에 보이는 대화·답장은 자르지 않는다. 시트 셀 한도(50,000자)만 방어선으로 둔다.
+const QQ_CELL_MAX = 50000;
 const QQ_FINAL = { DONE: true, FAILED: true, REJECTED: true, EXPIRED: true, REVIEW_NEEDED: true };
 // 사후 게이트가 main 반영을 보류하고 auto-review 브랜치에 보존한 상태(사람이 병합)
 const QQ_REVIEW = 'REVIEW_NEEDED';
@@ -1332,7 +1334,8 @@ function qqHashPayload_(payload) {
   return qqHash_(qqCanonical_(isObj(obj) ? obj : {}));
 }
 
-/** 화면·기록에 내보내기 전 가림: 비밀 키·토큰 모양·주민/전화번호 → [REDACTED] */
+/** 화면·기록에 내보내기 전 가림: 비밀 키·토큰 모양·주민/전화번호 → [REDACTED]
+ *  max 를 주지 않으면(또는 0 이하) 시트 셀 한도(QQ_CELL_MAX)만 적용한다 — 대화 본문·답장은 자르지 않는다(2026-11-26). */
 function qqMask_(s, max) {
   let t = String(s == null ? '' : s);
   const sk = secretKey();
@@ -1341,7 +1344,8 @@ function qqMask_(s, max) {
   t = t.replace(/\b\d{6}[-– ]?[1-4]\d{6}\b/g, '[REDACTED]')
        .replace(/\b01[016789][-– ]?\d{3,4}[-– ]?\d{4}\b/g, '[REDACTED]')
        .replace(/\b0(?:2|3[1-9]|[4-6]\d|70)[-– ]?\d{3,4}[-– ]?\d{4}\b/g, '[REDACTED]');
-  return t.length > max ? t.slice(0, max) + '…' : t;
+  const lim = (max === undefined || max === null || Number(max) <= 0) ? QQ_CELL_MAX : Math.min(Number(max), QQ_CELL_MAX);
+  return t.length > lim ? t.slice(0, lim) + '…' : t;
 }
 
 function qqParse_(s) {
@@ -1373,7 +1377,9 @@ function qqRowTarget_(r) {
   return t ? clip(t, 12) : 'notebook';
 }
 
-/** 목록에 보일 한 줄 요약 — 긴 프롬프트는 줄이고 가린다. payload 원문은 내보내지 않는다. */
+/** 목록에 보일 한 줄 요약 — 긴 프롬프트는 줄이고 가린다. payload 원문은 내보내지 않는다.
+ *  · 대화(kind='chat')는 요약이 아니라 **말풍선 본문 그 자체**다 — 줄바꿈을 살리고 자르지 않는다(2026-11-26).
+ *  · 웹훅으로 받는 비서도 이 값을 그대로 읽으므로, 여기서 자르면 요청을 못 읽는다. */
 function qqSummary_(type, p) {
   let s = '';
   if (type === 'git_pull') s = '코드 최신화 (git pull --ff-only)';
@@ -1382,9 +1388,13 @@ function qqSummary_(type, p) {
     const eng = String(p.engine || '').toLowerCase();
     const kind = String(p.kind || '').toLowerCase();
     // 큐가 붙인 [워커 규칙] 은 실행 규칙이지 사람이 읽을 내용이 아니다 — 요약에서는 뗀다(2026-11-25).
-    //  대화(kind='chat')는 '클로드: ' 접두사도 붙이지 않는다(말풍선에 그대로 보이던 것).
-    const body = qqStripWorkerNote_(p.prompt).replace(/\s+/g, ' ');
-    s = (kind === 'chat' ? '' : '클로드: ') + body.slice(0, 160) +
+    const raw = qqStripWorkerNote_(p.prompt);
+    if (kind === 'chat') {
+      // 대화는 '클로드: ' 접두사도, 160자 컷도, 공백 뭉개기도 없다. 원문 그대로(줄바꿈 보존).
+      return qqMask_(raw.replace(/\r\n?/g, '\n'), QQ_CELL_MAX);
+    }
+    const body = raw.replace(/\s+/g, ' ');
+    s = '클로드: ' + body.slice(0, 160) +
       (String(p.mode || '').toLowerCase() === 'edit' ? ' (파일 수정)' : '') +
       (eng && eng !== 'auto' ? ' · 엔진 ' + eng : '');
   } else if (type === 'git_push') s = '깃 푸시 → ' + String(p.branch || '(브랜치 없음)');
@@ -1420,9 +1430,9 @@ function qqItem_(r) {
     attempts: Number(r.attempts || 0),
     // 누가 낸 오더인가(portal · pi1 · pi2) — 회의실 말풍선 색·필터가 이 값을 쓴다.
     source: clip(String(r.source == null ? '' : r.source).trim().toLowerCase(), 20),
-    // 채팅 답장은 길어서 조금 더 보여 준다(워커 result 상한 500자).
-    result: qqMask_(r.result, 500),
-    error: qqMask_(r.error, 200),
+    // 대화 답장·실행 결과는 자르지 않는다 — 시트 셀 한도까지만(2026-11-26).
+    result: qqMask_(r.result, QQ_CELL_MAX),
+    error: qqMask_(r.error, QQ_CELL_MAX),
     approval_by: clip(r.approval_by, 20),
     branch: clip(r.branch, 120),
     block_reason: qqMask_(r.block_reason, 400),
@@ -2062,7 +2072,8 @@ function qqWebhookMap_() {
   return out;
 }
 /**
- * 웹훅 본문 — 큐투 요구 규격 그대로 { id, target, mentions, summary, created_at }.
+ * 웹훅 본문 — 큐투 요구 규격 { id, target, mentions, summary, created_at } 에
+ *  잘리지 않은 원문 `prompt` 를 더한다(2026-11-26 · 기존 키는 그대로라 호환).
  *  · target === 'all' 이어도 이 비서 이름이 mentions 에 반드시 들어간다.
  *  · 원본 mentions 배열은 건드리지 않고 **복사본**에만 붙인다.
  */
@@ -2072,11 +2083,15 @@ function qqWebhookBody_(row, p, agentId) {
   if (target && target !== 'all' && QQ_AGENT_ID_RE.test(target) && mentions.indexOf(target) < 0) mentions.push(target);
   const list = mentions.slice();
   if (list.indexOf(agentId) < 0) list.push(agentId);
+  const kind = String((p && p.kind) == null ? '' : p.kind).toLowerCase();
+  const rawPrompt = String((p && p.prompt) == null ? '' : p.prompt).replace(/\r\n?/g, '\n');
   return {
     id: String((row && row.id) || ''),
     target: target,
     mentions: list,
     summary: qqSummary_(row && row.type, p || {}),
+    // 원문 전체 — 대화는 줄바꿈 그대로, 실행 오더는 큐가 붙인 규칙까지 그대로(가림만).
+    prompt: qqMask_(kind === 'chat' ? qqStripWorkerNote_(rawPrompt) : rawPrompt, QQ_CELL_MAX),
     created_at: String((row && row.created_at) || '')
   };
 }
@@ -2309,7 +2324,7 @@ function queueDecide(body) {
 //  · 인증은 다른 쓰기와 같은 비밀 키(POST 본문 key). GET 으로는 절대 안 된다.
 //  · 자기 앞으로 온 것(target=나 또는 all)만 집는다. 노트북 앞(무 target) 오더는 안 집는다.
 //  · 승인 대기(WAITING_APPROVAL)는 집지 않는다 — 사람이 승인해야 실행된다.
-//  · 결과는 가리고(qqMask_) 500자까지만 쓴다. 다른 비서가 집은 오더의 결과는 덮지 않는다.
+//  · 결과는 가리고(qqMask_) 자르지 않는다 — 시트 셀 한도까지만. 다른 비서가 집은 오더의 결과는 덮지 않는다.
 //  · 잠금은 포털 스크립트 잠금 — 노트북 워커(CommandQueue.gs)와는 별개라 충돌할 수 있다.
 //    그래서 claim 은 쓰기 직전에 다시 읽어 PENDING 인지 확인하고, 이미 RUNNING 이면 changed:false 로 돌려준다.
 // ═══════════════════════════════════════════════════════════════
@@ -2362,8 +2377,9 @@ function queueDone(body) {
   if (!id) throw qqErr_('bad_request', '오더 id 가 없어요.');
   const status = String((body && body.status) || 'DONE').trim().toUpperCase();
   if (status !== 'DONE' && status !== 'FAILED') throw qqErr_('bad_request', 'status 는 DONE 또는 FAILED 여야 해요.');
-  const result = qqMask_(clip((body && body.result) || '', 500), 500);
-  const error = qqMask_(clip((body && (body.error || (status === 'FAILED' ? body.result : ''))) || '', 300), 300);
+  // 2026-11-26 — 답장 본문을 500자에서 자르면 대화가 문장 중간에 끊긴다. 시트 셀 한도까지만.
+  const result = qqMask_(String((body && body.result) || ''), QQ_CELL_MAX);
+  const error = qqMask_(String((body && (body.error || (status === 'FAILED' ? body.result : ''))) || ''), QQ_CELL_MAX);
   const dur = Number((body && body.duration_ms));
   return qqLock_(function () {
     const ctx = qqOpen_();

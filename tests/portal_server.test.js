@@ -1188,6 +1188,16 @@ console.log('17) 🔓 GET 읽기 · queue_claim/done · mentions·reply_to · �
   d = post({ action: 'queue_done', key: KS, as: 'cue', id: 'Q-k2', status: 'FAILED', error: '근거 부족' });
   ok(d.ok === true && d.item.status === 'FAILED' && /근거 부족/.test(d.item.error), '큐가 실패를 남긴다(FAILED)');
 
+  // 2026-11-26 — 답장은 500자에서 자르지 않는다(문장 중간에 끊기던 것).
+  const longReply = '첫 줄\n둘째 줄\n' + '다'.repeat(1200) + '\n마지막 줄';
+  const q4 = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
+    payload: { prompt: '긴 답장 시험', mode: 'ask', kind: 'chat', target: 'cue' } });
+  ok(post({ action: 'queue_claim', key: KS, as: 'cue', id: q4.item.id }).changed === true, '긴 답장 시험 오더를 큐가 집는다');
+  const d4 = post({ action: 'queue_done', key: KS, as: 'cue', id: q4.item.id, status: 'DONE', result: longReply });
+  ok(d4.ok === true && d4.item.result === longReply, '1,200자 넘는 답장도 잘리지 않고 그대로 남는다');
+  const listed = post({ action: 'queue_list', key: KS, limit: 20 }).items.filter(x => x.id === q4.item.id)[0] || {};
+  ok(listed.result === longReply, 'queue_list 의 result 도 전체 본문');
+
   // ⑥ 화면에서 추가한 부계정 비서(cue2)도 targets·sources·멘션에 바로 잡힌다
   post({ action: 'agent_save', key: KS, items: [{ id: 'cue2', name: '큐2', icon: '🌀', duty: '보조 팩트체크' }] });
   g = post({ action: 'queue_list', key: KS, limit: 5 });
@@ -1232,10 +1242,17 @@ console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한�
   ok(call1.opts && call1.opts.method === 'post' && call1.opts.contentType === 'application/json', 'POST · application/json 으로 보낸다');
   ok(call1.opts && !call1.opts.headers, '인증 헤더 없음');
   const b1 = call1.opts ? JSON.parse(call1.opts.payload) : {};
-  ok(Object.keys(b1).sort().join(',') === 'created_at,id,mentions,summary,target', '본문은 {id,target,mentions,summary,created_at} 뿐');
+  ok(Object.keys(b1).sort().join(',') === 'created_at,id,mentions,prompt,summary,target', '본문은 {id,target,mentions,summary,prompt,created_at}');
   ok(b1.id === w.item.id && b1.target === 'cue2' && b1.created_at === w.item.created_at, 'id · target · created_at 이 큐 줄과 같다');
   ok(Array.isArray(b1.mentions) && b1.mentions.indexOf('cue2') >= 0, 'mentions 에 큐투가 들어 있다');
   ok(typeof b1.summary === 'string' && b1.summary.indexOf('이거 봐줘') >= 0, 'summary 에 본문이 담긴다');
+  // 2026-11-26 — 160자에서 잘리던 대화 본문이 줄바꿈 그대로, 끝까지 내려간다.
+  const longChat = '첫 줄입니다\n둘째 줄입니다\n' + '가'.repeat(400) + '\n마지막 줄입니다';
+  S.fetchCalls.length = 0;
+  const wLong = post(enq(chat('cue2', longChat, 'portal')));
+  const bLong = S.fetchCalls[0] ? JSON.parse(S.fetchCalls[0].opts.payload) : {};
+  ok(wLong.ok === true && bLong.summary === longChat, '긴 대화도 160자에서 안 잘리고 줄바꿈 그대로 summary 에 온다');
+  ok(bLong.prompt === longChat, '웹훅 prompt 에도 원문 전체가 온다');
   // 발사 결과는 6시간 캐시에 코드만 남고, GET webhook_last 로 볼 수 있다
   let lw = JSON.parse(S.sb.doGet({parameter:{action:'webhook_last', key:K4}}).getContent());
   ok(lw.ok === true && lw.last.cue2 && lw.last.cue2.code === 200, 'GET webhook_last 에 응답 코드 200 이 남는다');

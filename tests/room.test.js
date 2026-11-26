@@ -187,6 +187,9 @@ function coreTests() {
   ok(C.roomReplyWhoKey({status: 'DONE', source: 'portal', target: 'all'}) === 'notebook', '@전체 오더는 노트북이 답함');
   ok(C.roomReplyWhoKey({status: 'PENDING', target: 'all', source: 'portal'}) === 'portal', '@전체 대기는 말한 사람 앞');
   ok(C.roomNeedsWorker({kind: 'chat', target: 'cue', source: 'portal'}) === true, '내가 @큐 앞에 남긴 말은 처리자가 있음');
+  ok(C.roomNeedsWorker({kind: 'chat', target: 'all', source: 'portal'}) === false, '@전체 대화는 노트북이 읽지 않는다(2026-11-26)');
+  ok(C.roomNeedsWorker({kind: 'chat', target: 'notebook', source: 'portal'}) === true, '@노트북 대화는 노트북 몫');
+  ok(C.roomNeedsWorker({kind: 'ask', target: 'all', source: 'portal'}) === true, '실행 오더의 @전체는 노트북 몫');
   ok(C.roomNeedsWorker({kind: 'chat', target: 'portal', source: 'cue2'}) === false, '비서가 나에게 남긴 순수 답장은 처리자 없음');
   ok(C.roomIsPlainReply({kind: 'chat', target: 'portal', source: 'cue2'}) === true, '순수 답장 판정');
   ok(C.roomShowReply({kind: 'chat', target: 'portal', source: 'cue2', status: 'DONE', summary: '출석!', result: '출석!'}) === false, '본문=결과인 순수 답장은 한 번만');

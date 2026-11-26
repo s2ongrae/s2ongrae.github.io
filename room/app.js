@@ -140,11 +140,12 @@ function roomReplyWhoKey(it){
   const tg = roomTargetKey(it);
   return (tg === 'all' || tg === 'portal') ? roomSenderKey(it) : tg;
 }
-/** 이 말을 집어 답할 사람이 있는가 (노트북은 notebook·all 만 집는다) */
+/** 이 말을 집어 답할 사람이 있는가 (노트북은 실행 오더면 notebook·all, 대화면 notebook 일 때만 — 2026-11-26) */
 function roomNeedsWorker(it){
   if(!it) return false;
   const tg = roomTargetKey(it);
-  if(tg === 'notebook' || tg === 'all') return true;
+  if(tg === 'notebook') return true;
+  if(tg === 'all') return !roomIsChat(it);     // @전체 대화는 노트북 몫이 아니다(토큰 절약)
   if(!roomIsChat(it)) return true;
   return roomIsMine(it);
 }
@@ -635,8 +636,9 @@ function roomOnlineCount(items, hb, now){
       cls = 'sys';
       const tg = roomTargetKey(it);
       const tl = roomTargetLabel(tg);
-      const wait = (tg === 'notebook' || tg === 'all')
+      const wait = (tg === 'notebook')
         ? '노트북이 60초마다 확인해요'
+        : (chat && tg === 'all') ? '등록된 비서들이 다음 확인 때 읽어요'
         : tl.label + roomJosa(tl.name, '이', '가') + ' 다음 확인 때 읽어요';
       inner = '<span class="typing"><i></i><i></i><i></i></span>차례를 기다려요 — ' + esc(wait);
     } else if(st === 'WAITING_APPROVAL'){
@@ -814,7 +816,7 @@ function roomOnlineCount(items, hb, now){
     inp.style.height = Math.min(132, Math.max(42, inp.scrollHeight)) + 'px';
   }
   function currentTarget(){
-    return roomTargetFromText($('inp').value) || 'notebook';
+    return roomTargetFromText($('inp').value) || 'all';
   }
   function onInput(){
     autoGrow();
@@ -843,7 +845,7 @@ function roomOnlineCount(items, hb, now){
     btn.disabled = true;
     btn.textContent = '…';
     try{
-      const target = roomTargetFromText(text) || 'notebook';
+      const target = roomTargetFromText(text) || 'all';
       const payload = {prompt: text, mode: 'ask', kind: 'chat', target: target};
       const ws = roomWsPick(S.wss, S.ws) || 'hub-agent';
       const d = await api('queue_enqueue', {type: 'claude_prompt', workspace: ws, payload: payload, source: 'portal', client_id: 'portal'});

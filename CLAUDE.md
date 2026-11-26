@@ -153,6 +153,12 @@
   · 같은 규칙이 `hub-agent/gas/CommandQueue.gs`(`set_webhooks`)에도 있다 — 양쪽 속성을 등록해야 어느 길로 들어온 오더든 깨어난다.
   · **권한 주의(2026-11-25 실측)**: `UrlFetchApp` 은 `script.external_request` 승인이 있어야 돈다. 승인이 빠지면 웹훅은 조용히 실패하고 오더만 정상 접수된다.
     진단은 GET `webhook_last`(비서별 마지막 응답 코드)·GET `auth_link`(빠진 권한의 승인 URL). 이 프로젝트는 2026-11-25 승인 완료.
+- **긴 말도 자르지 않는다(2026-11-26, v38)**: 대화(`kind='chat'`)는 예전 `qqSummary_` 가 160자에서, `qqItem_.result`·`queue_done` 이 500자에서
+  문장 중간을 끊었다. 이제 **대화 본문·답장은 자르지 않고**(`QQ_CELL_MAX` 50,000자 — 구글 시트 셀 한도만 방어선) **줄바꿈도 보존**한다.
+  `qqMask_` 는 `max` 를 주지 않으면 셀 한도만 적용한다. 웹훅 본문은 기존 `{id,target,mentions,summary,created_at}` 에 **`prompt`(원문 전체)** 를 더한다(기존 키 그대로 — 호환).
+- **대화는 @노트북을 직접 부를 때만 노트북이 읽는다(2026-11-26)**: 토큰을 아끼기 위해 `kind='chat'` 은 `target==='notebook'` 일 때만 노트북 워커가 집는다.
+  `target='all'`·빈 대상·본문 멘션만 있는 대화는 노트북 몫이 아니다(다른 비서가 웹훅·자기 창구로 읽는다). 실행 오더(`git_pull`·`toss_sync`·`content_render`·일반 `claude_prompt`)는 예전대로 빈 대상·notebook·all 이면 노트북이 집는다.
+  같은 규칙이 `hub-agent` 의 `lib/targets.js`(`forNotebook`)·`gas/CommandQueue.gs`(`cqForNotebook_`)에 있다. 회의실 **기본 대상은 `all`**(저장 키 `portal_ord_target_v2`) — 노트북을 부르려면 `@노트북` 칩을 직접 고른다.
 - **피투 상태 파일**: `status/pi2.json`(피원은 지금처럼 `status/agent.json`). 카드 6칸 = 직접·허브·회사PC·피원·피투·오더 큐.
 - **화면 리뉴얼(2026-11-25, v35)**: 머리말(`room-title-wrap` + `#ord-count`) · 접이식 **비서 사용량**(`#room-use`, 요약 숫자는 머리말 `#room-use-sum` 한 곳에서만 — `.use-sum` 은 테스트가 내용을 보므로 남겨 두고 숨긴다) · **역할표**(`#room-roles`/`#role-table`, `renderRoles()` — 명부만 고치면 카드·멘션·표가 같이 바뀐다) · 타임라인(`room-chat` 안 `#ord-list`) · 입력바(`#room-tools` + `#room-plus`).
   폰(≤700px)은 빠른 오더·대상 칸을 `#room-plus`(＋)로 접고(`aria-expanded`), 입력바만 `position:sticky` 로 붙는다 — 카드는 `overflow:clip` 이라 `room-chat` 이 스크롤 컨테이너가 되지 않는다(`overflow:hidden` 으로 바꾸면 sticky 가 죽는다).

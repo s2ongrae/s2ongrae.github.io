@@ -902,6 +902,10 @@ console.log('V) 💬 비서 통합 회의실 — 카톡 타임라인·@멘션·�
   };
 
   // ① 회의실 뼈대
+  ok(D13.run('ORD_TARGET') === 'all', '기본 대상은 @전체 — 노트북은 @노트북을 직접 고를 때만(2026-11-26)');
+  ok(D13.run("ordNeedsWorker({kind:'chat', target:'all', source:'portal'})") === false, '@전체 대화는 노트북 대기열이 아니다');
+  ok(D13.run("ordNeedsWorker({kind:'chat', target:'notebook', source:'portal'})") === true, '@노트북 대화는 노트북이 받는다');
+  ok(D13.run("ordNeedsWorker({kind:'ask', target:'all', source:'portal'})") === true, '실행 오더의 @전체는 노트북이 받는다');
   ok(/비서-통합-회의실/.test(html) && /id="room-people"/.test(html), '회의실 머리말(# 비서-통합-회의실 · 참여자 수)');
   ok(/id="room-use"/.test(html) && /📊 비서 사용량/.test(html) && /<details class="room-use"/.test(html), '📊 비서 사용량이 접기/펼치기 패널로 있다');
   ok(/id="ord-presets"/.test(html) && /id="ord-mentions"/.test(html) && /id="ord-mode"/.test(html) && /id="ord-who"/.test(html),

@@ -1606,9 +1606,10 @@ function ordTargetList(){
 }
 function useDefs(){ return agentQuotas(); }
 const ORD_WHO_KEY = 'portal_ord_who';
-const ORD_TARGET_KEY = 'portal_ord_target';
+const ORD_TARGET_KEY = 'portal_ord_target_v2';   // v2: 2026-11-26 기본 대상 변경(노트북 → 전체)
+let ORD_TARGET_DEFAULT = 'all';                   // 대화는 @노트북을 직접 고를 때만 노트북이 읽는다
 const ORD_MODE_KEY = 'portal_ord_mode';
-let ORD_SENDER = 'portal', ORD_TARGET = 'notebook', ORD_MODE = 'chat';
+let ORD_SENDER = 'portal', ORD_TARGET = ORD_TARGET_DEFAULT, ORD_MODE = 'chat';
 let ORD_WHO = 'all';        // 발신 필터(all · pi1 · pi2 · portal)
 let ORD_FILTER = 'all';     // 상태 필터(all · live · wait · done)
 let ORD_CHAT_OK = null;     // 서버가 kind:'chat' 을 아는가(null=모름 · false=예전 배포)
@@ -1950,13 +1951,14 @@ function ordReplyWhoKey(it){
 }
 /**
  * 이 말을 집어서 답할 비서가 있는가.
- *  · 노트북은 target 이 notebook·all 인 것만 집는다(다른 비서 앞 오더는 집지 않고 되돌려 놓는다).
+ *  · 노트북은 실행 오더면 target 이 notebook·all, 대화(kind=chat)면 notebook 일 때만 집는다(2026-11-26).
  *  · 비서가 남긴 순수 답장(포털·다른 비서 앞)은 아무도 실행하지 않는다 — 대기 표시가 의미 없다.
  */
 function ordNeedsWorker(it){
   if(!it) return false;
   const tg = ordTargetKey(it);
-  if(tg === 'notebook' || tg === 'all') return true;
+  if(tg === 'notebook') return true;
+  if(tg === 'all') return !ordIsChat(it);      // @전체 대화는 노트북 몫이 아니다(토큰 절약)
   if(!ordIsChat(it)) return true;
   return ordIsMine(it);
 }
@@ -2001,7 +2003,7 @@ function ordTargetFromText(text){
 /** 대상 칩 설명 — 누가 언제 받는지(노트북은 바로, 나머지는 주기 체크 때) */
 function ordTargetTip(t){
   const duty = String((agentById(t.id) && agentById(t.id).duty) || '');
-  const who = t.id === 'all' ? '모두에게 — 노트북이 먼저 받아요'
+  const who = t.id === 'all' ? '모두에게 — 대화는 각자, 실행은 노트북이 받아요'
     : t.id === 'notebook' ? '집 노트북 — 바로 실행해요'
     : (t.id === 'pi1' || t.id === 'pi2') ? t.name + ' — 다음 확인 때 읽어요'
     : t.name + ' — 주기 체크 때 읽어요(바로 답은 노트북)';
@@ -2080,7 +2082,7 @@ function ordTargetSet(btn){
   ORD_TARGET = ordTargetLabel(v).id;
   try { localStorage.setItem(ORD_TARGET_KEY, ORD_TARGET); } catch(e) {}
   ordMentionRender();
-  sync('대상 ' + ordTargetLabel(ORD_TARGET).label + ' — 실행은 노트북이 해요', 3000);
+  sync('대상 ' + ordTargetLabel(ORD_TARGET).label + (ORD_TARGET === 'notebook' ? ' — 노트북이 바로 실행해요' : ''), 3000);
 }
 function ordWhoSave(){
   const sel = document.getElementById('ord-who');
@@ -2691,7 +2693,9 @@ function chatIn(it){
   if(st === 'PENDING'){
     cls = 'in sys';
     // 받을 비서가 노트북이 아니면(내가 @큐·@부이 앞으로 남긴 말) 그 이름으로 기다린다
-    const waitLabel = (tg === 'notebook' || tg === 'all') ? '노트북이 60초마다 확인해요' : (ordTargetLabel(tg).label + '가 다음 확인 때 읽어요');
+    const waitLabel = tg === 'notebook' ? '노트북이 60초마다 확인해요'
+      : (isChat && tg === 'all') ? '등록된 비서들이 다음 확인 때 읽어요'
+      : (ordTargetLabel(tg).label + '가 다음 확인 때 읽어요');
     inner = `<div class="chat-text"><span class="chat-typing"><i></i><i></i><i></i></span> 차례를 기다려요 — ${esc(waitLabel)}</div>`;
   } else if(st === 'WAITING_APPROVAL'){
     cls = 'in warn';
