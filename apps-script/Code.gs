@@ -1066,7 +1066,7 @@ const QQ_AGENT_ID_RE = /^[a-z0-9][a-z0-9_-]{0,11}$/;
 //  URL 은 코드·저장소·시트·로그 어디에도 두지 않는다 — ScriptProperties 한 곳에만.
 //   {"cue":"https://…","cue2":"https://…"}  ← 에이전트 id 키만 늘리면 새 비서도 바로 깨어진다.
 const QQ_WEBHOOK_PROP = 'WEBHOOK_TRIGGERS_JSON';
-const QQ_WEBHOOK_MENTION_MAX = 6;
+// 웹훅 mentions 상한은 QQ_MENTION_MAX(9 — @멘션 + 협업 줄 이름)를 그대로 쓴다(2026-11-26).
 // 발사 결과(응답 코드)만 6시간 캐시에 남긴다 — 주소는 절대 남기지 않는다. GET `webhook_last` 로 확인.
 const QQ_WEBHOOK_LOG_KEY = 'webhook_last';
 // 대상(target, @멘션) — 누구에게 시키는가. all=전체, notebook=집 노트북(기본 실행자).
