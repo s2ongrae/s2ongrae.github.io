@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-26.brief3';
+const SERVER_VERSION = '2026-11-26.brief4';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -96,6 +96,7 @@ function doPost(e) {
       case 'queue_list':        return out(queueList(body));      // 🤖 오더함 — 최근 오더
       case 'queue_brief':       return out(queueBrief(body));     // 📋 오늘 브리핑 — 비서별 받은 일·처리·밀림(읽기 전용)
       case 'queue_inbox':       return out(queueInbox(body));     // 📥 내 받은편지함 — 지금 처리할 말만(주기 확인형 비서용)
+      case 'queue_react':       return out(queueReact(body));     // 👀 이모지 반응 — 확인 답장 대신(접수·진행 중·완료·내 일 아님)
       case 'webhook_last':      return out(queueWebhookLast());   // 🔔 웹훅 발사 결과(읽기 전용 — 주소 없음)
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
       case 'webhook_set':       return out(queueWebhookSet(body)); // 🔔 외부 비서 웹훅 주소 등록(ScriptProperties)
@@ -2258,6 +2259,7 @@ function queueList(body) {
       replied[key] = { by: by, at: clip(rows[i].created_at, 40), status: st };
     }
   }
+  const rmap = qqReactRead_(ctx);                       // 👀 이모지 반응(Reactions 탭 — 없으면 빈 표)
   const items = [];
   for (let i = rows.length - 1; i >= 0 && items.length < limit; i--) {
     // 2026-11-25: 무거운 qqItem_ 을 만들기 전에 payload 문자열에서 target 만 싸게 본다.
@@ -2273,6 +2275,7 @@ function queueList(body) {
     }
     // 이 오더에 답장이 달려 있으면 누가 달았는지 붙인다(끝난 오더의 claimed_by 와는 다른 정보)
     const rp = replied[it.id];
+    it.reactions = rmap[it.id] || [];                   // [{by, e, at}] — ✓ 전달됨 · 👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님
     // 2026-11-26 — 「완료·보고됨 / 완료·보고누락」의 근거. 화면은 이 한 칸(또는 목록의 reply_to)으로 판단하고,
     //  보고가 없으면 결과로 만든 완료 카드를 대신 그린다(실제 보고가 오면 카드가 저절로 사라진다 — 중복 없음).
     it.answered = !!rp;
@@ -2361,7 +2364,7 @@ var QQ_REPORT_RULE = '끝나면 회의실에 한 줄 보고를 남겨 주세요 
   '또는 queue_done 의 result 에 결과를 적으세요. 보고가 없으면 화면에 「완료·보고누락」으로 보입니다. ' +
   // 2026-11-26 — 운영 규칙(docs/AGENT_PROTOCOL.md) 핵심 3줄을 응답마다 함께 실어 준다(비서가 읽고 지키게).
   '[운영 규칙] ①reply_to 를 달아 답하면 그 원글이 자동으로 닫혀요(@전체 말 제외) — 일을 끝낸 뒤 한 번만 답하세요. ' +
-  '②"확인했어요·수신 완료"처럼 내용 없는 답장은 보내지 마세요(이미 닫힌 말에 감사·확인 답장도 금지 — 비서끼리 무한 왕복). ' +
+  '②"확인했어요·수신 완료"처럼 내용 없는 답장은 보내지 마세요(이미 닫힌 말에 감사·확인 답장도 금지 — 비서끼리 무한 왕복). 확인만 하고 싶으면 이모지로: POST queue_react {as,id,emoji:"👀"} (👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님 — ✅·🙅 은 내 앞 말을 닫아요). ' +
   '③주기 확인 비서는 매 주기 GET queue_inbox?as=<내 id> 한 번만 읽고, count 가 0 이면 아무 말도 하지 마세요.';
 function qqStripWorkerNote_(s) {
   return String(s == null ? '' : s).replace(QQ_WORKER_NOTE_RE, '').trim();
@@ -2560,8 +2563,12 @@ function queueInbox(body) {
     if (isCast) cast++;
     if (items.length < QQ_INBOX_MAX) items.push(qqItem_(r));
   }
+  // 가져간 말에 「전달됨 ✓」 자동 표시 — 비서가 아무것도 안 해도 회의실에서 '전달 안 됨 / 전달됨'이 갈린다.
+  const rmap = qqReactRead_(ctx);
+  qqDeliverMark_(ctx, me, items.map(function (x) { return x.id; }), rmap);
+  items.forEach(function (x) { x.reactions = rmap[x.id] || []; });
   return { ok: true, at: qqNow_(), as: me, count: count, running: running, replied_open: repliedOpen, cast: cast,
-    items: items, report_rule: QQ_REPORT_RULE,
+    items: items, report_rule: QQ_REPORT_RULE, delivered_mark: true,
     how: '내 앞으로 온 말은 답하거나 닫힐 때까지 계속 보이고, @전체·@멘션으로 부른 말은 한 번만 전달돼요(items[].target 이 me 가 아니면 참고용 — 내 할 일이 없으면 침묵). ' +
       '답할 때 payload.reply_to 에 그 말의 id 를 넣으면 원글이 자동으로 닫혀요(@전체 말은 제외). 확인만 하는 답장("확인했어요")은 보내지 마세요.' };
 }
@@ -2727,6 +2734,122 @@ function qqCloseOnReply_(ctx, row, p, nowMs) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 👀 이모지 반응 — queue_react · 자동 「전달됨 ✓」 (2026-11-26, 사용자 "이모지로 확인했나만 표시하면 토큰 안 먹잖아")
+//
+//  왜: "확인했어요" 한 줄도 글을 쓰는 토큰 + 시트 한 줄 + 그걸 받은 다른 비서가 또 읽고 답하는 연쇄가 든다.
+//      반응은 호출 한 번(수십 토큰)이고, 회의실 글로 쌓이지 않고, 웹훅으로 아무도 깨우지 않는다.
+//  저장: 같은 스프레드시트의 `Reactions` 탭(at·order_id·agent·emoji)에 **덧붙이기만** 한다.
+//        Command_Queue 의 22칸은 건드리지 않는다(노트북 CommandQueue.gs 와 100% 호환 유지).
+//  종류
+//   · ✓ 전달됨 — **서버가 자동**으로 남긴다: 비서가 queue_inbox 로 그 말을 가져간 순간. 토큰 0, 비서 수정 없음.
+//                '읽음'이 아니다 — 가져간 것만 확실하고 이해했는지는 서버가 모른다.
+//   · 👀 접수   — 비서가 직접. 내 일로 보고 있다(닫지 않음).
+//   · 🔧 진행 중 — 비서가 직접. 내 앞 PENDING 이면 queue_claim 과 같이 RUNNING 으로 집는다.
+//   · ✅ 완료   — 비서가 직접. 내 앞 말이면 닫는다(DONE, 결과칸 `✅ 완료`). 확인 답장을 대신한다.
+//   · 🙅 내 일 아님 — 비서가 직접. 내 앞 말이면 닫는다(DONE, 결과칸 `🙅 내 일 아님`).
+//  @전체·멘션으로만 부른 말·노트북 앞 오더는 반응만 남기고 상태는 바꾸지 않는다.
+// ═══════════════════════════════════════════════════════════════
+const QQ_REACT_TAB = 'Reactions';
+const QQ_REACT_COLS = ['at', 'order_id', 'agent', 'emoji'];
+const QQ_REACT_EMOJI = ['👀', '🔧', '✅', '🙅'];
+const QQ_DELIVERED = '✓';
+const QQ_REACT_ALIAS = { seen: '👀', ack: '👀', working: '🔧', doing: '🔧', done: '✅', ok: '✅', na: '🙅', skip: '🙅' };
+const QQ_REACT_SCAN = 800;                           // 반응 탭에서 아래(최근)부터 읽는 줄 수
+const QQ_REACT_PER_ITEM = 12;
+function qqReactSheet_(ctx, create) {
+  let sh = ctx.ss.getSheetByName(QQ_REACT_TAB);
+  if (!sh && create) {
+    sh = ctx.ss.insertSheet(QQ_REACT_TAB);
+    sh.getRange(1, 1, 1, QQ_REACT_COLS.length).setValues([QQ_REACT_COLS.slice()]);
+  }
+  return sh || null;
+}
+/** 최근 반응을 {오더 id: [{by, e, at}]} 로. 탭이 없거나 읽기 실패면 빈 표(읽기에서는 탭을 만들지 않는다). */
+function qqReactRead_(ctx) {
+  const out = {};
+  try {
+    const sh = qqReactSheet_(ctx, false);
+    if (!sh) return out;
+    const last = Number(sh.getLastRow()) || 0;
+    if (last < 2) return out;
+    const from = Math.max(2, last - QQ_REACT_SCAN + 1);
+    const vals = sh.getRange(from, 1, last - from + 1, QQ_REACT_COLS.length).getValues();
+    for (let i = 0; i < vals.length; i++) {
+      const v = vals[i] || [];
+      const id = String(v[1] == null ? '' : v[1]).trim();
+      const by = qqLow_(v[2]);
+      const e = String(v[3] == null ? '' : v[3]).trim();
+      if (!id || !by || !e) continue;
+      const list = out[id] || (out[id] = []);
+      if (list.length < QQ_REACT_PER_ITEM) list.push({ by: by, e: e, at: clip(v[0], 40) });
+    }
+  } catch (err) { /* 반응은 보조 정보 — 못 읽어도 오더 흐름은 그대로 */ }
+  return out;
+}
+function qqReactAppend_(ctx, rows) {
+  const sh = qqReactSheet_(ctx, true);
+  for (let i = 0; i < rows.length; i++) sh.appendRow(rows[i]);       // appendRow 는 원자적 — 동시에 불러도 줄이 겹치지 않는다
+}
+/** 비서가 가져간 말에 「전달됨 ✓」을 남긴다 — 이 비서가 그 말에 남긴 반응이 아직 없을 때만. 실패해도 조용히 넘어간다. */
+function qqDeliverMark_(ctx, me, ids, rmap) {
+  try {
+    if (!ids.length) return;
+    const map = rmap || qqReactRead_(ctx);
+    const at = qqNow_();
+    const rows = [];
+    ids.forEach(function (id) {
+      const has = (map[id] || []).some(function (x) { return x.by === me; });
+      if (!has) { rows.push([at, id, me, QQ_DELIVERED]); (map[id] = map[id] || []).push({ by: me, e: QQ_DELIVERED, at: at }); }
+    });
+    if (rows.length) qqReactAppend_(ctx, rows);
+  } catch (err) { /* 진단용 — 실패해도 받은편지함 응답에는 영향 없다 */ }
+}
+/** 비서가 오더에 이모지로 반응한다. {action:'queue_react', key, as, id, emoji:'👀'|'🔧'|'✅'|'🙅'} */
+function queueReact(body) {
+  const as = qqActorOf_(body);
+  const id = clip((body && body.id) || '', 60).trim();
+  if (!id) throw qqErr_('bad_request', '오더 id 가 없어요.');
+  let emoji = String((body && body.emoji) || '').replace(/️/g, '').trim();
+  if (QQ_REACT_ALIAS[emoji.toLowerCase()]) emoji = QQ_REACT_ALIAS[emoji.toLowerCase()];
+  if (QQ_REACT_EMOJI.indexOf(emoji) < 0) {
+    throw qqErr_('bad_request', 'emoji 는 ' + QQ_REACT_EMOJI.join(' ') + ' 중 하나(또는 seen·working·done·na)여야 해요.');
+  }
+  qqCheckMark_(as);
+  return qqLock_(function () {
+    const ctx = qqOpen_();
+    const r = qqFindRow_(ctx, id);
+    if (!r) throw qqErr_('not_found', '그 오더를 찾지 못했어요(오래된 기록은 정리될 수 있어요).');
+    const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
+    const tgt = qqRowTarget_(r);
+    const claimed = qqLow_(r.claimed_by);
+    const nowMs = Date.now();
+    const map = qqReactRead_(ctx);
+    const had = (map[id] || []).some(function (x) { return x.by === as && x.e === emoji; });
+    const add = [];
+    if (!had) add.push([qqIso_(nowMs), id, as, emoji]);
+    let effect = '', status = st;
+    const owner = st === 'RUNNING' && claimed ? claimed : tgt;
+    const mine = owner === as && tgt !== 'notebook' && claimed !== 'notebook' && as !== 'notebook';
+    if (emoji === '🔧' && st === 'PENDING' && tgt === as && mine) {
+      qqUpdateRow_(ctx, r.__row, { status: 'RUNNING', claimed_at: qqIso_(nowMs), claimed_by: as, attempts: Number(r.attempts || 0) + 1 });
+      effect = 'claimed'; status = 'RUNNING';
+    } else if ((emoji === '✅' || emoji === '🙅') && (st === 'PENDING' || st === 'RUNNING') && mine) {
+      const started = Date.parse(String(r.claimed_at || '')) || 0;
+      const hasResult = !!String(r.result == null ? '' : r.result).trim();
+      qqUpdateRow_(ctx, r.__row, {
+        status: 'DONE', claimed_by: as, claimed_at: claimed ? r.claimed_at : qqIso_(nowMs), finished_at: qqIso_(nowMs),
+        duration_ms: started ? Math.max(0, nowMs - started) : 0, exit_code: 0,
+        result: hasResult ? r.result : emoji + (emoji === '✅' ? ' 완료' : ' 내 일 아님')
+      });
+      effect = 'closed'; status = 'DONE';
+    }
+    if (add.length) qqReactAppend_(ctx, add);
+    return { ok: true, id: id, emoji: emoji, as: as, added: !had, effect: effect, status: status, at: qqIso_(nowMs),
+      hint: '내용 없는 확인 답장 대신 이 반응을 쓰세요 — 👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님.' };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 📋 오늘 브리핑 — queue_brief (2026-11-26, 사용자 "얘네가 뭐 하고 있는지 모르겠어")
 //
 //  최근 400행을 **한 번** 훑어 비서마다:
@@ -2759,6 +2882,7 @@ function qqIsAck_(r) {
 function queueBrief(body) {
   const ctx = qqOpen_();
   const rows = qqRows_(ctx, QQ_SCAN_ROWS);               // 오래된 것 → 새것
+  const rmap = qqReactRead_(ctx);                        // 👀 이모지 반응 — 전달됨/접수를 가르는 근거
   const nowMs = Date.now();
   const today = qqKstDay_(nowMs);
   const dayOf = function (v) { const t = Date.parse(String(v == null ? '' : v)); return isFinite(t) ? qqKstDay_(t) : ''; };
@@ -2788,10 +2912,12 @@ function queueBrief(body) {
   const A = {};
   ids.forEach(function (id) {
     A[id] = { id: id, name: names[id] || '', unread: 0, replied_open: 0, running: 0, oldest: null,
+      undelivered: 0, delivered: 0, seen: 0, lat: [], oldestU: null,
       handled: {}, sent_today: 0, acks_today: 0, failed_today: 0, last: null, lastMs: 0, lastKind: '' };
   });
 
-  const tot = { unread: 0, replied_open: 0, running: 0, all_open: 0, waiting: 0, review: 0, failed_today: 0, to_me_today: 0 };
+  const tot = { unread: 0, replied_open: 0, running: 0, all_open: 0, waiting: 0, review: 0, failed_today: 0, to_me_today: 0,
+    undelivered: 0, delivered: 0, seen: 0 };
   meta.forEach(function (o) {
     // 받은 일 — PENDING 은 대상(target), RUNNING 은 집은 비서가 주인
     if (o.st === 'PENDING' || o.st === 'RUNNING') {
@@ -2801,13 +2927,27 @@ function queueBrief(body) {
       else if (a) {
         if (replies[o.id] && replies[o.id][owner]) a.replied_open++;
         else if (o.st === 'RUNNING') a.running++;
-        else { a.unread++; if (!a.oldest) a.oldest = o; }   // 오래된 것부터 돌므로 첫 줄이 가장 오래된 말
+        else {
+          a.unread++; if (!a.oldest) a.oldest = o;           // 오래된 것부터 돌므로 첫 줄이 가장 오래된 말
+          // 안 읽음을 셋으로 가른다 — 아무 반응 없음(미전달) / 가져가기만 함 ✓(전달됨) / 👀·🔧(접수)
+          const mine = (rmap[o.id] || []).filter(function (x) { return x.by === owner; });
+          if (mine.some(function (x) { return x.e === '👀' || x.e === '🔧'; })) a.seen++;
+          else if (mine.length) a.delivered++;
+          else { a.undelivered++; if (!a.oldestU) a.oldestU = o; }    // 가장 오래 미전달된 말 — 빨강 판정의 근거
+        }
       }
     }
     if (o.st === 'WAITING_APPROVAL') tot.waiting++;
     if (o.st === 'REVIEW_NEEDED' || o.st === 'TIMEOUT_REVIEW') tot.review++;
     // 오늘 처리 — 끝낸 비서(claimed_by)의 원글. 자기가 보낸 말을 자기가 닫은 건 세지 않는다.
     if (o.st === 'DONE' && o.by && A[o.by] && o.fday === today && o.src !== o.by) A[o.by].handled[o.id] = true;
+    // 접수까지 걸린 시간 — 오늘 내 앞으로 온 말에 내가 처음 남긴 반응(✓·👀·🔧·✅·🙅)의 시각 − 받은 시각
+    if (o.cday === today && A[o.tgt] && rmap[o.id]) {
+      let first = 0;
+      rmap[o.id].forEach(function (x) { if (x.by === o.tgt) { const t = msOf(x.at); if (t && (!first || t < first)) first = t; } });
+      const born = msOf(o.r.created_at);
+      if (first && born && first >= born) A[o.tgt].lat.push(Math.round((first - born) / 60000));
+    }
     // 오늘 처리 — 오늘 단 답장(원글 기준, 같은 원글은 한 번)
     if (o.reply && A[o.src] && o.cday === today) A[o.src].handled[o.reply] = true;
     // 오늘 실패
@@ -2835,10 +2975,16 @@ function queueBrief(body) {
     const busy = a.unread || a.replied_open || a.running || handled || a.sent_today || a.failed_today || a.last;
     if (!busy && QQ_BRIEF_ORDER.indexOf(id) < 0) return null;   // 명부에만 있고 아무 기록 없는 비서는 뺀다
     tot.unread += a.unread; tot.replied_open += a.replied_open; tot.running += a.running;
+    tot.undelivered += a.undelivered; tot.delivered += a.delivered; tot.seen += a.seen;
+    // 접수까지 걸린 시간(오늘 온 말의 첫 반응 − 받은 시각) 중간값(분) — 근거 없으면 null(지어내지 않는다)
+    const lat = a.lat.slice().sort(function (x, y) { return x - y; });
     const old = a.oldest;
     const last = a.last;
     return {
       id: id, name: a.name, unread: a.unread, replied_open: a.replied_open, running: a.running,
+      undelivered: a.undelivered, delivered: a.delivered, seen: a.seen,
+      oldest_undelivered: a.oldestU ? { id: a.oldestU.id, at: clip(a.oldestU.r.created_at, 40), from: a.oldestU.src, text: qqBriefText_(a.oldestU.r) } : null,
+      pickup_med_min: lat.length ? lat[lat.length >> 1] : null, pickup_n: lat.length,
       handled_today: handled, sent_today: a.sent_today, acks_today: a.acks_today, failed_today: a.failed_today,
       oldest_unread: old ? { id: old.id, at: clip(old.r.created_at, 40), from: old.src, text: qqBriefText_(old.r) } : null,
       last: last ? {
@@ -3047,6 +3193,7 @@ function queueClaim(body) {
     const now = qqNow_();
     const attempts = Number(pick.attempts || 0) + 1;
     qqUpdateRow_(ctx, pick.__row, { status: 'RUNNING', claimed_at: now, claimed_by: as, attempts: attempts });
+    try { qqReactAppend_(ctx, [[now, String(pick.id), as, '🔧']]); } catch (err) { /* 반응은 보조 */ }   // 집었으면 '진행 중' 반응도
     const row = qqFindRow_(ctx, String(pick.id)) || pick;
     // 2026-11-26 — 오더를 집은 비서에게 "끝나면 회의실에 보고를 남겨라"를 같은 응답에 실어 준다.
     return { ok: true, changed: true, at: now, claimed_by: as, item: qqItem_(row), report_rule: QQ_REPORT_RULE };

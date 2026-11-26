@@ -1995,8 +1995,8 @@ console.log('AH) 📋 오늘 브리핑 — 비서 9명 한 판 · 예전 배포 
   ok(DB.run('BRIEF_MODE') === 'server' && DB.calls.some(c => JSON.parse(c.opts.body).action === 'queue_brief'), '서버 queue_brief 로 읽는다(POST·키)');
   const order = [...list().matchAll(/data-brief="([a-z0-9_-]+)"/g)].map(m => m[1]);
   ok(order.slice(0, 9).join(',') === 'pi1,pi2,cue,cue2,vooy,vooy2,keyring,keyring2,notebook', '비서 9명이 정해진 순서로 그려진다');
-  ok(/data-brief="cue"[^>]*>[\s\S]*?안 읽음 1/.test(list()), '큐 줄에 안 읽음 1');
-  ok(/가장 오래 안 읽은 말 · 피원/.test(list()), '가장 오래 안 읽은 말 — 누가 보냈는지 이름으로');
+  ok(/data-brief="cue"[^>]*>[\s\S]*?미전달 1/.test(list()), '큐 줄에 미전달 1(새 서버는 안 읽음을 미전달·전달됨·접수로 가른다)');
+  ok(/가장 오래 미전달된 말 · 피원/.test(list()), '가장 오래 미전달된 말 — 누가 보냈는지 이름으로');
   ok(!/<img src=x/.test(list()) && /&lt;img src=x/.test(list()), '비서가 쓴 말은 이스케이프한다(XSS)');
   ok(/class="brief-row lv-bad" data-k="who" data-v="cue"/.test(list()), '2시간 넘게 안 읽은 비서는 빨강');
   // (가짜 서버 시계는 10/13, 화면은 실제 시계라 '막 밀린' 판정은 값을 직접 넣어 본다)
@@ -2034,6 +2034,88 @@ console.log('AH) 📋 오늘 브리핑 — 비서 9명 한 판 · 예전 배포 
   const DN = makeDevice(SB);
   await DN.run('briefLoad(true)');
   ok(DN.calls.length === 0 && /서버를 연결하면/.test(DN.el('brief-list').innerHTML), '서버 설정 전엔 요청 없이 안내만');
+}
+
+console.log('AI) 👀 이모지 반응 — 말풍선 칩 · 대기 문구 · 브리핑 전달됨/접수 (2026-11-26)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SR = mk();
+  const nowMs = SR.sb.Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, agoMin, source, status, payload) => {
+    const r = [id, at(nowMs - agoMin * 60000), source, 'claude_prompt', 'gaegyebu', JSON.stringify(payload), status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    return r;
+  };
+  const chat = (target, prompt) => ({ prompt, mode: 'ask', kind: 'chat', target });
+  SR.props.QUEUE_SHEET_ID = 'SHEETidReactUi01';
+  SR.addSheet('SHEETidReactUi01', {
+    'Command_Queue': [HEAD.slice(0),
+      row('Q-x1', 50, 'portal', 'PENDING', chat('keyring', '@키링 기차표 봐줘')),                 // 키링이 가져감(✓)
+      row('Q-x2', 40, 'portal', 'PENDING', chat('vooy', '@부이 비교표')),                         // 부이가 접수(👀)
+      row('Q-x3', 30, 'portal', 'PENDING', chat('cue', '@큐 일정')),                              // 아무 반응 없음
+      row('Q-x4', 20, 'portal', 'DONE', chat('vooy2', '@뷔투 <b>체크</b>')),                      // 뷔투 완료 + 이스케이프
+      row('Q-x5', 10, 'pi1', 'PENDING', chat('all', '@전체 공지'))
+    ],
+    'Reactions': [['at', 'order_id', 'agent', 'emoji'],
+      [at(nowMs - 20 * 60000), 'Q-x1', 'keyring', '✓'],
+      [at(nowMs - 15 * 60000), 'Q-x2', 'vooy', '✓'], [at(nowMs - 14 * 60000), 'Q-x2', 'vooy', '👀'],
+      [at(nowMs - 5 * 60000), 'Q-x4', 'vooy2', '👀'], [at(nowMs - 4 * 60000), 'Q-x4', 'vooy2', '✅'],
+      [at(nowMs - 3 * 60000), 'Q-x4', 'cue', '✓'],
+      [at(nowMs - 2 * 60000), 'Q-x1', 'evil<img src=x>', '👀'], [at(nowMs - 1 * 60000), 'Q-x1', 'keyring', '😂']]
+  });
+  const DR = makeDevice(SR);
+  DR.config();
+  await DR.run('loadOrders()');
+  await DR.run('briefLoad(true)');
+  const feed = () => DR.el('ord-list').innerHTML;
+  const rxOf = id => DR.run(`ordReactHtml(ordById('${id}'))`);
+
+  // ① 비서마다 가장 앞선 반응 하나 — ✅ > 🙅 > 🔧 > 👀 > ✓
+  ok(DR.run("ordReactTop(ordById('Q-x2')).map(x => x.by + x.e).join(',')") === 'vooy👀', '👀 이 ✓ 보다 앞선다(한 비서에 하나만)');
+  ok(DR.run("ordReactTop(ordById('Q-x4')).map(x => x.by + x.e).join(',')") === 'cue✓,vooy2✅', '비서별로 하나씩 — ✅ 은 ✓·👀 을 덮는다');
+  ok(DR.run("ordReactTop({reactions:[{by:'a',e:'🔧'},{by:'a',e:'🙅'}]}).map(x => x.e).join('')") === '🙅', '🙅 > 🔧');
+  ok(DR.run("ordReactTop({}).length + ordReactTop({reactions:'x'}).length + ordReactTop(null).length") === 0, '반응이 없거나 모양이 이상하면 빈 목록');
+  ok(DR.run("ordReactTop({reactions:[{by:'a',e:'😂'},{e:'👀'}]}).length") === 0, '정해진 이모지 밖·비서 없는 반응은 무시한다');
+
+  // ② 말풍선 밑 칩
+  ok(/class="rx"/.test(rxOf('Q-x4')) && /rx-dn/.test(rxOf('Q-x4')) && /rx-dv/.test(rxOf('Q-x4')), '완료는 초록 칩 · 전달됨은 회색 칩');
+  ok(rxOf('Q-x3') === '', '반응이 없는 말에는 칩 영역 자체를 안 그린다');
+  ok(/data-mark|뷔투/.test(rxOf('Q-x4')) || /뷔투/.test(rxOf('Q-x4')), '칩에 비서 이름이 보인다');
+  ok(/title="뷔투 · 완료/.test(rxOf('Q-x4')), '칩 title 에 상태 말(완료)');
+  ok(/title="키링 · 전달됨/.test(rxOf('Q-x1')), '✓ 은 읽음이 아니라 「전달됨」이라고 쓴다');
+  ok(!/읽음/.test(rxOf('Q-x1')) && !/읽음/.test(rxOf('Q-x2')), '칩 문구에 「읽음」이라고 쓰지 않는다');
+  ok(!/<img src=x>/.test(rxOf('Q-x1')) && /&lt;img src=x&gt;/.test(rxOf('Q-x1')), '비서 이름이 이상해도 이스케이프한다(XSS)');
+  ok(/class="rx"/.test(feed()) && /rxc/.test(feed()), '타임라인 내 말풍선 밑에 칩이 그려진다');
+
+  // ③ 대기 말풍선 문구 — "다음 확인 때"가 아니라 실제 상태로
+  const pend = id => DR.run(`chatIn(ordById('${id}'))`);
+  ok(/가져갔어요\(✓ 전달됨\)/.test(pend('Q-x1')) && /접수 전/.test(pend('Q-x1')), '가져갔지만 접수 전 — 그렇게 말한다');
+  ok(/접수했어요\(👀 접수\)/.test(pend('Q-x2')), '👀 접수 — 그렇게 말한다');
+  ok(/다음 확인 때 읽어요/.test(pend('Q-x3')), '반응이 없으면 예전 문구 그대로');
+  ok(/등록된 비서들이 다음 확인 때 읽어요/.test(pend('Q-x5')), '@전체는 한 명의 반응으로 상태를 말하지 않는다');
+
+  // ④ 다시 그리기 서명 — 반응만 바뀌어도 칩이 바뀐다
+  const sig1 = DR.run("ordSig([{id:'a', reactions:[{by:'x', e:'✓'}]}])");
+  const sig2 = DR.run("ordSig([{id:'a', reactions:[{by:'x', e:'✓'},{by:'x', e:'👀'}]}])");
+  ok(sig1 !== sig2 && DR.run("ordSig([{id:'a'}])") !== sig1, '반응이 달리면 목록 서명이 달라진다');
+
+  // ⑤ 브리핑 — 미전달 / 전달됨 / 접수 (서버가 반응 탭을 읽어 가른다)
+  const bl = DR.el('brief-list').innerHTML;
+  ok(/data-brief="cue"[^>]*>[\s\S]*?미전달 1/.test(bl), '큐 — 반응이 없으면 미전달');
+  ok(/data-brief="keyring"[^>]*>[\s\S]*?전달됨 1/.test(bl), '키링 — 가져갔지만 접수 전이면 전달됨');
+  ok(/data-brief="vooy"[^>]*>[\s\S]*?접수 1/.test(bl), '부이 — 👀 하면 접수');
+  ok(/반응 \d+분/.test(bl), '오늘 온 말에 처음 반응하기까지 걸린 시간(중간값)');
+  ok(/미전달 <b>1<\/b>/.test(DR.el('brief-sum').innerHTML) && /전달됨\(접수 전\) <b>1<\/b>/.test(DR.el('brief-sum').innerHTML) && /접수 <b>1<\/b>/.test(DR.el('brief-sum').innerHTML), '요약 알약도 같은 3분류');
+  ok(/가장 오래 미전달된 말/.test(bl), '가장 오래 미전달된 말만 경고한다(가져간 말은 방치가 아니다)');
+  ok(/자동으로 남기고/.test(DR.el('brief-note').textContent) && /이해했다는 뜻은 아니에요/.test(DR.el('brief-note').textContent), '안내줄이 ✓ 의 한계를 밝힌다');
+  ok(DR.run("briefLevel({undelivered:0, delivered:2, seen:0, unread:2, oldest_undelivered:null, oldest_unread:{at:new Date(Date.now()-300*60000).toISOString()}})") === 'warn',
+    '가져가기만 하고 5시간 지나도 빨강은 아니다(노랑) — 미전달만 빨강');
+  ok(DR.run("briefLevel({undelivered:1, unread:1, oldest_undelivered:{at:new Date(Date.now()-300*60000).toISOString()}})") === 'bad', '5시간 미전달은 빨강');
+  // 예전 서버(반응 필드 없음) — 기존 '안 읽음' 표기 그대로
+  ok(/안 읽음 2/.test(DR.run("briefRow({id:'cue', unread:2, handled_today:0})")) && !/미전달/.test(DR.run("briefRow({id:'cue', unread:2, handled_today:0})")), '예전 서버 응답은 안 읽음으로 그린다');
 }
 
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);

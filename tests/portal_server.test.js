@@ -1572,6 +1572,110 @@ console.log('20) ↩ 답장하면 원글을 닫는다 · 📋 오늘 브리핑(q
   delete S.props.WEBHOOK_TRIGGERS_JSON;
 }
 
+console.log('\n21) 👀 이모지 반응 — queue_react · 자동 「전달됨 ✓」 · 브리핑 전달됨/접수 (2026-11-26)');
+{
+  const KR = S.props.SECRET_KEY;
+  const SH = 'SHEETidReact2101';
+  const HEADR = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const now = S.sb.Date.now();
+  const iso = ms => new Date(ms).toISOString();
+  const mkR = (id, ago, source, payload, status) => {
+    const row = new Array(HEADR.length).fill('');
+    row[HEADR.indexOf('id')] = id; row[HEADR.indexOf('created_at')] = iso(now - ago * 60000);
+    row[HEADR.indexOf('source')] = source; row[HEADR.indexOf('type')] = 'claude_prompt';
+    row[HEADR.indexOf('payload')] = JSON.stringify(payload); row[HEADR.indexOf('status')] = status || 'PENDING';
+    return row;
+  };
+  const chat = (target, prompt) => ({ prompt, mode: 'ask', kind: 'chat', target });
+  S.addSheet(SH, { 'Command_Queue': [HEADR.slice(0),
+    mkR('Q-r1', 90, 'pi1', chat('vooy', '@부이 비교표 부탁')),
+    mkR('Q-r2', 80, 'portal', chat('vooy', '@부이 체크리스트')),
+    mkR('Q-r3', 70, 'portal', chat('all', '@전체 상태 알려줘')),
+    mkR('Q-r4', 60, 'portal', { prompt: '가계부 점검', mode: 'ask' }),
+    mkR('Q-r5', 50, 'portal', chat('keyring', '@키링 기차표 봐줘'))
+  ] });
+  S.props.QUEUE_SHEET_ID = SH;
+  const react = (as, id, emoji) => post({ action: 'queue_react', key: KR, as, id, emoji });
+  const rowOf = id => S.books[SH]['Command_Queue'].find(r => r[0] === id) || [];
+  const st = id => rowOf(id)[HEADR.indexOf('status')];
+  const rx = () => S.books[SH]['Reactions'] || null;
+  const listItem = id => post({ action: 'queue_list', key: KR, limit: 20 }).items.find(x => x.id === id) || {};
+
+  // ⓪ 읽기는 탭을 만들지 않는다 · 시트 22칸은 그대로
+  post({ action: 'queue_list', key: KR, limit: 5 });
+  ok(rx() === null, '반응이 없으면 queue_list 가 Reactions 탭을 만들지 않는다');
+  ok(S.books[SH]['Command_Queue'][0].length === 22, 'Command_Queue 22칸은 건드리지 않는다');
+
+  // ① 입력 검사
+  ok(post({ action: 'queue_react', key: KR, id: 'Q-r1', emoji: '👀' }).ok === false, 'as 없으면 거절');
+  ok(react('portal', 'Q-r1', '👀').ok === false, 'as=portal 은 거절');
+  ok(react('vooy', '', '👀').ok === false, 'id 없으면 거절');
+  ok(react('vooy', 'Q-r1', '😂').ok === false && react('vooy', 'Q-r1', '').ok === false, '정해진 이모지 밖은 거절');
+  ok(react('vooy', 'Q-nope', '👀').ok === false, '없는 오더는 거절');
+  ok(post({ action: 'queue_react', key: 'x'.repeat(64), as: 'vooy', id: 'Q-r1', emoji: '👀' }).error === 'unauthorized', '키 없이는 거절');
+  ok(rx() === null, '거절된 호출은 아무것도 남기지 않는다');
+
+  // ② 👀 접수 — 상태는 그대로, 반응만 남는다
+  let r1 = react('vooy', 'Q-r1', 'seen');
+  ok(r1.ok === true && r1.emoji === '👀' && r1.added === true && r1.effect === '' && r1.status === 'PENDING', '별칭 seen → 👀 · 상태는 그대로');
+  ok(rx() && JSON.stringify(rx()[0]) === JSON.stringify(['at', 'order_id', 'agent', 'emoji']) && rx().length === 2, '첫 반응에서 Reactions 탭과 머리글이 생긴다');
+  ok(react('vooy', 'Q-r1', '👀').added === false && rx().length === 2, '같은 반응은 두 번 쌓이지 않는다');
+  const li = listItem('Q-r1');
+  ok(Array.isArray(li.reactions) && li.reactions.length === 1 && li.reactions[0].by === 'vooy' && li.reactions[0].e === '👀', 'queue_list 항목에 reactions 가 실린다');
+  ok(!JSON.stringify(rx()).includes('비교표'), '반응 탭에는 본문이 남지 않는다');
+
+  // ③ 🔧 진행 중 — 내 앞 PENDING 이면 집는다
+  r1 = react('vooy', 'Q-r1', '🔧');
+  ok(r1.effect === 'claimed' && r1.status === 'RUNNING' && st('Q-r1') === 'RUNNING' && rowOf('Q-r1')[HEADR.indexOf('claimed_by')] === 'vooy', '🔧 은 내 앞 PENDING 을 RUNNING 으로 집는다');
+  // ④ ✅ 완료 — 확인 답장을 대신해 닫는다
+  r1 = react('vooy', 'Q-r1', '✅');
+  ok(r1.effect === 'closed' && st('Q-r1') === 'DONE' && rowOf('Q-r1')[HEADR.indexOf('result')] === '✅ 완료', '✅ 은 내 말을 DONE 으로 닫고 결과칸에 ✅ 완료');
+  ok(react('vooy', 'Q-r1', '✅').added === false && st('Q-r1') === 'DONE', '이미 닫힌 말에 다시 눌러도 그대로');
+  // ⑤ 주인이 아니면 반응만
+  const r2a = react('pi2', 'Q-r2', '✅');
+  ok(r2a.ok === true && r2a.effect === '' && st('Q-r2') === 'PENDING', '주인(받는 비서)이 아니면 ✅ 로도 닫히지 않는다 — 반응만 남는다');
+  // ⑥ 🙅 내 일 아님
+  const r2b = react('vooy', 'Q-r2', '🙅');
+  ok(r2b.effect === 'closed' && st('Q-r2') === 'DONE' && /내 일 아님/.test(rowOf('Q-r2')[HEADR.indexOf('result')]), '🙅 은 내 앞 말을 닫고 결과칸에 내 일 아님');
+  // ⑦ @전체·노트북 앞은 반응만
+  ok(react('cue', 'Q-r3', '✅').effect === '' && st('Q-r3') === 'PENDING', '@전체 말은 한 명이 ✅ 해도 닫히지 않는다');
+  ok(react('notebook', 'Q-r4', '✅').effect === '' && st('Q-r4') === 'PENDING', '노트북 앞 실행 오더는 반응으로 닫히지 않는다');
+  ok(react('pi1', 'Q-r4', '🔧').effect === '' && st('Q-r4') === 'PENDING', '노트북 오더는 다른 비서가 🔧 로 가로채지 못한다');
+
+  // ⑧ 자동 「전달됨 ✓」 — 비서가 아무것도 안 해도, 받은편지함으로 가져가면 서버가 남긴다
+  let ib = post({ action: 'queue_inbox', key: KR, as: 'keyring' });
+  ok(ib.ok === true && ib.items.some(x => x.id === 'Q-r5') && ib.delivered_mark === true, '키링이 받은편지함으로 가져간다');
+  const deliv = () => (rx() || []).filter(r => r[1] === 'Q-r5' && r[2] === 'keyring' && r[3] === '✓').length;
+  ok(deliv() === 1, '가져간 말에 「전달됨 ✓」 이 자동으로 한 번 남는다');
+  ok(ib.items.find(x => x.id === 'Q-r5').reactions.some(x => x.by === 'keyring' && x.e === '✓'), '응답 항목에도 전달됨이 보인다');
+  post({ action: 'queue_inbox', key: KR, as: 'keyring' });
+  ok(deliv() === 1, '다시 가져가도 전달됨이 쌓이지 않는다');
+  ok((rx() || []).filter(r => r[1] === 'Q-r2' && r[3] === '✓').length === 0, '이미 닫힌 말·반응이 있는 말에는 ✓ 가 없다');
+  const cl = post({ action: 'queue_claim', key: KR, as: 'keyring', id: 'Q-r5' });
+  ok(cl.ok === true && cl.changed === true && (rx() || []).some(r => r[1] === 'Q-r5' && r[2] === 'keyring' && r[3] === '🔧'), 'queue_claim 으로 집으면 🔧 반응도 남는다');
+
+  // ⑨ 브리핑 — 안 읽음을 미전달 / 전달됨 / 접수로 가른다 + 접수까지 걸린 시간
+  const SB2 = 'SHEETidReact2102';
+  S.addSheet(SB2, { 'Command_Queue': [HEADR.slice(0),
+    mkR('Q-s1', 70, 'pi1', chat('vooy2', '@뷔투 일 하나')),
+    mkR('Q-s2', 50, 'pi1', chat('vooy2', '@뷔투 일 둘')),
+    mkR('Q-s3', 40, 'pi1', chat('vooy2', '@뷔투 일 셋'))
+  ], 'Reactions': [['at', 'order_id', 'agent', 'emoji'], [iso(now - 30 * 60000), 'Q-s2', 'vooy2', '✓']] });
+  S.props.QUEUE_SHEET_ID = SB2;
+  ok(react('vooy2', 'Q-s3', '👀').ok === true, '뷔투가 셋째 말에 👀');
+  const bb = post({ action: 'queue_brief', key: KR });
+  const v2 = (bb.agents || []).find(a => a.id === 'vooy2') || {};
+  ok(v2.unread === 3 && v2.undelivered === 1 && v2.delivered === 1 && v2.seen === 1, '뷔투: 안 읽음 3 = 미전달 1 · 전달됨 1 · 접수 1');
+  ok(v2.pickup_n === 2 && v2.pickup_med_min === 40, '접수까지 걸린 시간 중간값(분) — 근거가 있는 말만 센다');
+  ok(bb.totals.undelivered === 1 && bb.totals.delivered === 1 && bb.totals.seen === 1, '합계에도 같은 3분류');
+  ok(v2.oldest_undelivered && v2.oldest_undelivered.id === 'Q-s1' && v2.oldest_undelivered.from === 'pi1', '가장 오래 미전달된 말(빨강 판정의 근거)');
+  const pk = (bb.agents || []).find(a => a.id === 'pi1') || {};
+  ok(pk.pickup_med_min === null && pk.pickup_n === 0, '반응 근거가 없으면 null — 지어내지 않는다');
+  S.props.QUEUE_SHEET_ID = SH;
+}
+
 console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');
 {
   const K4 = S.props.SECRET_KEY;

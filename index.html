@@ -1239,6 +1239,15 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
 .brief-line.old{color:#9A3412}
 .brief-line.none{color:var(--hint)}
 .brief-note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
+/* 👀 이모지 반응 칩 — 말풍선 밑에 비서마다 하나씩 */
+.rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.rxc{display:inline-flex;align-items:center;gap:3px;font-size:11px;line-height:1.2;padding:2px 8px 2px 6px;border-radius:999px;
+  background:#EEF1FF;color:#3D56D8;border:1px solid #DDE3F7;white-space:nowrap}
+.rxc i{font-style:normal;font-weight:700;font-size:10.5px}
+.rxc.rx-dv{background:#F1F3F7;color:#68758B;border-color:#E1E6EF}
+.rxc.rx-wk{background:var(--gold-l);color:#B45309;border-color:#FDE7B0}
+.rxc.rx-dn{background:var(--green-l);color:var(--green);border-color:#BFEBD8}
+.rxc.rx-na{background:#F5F5F7;color:#8995A8;border-color:#E6E8EE}
 @media(max-width:700px){
   .brief-card{padding:16px}
   .brief-list{grid-template-columns:minmax(0,1fr)}
@@ -2497,7 +2506,9 @@ function ordSig(items){
   // 2026-11-26: 답장(보고) 유무·끝난 시각·reply_to 도 서명에 넣는다 — 「완료·보고됨/보고누락」 배지가 바로 바뀌게.
   return (items || []).map(i => [i.id, i.status, i.result, i.error, i.duration_ms,
     i.source, i.target, i.claimed_by, i.replied_by, i.beat_at,
-    i.answer_by, i.answered_at, i.finished_at, i.reply_to, i.type].join('\u0001')).join('\u0002');
+    i.answer_by, i.answered_at, i.finished_at, i.reply_to, i.type,
+    // 👀 이모지 반응이 새로 달리면 말풍선 밑 칩이 바로 바뀐다
+    (Array.isArray(i.reactions) ? i.reactions.map(x => x.by + x.e).join(',') : '')].join('\u0001')).join('\u0002');
 }
 /** 배지·확인 시각 — 목록은 그대로 두고 이것만 다시 써요. */
 function renderOrderHead(){
@@ -3742,6 +3753,39 @@ function ordJumpKey(e, id){
 }
 /** 오른쪽(나) 말풍선 — 내가 보낸 말 */
 /** 오른쪽(나) 말풍선 — 내가 보낸 말. left=true 면 **남이 보낸 말**이라 왼쪽에 그린다(2026-11-25 v28). */
+/* ── 👀 이모지 반응 (2026-11-26) ─────────────────────────────────────────────
+ *  확인 답장("확인했어요") 대신 비서가 이모지만 남긴다 — 토큰·회의실 글·웹훅 연쇄가 없다.
+ *  ✓ 전달됨(서버가 자동 — 비서가 받은편지함으로 가져간 순간) · 👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님.
+ *  '읽음'이라고 쓰지 않는다: 가져간 것만 확실하고, 이해했는지는 서버가 모른다.
+ */
+const RX_RANK = {'✅': 5, '🙅': 4, '🔧': 3, '👀': 2, '✓': 1};
+const RX_TXT = {'✓': '전달됨', '👀': '접수', '🔧': '진행 중', '✅': '완료', '🙅': '내 일 아님'};
+const RX_CLS = {'✓': 'dv', '👀': 'sn', '🔧': 'wk', '✅': 'dn', '🙅': 'na'};
+/** 비서마다 가장 앞선 반응 하나씩 — ✅ > 🙅 > 🔧 > 👀 > ✓ */
+function ordReactTop(it){
+  const best = {};
+  (Array.isArray(it && it.reactions) ? it.reactions : []).forEach(x => {
+    if(!x || !x.by || !RX_RANK[x.e]) return;
+    const k = String(x.by).toLowerCase();
+    if(!best[k] || RX_RANK[x.e] > RX_RANK[best[k].e]) best[k] = {by: k, e: x.e, at: x.at};
+  });
+  return Object.keys(best).sort().map(k => best[k]);
+}
+/** 말풍선 밑 반응 칩 — 반응이 없으면 아무것도 그리지 않는다 */
+function ordReactHtml(it){
+  const list = ordReactTop(it);
+  if(!list.length) return '';
+  return '<div class="rx" aria-label="비서 반응">' + list.map(x => {
+    const nm = briefName(x.by);
+    const when = clockText(x.at);
+    return `<span class="rxc rx-${RX_CLS[x.e]}" title="${esc(nm + ' · ' + RX_TXT[x.e] + (when ? ' · ' + when : ''))}">${esc(x.e)}<i>${esc(nm)}</i></span>`;
+  }).join('') + '</div>';
+}
+/** 받을 비서가 이 말에 남긴 가장 앞선 반응(없으면 null) */
+function ordReactOf(it, id){
+  const k = String(id || '').toLowerCase();
+  return ordReactTop(it).filter(x => x.by === k)[0] || null;
+}
 function chatOut(it, left){
   const s = ORD_STATUS[String(it.status || '').toUpperCase()] || {t: String(it.status || ''), c: 'c-off'};
   const tg = ordTargetLabel(ordTargetKey(it));
@@ -3762,6 +3806,7 @@ function chatOut(it, left){
     qb +
     `<div class="chat-text">${ordMentionHtml(esc(body))}</div>` +
     (ordIsChat(it) ? '' : `<div class="ord-sub">${esc([ordTypeName(it.type), (it.workspace ? ordWsName(it.workspace) : ''), (it.id || '')].filter(Boolean).join(' · '))}</div>`) +
+    ordReactHtml(it) +
     acts +
     `</div></div>`;
 }
@@ -3787,7 +3832,10 @@ function chatIn(it){
   if(st === 'PENDING'){
     cls = 'in sys';
     // 받을 비서가 노트북이 아니면(내가 @큐·@부이 앞으로 남긴 말) 그 이름으로 기다린다
-    const waitLabel = tg === 'notebook' ? '노트북이 60초마다 확인해요'
+    // 받을 비서가 이미 가져갔거나(✓) 접수했으면(👀) 그대로 말한다 — "다음 확인 때"가 아니다(2026-11-26)
+    const rxo = (tg !== 'notebook' && tg !== 'all') ? ordReactOf(it, tg) : null;
+    const waitLabel = rxo ? (ordTargetLabel(tg).label + '가 ' + (rxo.e === '✓' ? '가져갔어요(✓ 전달됨) — 아직 접수 전이에요' : '접수했어요(' + rxo.e + ' ' + RX_TXT[rxo.e] + ')'))
+      : tg === 'notebook' ? '노트북이 60초마다 확인해요'
       : (isChat && tg === 'all') ? '등록된 비서들이 다음 확인 때 읽어요'
       : (ordTargetLabel(tg).label + '가 다음 확인 때 읽어요');
     inner = `<div class="chat-text"><span class="chat-typing"><i></i><i></i><i></i></span> 차례를 기다려요 — ${esc(waitLabel)}</div>`;
@@ -4046,7 +4094,10 @@ function briefFromItems(items){
 }
 /** 비서 한 줄의 색 — 2시간 넘게 안 읽은 말·실패 = 빨강 / 밀린 말 = 노랑 / 그 외 초록 */
 function briefLevel(a){
-  const old = a && a.oldest_unread ? briefMin(a.oldest_unread.at) : null;
+  // 새 서버는 '가져가지도 않은 말'(미전달)이 2시간 넘었을 때만 빨강 — 가져갔거나 접수한 말은 방치가 아니다.
+  const hasRx = a && typeof a.undelivered === 'number';
+  const src = hasRx ? a.oldest_undelivered : (a && a.oldest_unread);
+  const old = src ? briefMin(src.at) : null;
   if(numOf(a.failed_today) > 0 || (old !== null && old >= 120)) return 'bad';
   if(numOf(a.unread) > 0 || numOf(a.replied_open) > 0) return 'warn';
   return 'ok';
@@ -4067,7 +4118,13 @@ function briefRow(a){
   const id = String(a.id || '');
   const name = briefName(id);
   const nums = [];
-  if(a.unread) nums.push(`<em class="bn bad" title="이 비서 앞으로 왔는데 아직 답도 처리도 없는 말">안 읽음 ${numOf(a.unread)}</em>`);
+  if(typeof a.undelivered === 'number'){
+    // 새 서버 — 안 읽음을 셋으로 가른다(✓ 는 서버가 자동, 👀·🔧 는 비서가 남긴 반응)
+    if(a.undelivered) nums.push(`<em class="bn bad" title="이 비서 앞으로 왔는데 아직 가져가지도(✓) 접수하지도(👀) 않은 말">미전달 ${numOf(a.undelivered)}</em>`);
+    if(a.delivered) nums.push(`<em class="bn warn" title="가져갔지만(✓) 아직 접수(👀)·처리 전인 말">전달됨 ${numOf(a.delivered)}</em>`);
+    if(a.seen) nums.push(`<em class="bn" title="접수(👀)하거나 진행 중(🔧)이고 아직 안 끝낸 말">접수 ${numOf(a.seen)}</em>`);
+    if(numOf(a.pickup_n) > 0 && numOf(a.pickup_med_min) !== null) nums.push(`<em class="bn" title="오늘 온 말에 처음 반응(✓·👀 등)하기까지 걸린 시간의 중간값 — ${numOf(a.pickup_n)}건 기준">반응 ${numOf(a.pickup_med_min)}분</em>`);
+  } else if(a.unread) nums.push(`<em class="bn bad" title="이 비서 앞으로 왔는데 아직 답도 처리도 없는 말">안 읽음 ${numOf(a.unread)}</em>`);
   if(a.replied_open) nums.push(`<em class="bn warn" title="답장은 했는데 처리 완료를 찍지 않은 말">답만 함 ${numOf(a.replied_open)}</em>`);
   if(a.running) nums.push(`<em class="bn">실행 중 ${numOf(a.running)}</em>`);
   nums.push(`<em class="bn ok" title="오늘 끝냈거나 답장한 말(같은 말은 한 번)">오늘 처리 ${numOf(a.handled_today) || 0}</em>`);
@@ -4076,8 +4133,8 @@ function briefRow(a){
   const last = a.last
     ? `<span class="brief-line"><i>${a.last.kind === 'done' ? '끝낸 일' : '마지막 말'} · ${esc(agoText(briefMin(a.last.at)) || '')}</i>${esc(a.last.text || '')}</span>`
     : '<span class="brief-line none">최근 기록이 없어요</span>';
-  const o = a.oldest_unread;
-  const old = o ? `<span class="brief-line old"><i>⚠ 가장 오래 안 읽은 말 · ${esc(briefName(o.from))} · ${esc(agoText(briefMin(o.at)) || '')}</i>${esc(o.text || '')}</span>` : '';
+  const o = (typeof a.undelivered === 'number') ? a.oldest_undelivered : a.oldest_unread;
+  const old = o ? `<span class="brief-line old"><i>⚠ ${typeof a.undelivered === 'number' ? '가장 오래 미전달된 말' : '가장 오래 안 읽은 말'} · ${esc(briefName(o.from))} · ${esc(agoText(briefMin(o.at)) || '')}</i>${esc(o.text || '')}</span>` : '';
   const p = briefPulse(a);
   return `<button type="button" class="brief-row lv-${briefLevel(a)}" data-k="who" data-v="${esc(id)}" data-brief="${esc(id)}" onclick="briefPick(this)" title="${esc(name)}의 말만 회의실에서 보기">` +
     `<span class="brief-who">${agentMark(id, {title: name})}<b>${esc(name)}</b><small class="${p.cls}">${esc(p.t)}</small></span>` +
@@ -4092,6 +4149,11 @@ function briefSumHtml(d){
   const out = [];
   out.push(t.unread ? pill('bad', `안 읽은 일 <b>${numOf(t.unread)}</b>` + (oldest !== null ? ' · 가장 오래 ' + esc(agoText(oldest)) : ''), '비서 앞으로 왔는데 답도 처리도 없는 말')
     : pill('ok', '안 읽은 일 <b>0</b>'));
+  if(typeof t.undelivered === 'number' && t.unread){
+    out.push(pill(t.undelivered ? 'bad' : '', `미전달 <b>${numOf(t.undelivered)}</b>`, '비서가 아직 가져가지도 접수하지도 않은 말'));
+    if(t.delivered) out.push(pill('warn', `전달됨(접수 전) <b>${numOf(t.delivered)}</b>`, '가져갔지만(✓) 아직 접수(👀)·처리 전 — 가져간 것만 확실하고 이해했는지는 몰라요'));
+    if(t.seen) out.push(pill('', `접수 <b>${numOf(t.seen)}</b>`, '접수(👀)·진행 중(🔧)이고 안 끝낸 말'));
+  }
   if(t.replied_open) out.push(pill('warn', `답만 하고 안 닫음 <b>${numOf(t.replied_open)}</b>`, '답장은 했는데 처리 완료를 안 찍은 말 — 서버 새 배포부터는 답장하면 저절로 닫혀요'));
   out.push(pill('ok', `오늘 처리 <b>${numOf(t.handled_today) || 0}</b>`));
   if(t.failed_today) out.push(pill('bad', `오늘 실패 <b>${numOf(t.failed_today)}</b>`));
@@ -4119,7 +4181,8 @@ function renderBrief(){
     note.textContent = d.local
       ? `서버가 아직 브리핑을 모르는 배포예요 — 지금 받은 회의실 ${numOf(d.scanned) || 0}건으로 어림했어요(Code.gs 재배포 뒤 정확해져요).`
       : `큐 최근 ${numOf(d.scanned) || 0}줄 기준${d.version ? ' · 서버 ' + d.version : ''} · 비서 줄을 누르면 회의실에서 그 비서의 말만 보여요. ` +
-        '⏱ 주기 확인 비서(키링·부이 계열)는 웹훅이 없어 몇 분~30분마다 스스로 확인해요 — "확인 N분 전"이 꾸준하면 느린 것, 끊겼으면 멈춘 것.';
+        '⏱ 주기 확인 비서(키링·부이 계열)는 웹훅이 없어 몇 분~30분마다 스스로 확인해요 — "확인 N분 전"이 꾸준하면 느린 것, 끊겼으면 멈춘 것. ' +
+        '✓ 전달됨은 비서가 가져간 순간 서버가 자동으로 남기고(읽고 이해했다는 뜻은 아니에요), 👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님은 비서가 이모지로 남겨요.';
   }
 }
 function briefEmpty(msg){

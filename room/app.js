@@ -863,6 +863,30 @@ function roomVisible(it, f, items, now){
   if(x.q && !roomSearchHit(it, x.q)) return false;
   return true;
 }
+/* ── 👀 이모지 반응 (2026-11-26) — 포털 ordReactTop/ordReactHtml 와 같은 규칙 ──
+ *  ✓ 전달됨(서버가 자동 — 비서가 가져간 순간) · 👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님.
+ *  '읽음'이라고 쓰지 않는다 — 가져간 것만 확실하고 이해했는지는 서버가 모른다. */
+const ROOM_RX_RANK = {'✅': 5, '🙅': 4, '🔧': 3, '👀': 2, '✓': 1};
+const ROOM_RX_TXT = {'✓': '전달됨', '👀': '접수', '🔧': '진행 중', '✅': '완료', '🙅': '내 일 아님'};
+const ROOM_RX_CLS = {'✓': 'dv', '👀': 'sn', '🔧': 'wk', '✅': 'dn', '🙅': 'na'};
+function roomReactTop(it){
+  const best = {};
+  (Array.isArray(it && it.reactions) ? it.reactions : []).forEach(x => {
+    if(!x || !x.by || !ROOM_RX_RANK[x.e]) return;
+    const k = String(x.by).toLowerCase();
+    if(!best[k] || ROOM_RX_RANK[x.e] > ROOM_RX_RANK[best[k].e]) best[k] = {by: k, e: x.e, at: x.at};
+  });
+  return Object.keys(best).sort().map(k => best[k]);
+}
+function roomReactHtml(it){
+  const list = roomReactTop(it);
+  if(!list.length) return '';
+  return '<div class="rx" aria-label="비서 반응">' + list.map(x => {
+    const a = roomAgentById(x.by);
+    const nm = a ? a.name : x.by;
+    return '<span class="rxc rx-' + ROOM_RX_CLS[x.e] + '" title="' + esc(nm + ' · ' + ROOM_RX_TXT[x.e]) + '">' + esc(x.e) + '<i>' + esc(nm) + '</i></span>';
+  }).join('') + '</div>';
+}
 // </ROOM_CORE>
 
 /* ─────────────────────────────────────────────────────────
@@ -1020,7 +1044,7 @@ function roomVisible(it, f, items, now){
     return '<div class="msg ' + (mine ? 'me' : 'them') + '"' + (aid ? ' id="m-' + esc(aid) + '"' : '') + '>' + av +
       '<div class="bwrap ' + agentCls(key) + '"><div class="meta">' + meta + '</div>' +
       '<div class="bub">' + quoteBox(it) + '<div class="txt">' + roomMd(body) + '</div></div>' +
-      bubbleActs(it) + '</div></div>';
+      roomReactHtml(it) + bubbleActs(it) + '</div></div>';
   }
   function bubbleReply(it){
     const st = String((it && it.status) || '').toUpperCase();
@@ -1078,7 +1102,8 @@ function roomVisible(it, f, items, now){
   }
   function sigOf(){
     return S.items.map(i => [i.id, i.status, String(i.result || '').length, i.replied_by || '', i.beat_at || '',
-      i.answer_by || '', i.finished_at || ''].join('~')).join('|') +
+      i.answer_by || '', i.finished_at || '',
+      (Array.isArray(i.reactions) ? i.reactions.map(x => x.by + x.e).join(',') : '')].join('~')).join('|') +
       '#' + F.who + '/' + F.st + '/' + F.q;
   }
   function renderFeed(force){

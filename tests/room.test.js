@@ -148,7 +148,8 @@ function coreTests() {
     'roomReplyToId', 'roomFinished', 'roomWantsReport', 'roomChildren', 'roomReportOf', 'roomHasResult',
     'roomReportState', 'roomLateMin', 'roomReportChip', 'roomThreadRoot', 'roomThreadItems', 'roomThreadCount',
     'roomQuoteText', 'roomShort', 'roomQuoteAuthor', 'roomSearchHit', 'roomAgentHit', 'roomVisible',
-    'ROOM_REP', 'ROOM_LATE_MIN', 'ROOM_REPORT_MIN'];
+    'ROOM_REP', 'ROOM_LATE_MIN', 'ROOM_REPORT_MIN',
+    'ROOM_RX_RANK', 'ROOM_RX_TXT', 'ROOM_RX_CLS', 'roomReactTop', 'roomReactHtml'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -455,6 +456,24 @@ function coreTests() {
     ok(!/onclick=/.test(html), '인라인 onclick 없음(동작은 app.js 가 붙임)');
     ok(/data-go=/.test(js) && /jumpToMsg/.test(js), '일 칩을 누르면 그 말로 이동');
     ok(/ROOM_LIVE_MAX/.test(js) && /live-more/.test(js) && /\.live-more/.test(css), '줄은 3개까지 — 나머지는 "+N건 더"');
+  }
+
+  console.log('N-3) 👀 이모지 반응 칩 — 포털과 같은 규칙 (2026-11-26)');
+  {
+    const it = {id: 'R1', reactions: [{by: 'vooy', e: '✓'}, {by: 'vooy', e: '👀'}, {by: 'cue', e: '✓'}, {by: 'vooy2', e: '✅'}, {by: 'x', e: '😂'}, {e: '👀'}]};
+    ok(eq(C.roomReactTop(it).map(x => x.by + x.e), ['cue✓', 'vooy👀', 'vooy2✅']), '비서마다 가장 앞선 반응 하나(✅ > 🙅 > 🔧 > 👀 > ✓) · 모르는 이모지/비서 없는 반응은 무시');
+    const h = C.roomReactHtml(it);
+    ok(/class="rx"/.test(h) && /rx-dn/.test(h) && /rx-dv/.test(h) && /rx-sn/.test(h), '말풍선 밑 칩 — 완료·전달됨·접수');
+    ok(/title="뷔투 · 완료"/.test(h) && /title="큐 · 전달됨"/.test(h), '칩 title 은 이름 · 상태 말');
+    ok(!/읽음/.test(h), '「읽음」이라고 쓰지 않는다(✓ 는 전달됨)');
+    ok(C.roomReactHtml({id: 'R2'}) === '' && C.roomReactHtml(null) === '' && C.roomReactHtml({reactions: 'x'}) === '', '반응이 없으면 아무것도 그리지 않는다');
+    ok(!/<img/.test(C.roomReactHtml({reactions: [{by: 'a<img src=x>', e: '👀'}]})), '이름이 이상해도 이스케이프한다');
+    // 포털(index.html)과 같은 우선순위·문구를 쓴다 — 갈라지면 두 화면이 다르게 말한다
+    const pt = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const grab = (src, re) => { const mm = src.match(re); return mm ? mm[1].replace(/\s+/g, '') : ''; };
+    ok(grab(pt, /const RX_RANK = (\{[^}]*\})/) === grab(js, /const ROOM_RX_RANK = (\{[^}]*\})/) && grab(pt, /const RX_RANK = (\{[^}]*\})/) !== '', '포털 RX_RANK 와 회의실 ROOM_RX_RANK 가 같다');
+    ok(grab(pt, /const RX_TXT = (\{[^}]*\})/) === grab(js, /const ROOM_RX_TXT = (\{[^}]*\})/) && grab(pt, /const RX_TXT = (\{[^}]*\})/) !== '', '포털 RX_TXT 와 회의실 ROOM_RX_TXT 가 같다');
+    ok(/roomReactHtml\(it\)/.test(js) && /i\.reactions/.test(js), '말풍선이 칩을 그리고 다시 그리기 서명에 반응이 들어간다');
   }
 
   console.log('N-2) ✅ 완료 보고 · 💬 스레드 · 🔎 히스토리 찾기 (2026-11-26)');
