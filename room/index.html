@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=8">
+<link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
 <div class="app" id="app">
@@ -41,6 +41,14 @@
   <!-- 🔴 지금 작업 중 — 누가 무슨 일을 하는지(작업 리스트 · 가동 상태). app.js renderLive() 가 그림 -->
   <section class="live" id="live" aria-label="지금 작업 중" hidden></section>
 
+  <!-- 🔎 히스토리 찾기 — 키워드 + 비서·상태 칩 (2026-11-26). renderFilters() 가 그림 -->
+  <section class="fbar" id="fbar" aria-label="대화 찾기">
+    <input class="srch" id="srch" type="search" placeholder="키워드로 찾기 — 내용·결과·오더 id"
+      aria-label="키워드로 히스토리 찾기">
+    <div class="fchips" id="fchips" role="toolbar" aria-label="비서·상태 필터"></div>
+    <div class="fcnt" id="fcnt"></div>
+  </section>
+
   <!-- 타임라인 -->
   <main class="feed" id="feed" aria-live="polite">
     <div class="empty">
@@ -52,8 +60,12 @@
 
   <button class="jump" id="jump" type="button">새 메시지 ↓</button>
 
-  <!-- 입력바 — 빠른 멘션 칩 · 입력창 · 전송 -->
+  <!-- 입력바 — 빠른 멘션 칩 · 답장 배너 · 입력창 · 전송 -->
   <footer class="cmp">
+    <div class="rep" id="rep" hidden>
+      <span class="rep-t"><b>↩ 답장</b> <span id="rep-who"></span> <span class="rep-q" id="rep-txt"></span></span>
+      <button class="rep-x" id="rep-x" type="button" aria-label="답장 취소">✕</button>
+    </div>
     <div class="chips" id="chips" role="toolbar" aria-label="빠른 멘션"></div>
     <div class="crow">
       <textarea class="inp" id="inp" rows="1" maxlength="2000"
@@ -108,8 +120,18 @@
   </div>
 </div>
 
+<!-- 💬 스레드 — 원문과 거기 달린 답장·보고만 (2026-11-26) -->
+<div class="sheet" id="thread" role="dialog" aria-modal="true" aria-labelledby="thread-t">
+  <div class="bg" id="thread-bg"></div>
+  <div class="card th-card">
+    <h2 id="thread-t">💬 스레드 <span class="th-n" id="thread-n"></span></h2>
+    <div class="th-list" id="thread-list"></div>
+    <div class="acts"><button type="button" id="thread-x">닫기</button></div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=8" defer></script>
+<script src="app.js?v=9" defer></script>
 </body>
 </html>

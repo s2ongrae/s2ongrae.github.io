@@ -2264,6 +2264,9 @@ function queueList(body) {
     }
     // 이 오더에 답장이 달려 있으면 누가 달았는지 붙인다(끝난 오더의 claimed_by 와는 다른 정보)
     const rp = replied[it.id];
+    // 2026-11-26 — 「완료·보고됨 / 완료·보고누락」의 근거. 화면은 이 한 칸(또는 목록의 reply_to)으로 판단하고,
+    //  보고가 없으면 결과로 만든 완료 카드를 대신 그린다(실제 보고가 오면 카드가 저절로 사라진다 — 중복 없음).
+    it.answered = !!rp;
     if (rp) {
       // 2026-11-25 — 원글이 이미 DONE 이라 replied_by(처리한 비서)가 차 있어도
       //  답장한 비서를 걺지 않게 따로 남긴다(answer_by). 비어 있으면 replied_by 도 채운다.
@@ -2340,6 +2343,12 @@ var QQ_WORKER_NOTE = '\n\n[워커 규칙] 셸(Bash)은 차단되어 있다. 테�
   'npm test·node --test 같은 실행 명령을 시도하지 말고, 바꾼 파일과 완료 조건만 보고해라.';
 // 2026-11-25 — 예전에 붙어 저장된 오더·대화도 화면·요약에서는 안 보이게 뗀다(멱등).
 var QQ_WORKER_NOTE_RE = /\s*\[워커 규칙\][\s\S]*$/;
+// 2026-11-26 — "처리했으면 했다고 결과보고를 남겨라"(사용자 지시).
+//  queue_done 만 찍고 회의실 보고를 빼먹으면 화면에 「완료·보고누락」으로 남는다.
+//  비서가 오더를 집거나(claim) 끝낼 때(done) 이 문구를 응답에 함께 실어 준다 — 스스로 읽고 지키게.
+var QQ_REPORT_RULE = '끝나면 회의실에 한 줄 보고를 남겨 주세요 — queue_enqueue {type:"claude_prompt", ' +
+  'payload:{kind:"chat", target:"portal", reply_to:"<이 오더 id>", prompt:"<무엇을 했고 결과가 어떤지>"}} ' +
+  '또는 queue_done 의 result 에 결과를 적으세요. 보고가 없으면 화면에 「완료·보고누락」으로 보입니다.';
 function qqStripWorkerNote_(s) {
   return String(s == null ? '' : s).replace(QQ_WORKER_NOTE_RE, '').trim();
 }
@@ -2356,6 +2365,12 @@ function qqWithWorkerNote_(type, payload) {
   p.worker_note = 'auto';
   return JSON.stringify(p);
 }
+
+/**
+ * 2026-11-26 — 보고 규칙은 **저장되는 프롬프트에 붙이지 않는다**.
+ *  붙이면 승인 해시·중복 판정·다른 화면(회의실 PWA)의 본문이 다 바뀌고 토큰도 늘어난다.
+ *  대신 queue_enqueue·queue_claim·queue_done 의 **응답**과 웹훅 본문(report_rule)에 실어 준다.
+ */
 
 /**
  * 대화(kind='chat')가 '포털'(사람) 앞으로 온 것인가 — 아무도 실행하지 않는 순수 전달이다(2026-11-25).
@@ -2415,7 +2430,9 @@ function qqWebhookBody_(row, p, agentId) {
     summary: qqSummary_(row && row.type, p || {}),
     // 원문 전체 — 대화는 줄바꿈 그대로, 실행 오더는 큐가 붙인 규칙까지 그대로(가림만).
     prompt: qqMask_(kind === 'chat' ? qqStripWorkerNote_(rawPrompt) : rawPrompt, QQ_CELL_MAX),
-    created_at: String((row && row.created_at) || '')
+    created_at: String((row && row.created_at) || ''),
+    // 2026-11-26 — 깨어난 비서가 바로 읽는 자리에 완료 보고 규칙을 둔다(사용자: "처리했으면 했다고 보고를 남겨라").
+    report_rule: QQ_REPORT_RULE
   };
 }
 /** 웹훅 발사 결과(상태 코드)를 6시간 캐시에 남긴다 — 주소는 안 남긴다. 실패해도 조용히 넘긴다. */
@@ -2630,6 +2647,8 @@ function queueEnqueue(body) {
   });
   // 접수에 성공했을 때만 — 기다리는 외부 비서(큐·큐투 …)를 깨운다. 실패는 접수에 영향 없다.
   if (posted) qqFireWebhooks_(posted, qqParse_(posted.payload));
+  // 2026-11-26 — 오더를 낸 화면·비서도 "끝나면 보고를 남기라"는 규칙을 응답에서 바로 본다.
+  if (res && res.ok) res.report_rule = QQ_REPORT_RULE;
   return res;
 }
 
@@ -2748,7 +2767,8 @@ function queueClaim(body) {
     const attempts = Number(pick.attempts || 0) + 1;
     qqUpdateRow_(ctx, pick.__row, { status: 'RUNNING', claimed_at: now, claimed_by: as, attempts: attempts });
     const row = qqFindRow_(ctx, String(pick.id)) || pick;
-    return { ok: true, changed: true, at: now, claimed_by: as, item: qqItem_(row) };
+    // 2026-11-26 — 오더를 집은 비서에게 "끝나면 회의실에 보고를 남겨라"를 같은 응답에 실어 준다.
+    return { ok: true, changed: true, at: now, claimed_by: as, item: qqItem_(row), report_rule: QQ_REPORT_RULE };
   });
 }
 
@@ -2783,7 +2803,11 @@ function queueDone(body) {
       exit_code: status === 'DONE' ? 0 : 1
     });
     const row = qqFindRow_(ctx, id) || r;
-    return { ok: true, changed: true, id: id, status: status, at: qqIso_(nowMs), item: qqItem_(row) };
+    const empty = status === 'DONE' && !String(result || '').trim();
+    // 2026-11-26 — 결과가 비었으면 「보고 누락」이 된다. 응답에서 바로 알려 줘서 비서가 한 줄이라도 남기게 한다.
+    return { ok: true, changed: true, id: id, status: status, at: qqIso_(nowMs), item: qqItem_(row),
+      needs_report: empty, report_rule: QQ_REPORT_RULE,
+      hint: empty ? '결과가 비어 있어요 — 회의실에 한 줄 보고를 남겨 주세요(화면에 「보고누락」으로 보입니다).' : '' };
   });
 }
 

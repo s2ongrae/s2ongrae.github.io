@@ -194,7 +194,16 @@
   · 테스트: `portal_integration` **AB)절**(정렬·담당·6상태·줄 내용·정체·이스케이프·빈 판·배지·칩 필터) · `room` **N-1)절**(같은 규칙 + `#live` 계약).
 - **죽은 CSS 정리(2026-11-26)**: 카톡 타임라인으로 바뀌며 쓰이지 않게 된 옛 오더 카드 스타일(`.ord-compose`·`.ord-item`/`.st-*`·`.ord-ic`·`.ord-main`·`.ord-line`·`.ord-type`·`.ord-text`)을 지웠다.
   `.mt-*`·`.w-*` 는 클래스 이름을 코드가 조합해 만들므로(`mt-${cls}`) 지금도 살아 있다.
-- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · **17)절(GET 읽기·claim/done·mentions·reply_to·duty)** · **18)절(협업 필요 자동 멘션·source 보정·봉투 필드 승계·긴 글 자르기 없음)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)** · **X)절(닉네임·이모지 머리·부계정 자동 이름·담당 표시)** · **10)절(외부 비서 웹훅 — 발사 조건·무한루프·본문 규격·실패 격리)**.
+- **✅ 완료 보고·지연·보고누락 (2026-11-26, 사용자 "애들이 처리했으면 했다고 결과보고를 안 하는 놈이 있다")**: 끝난 오더에 「보고」가 있는지를 화면이 한 곳에서 판정한다.
+  · **보고** = 그 오더에 달린 후속 말(`reply_to` = 오더 id) 또는 결과 글(`result`/`error`). 서버 `queue_list` 는 항목마다 `answered:true/false` 를 준다(최근 400행의 `reply_to` 스캔, `answer_by`·`answered_at` 은 그대로).
+  · 상태(`ordReportState`·`roomReportState`) = `ok`(후속 보고 있음) · `auto`(결과 글이 보고 역할) · `miss`(끝났는데 둘 다 없음) · `''`(대상 아님: `git_pull`·`toss_sync` 같은 기계 작업, 답장 자신, 순수 답장). 결과가 12자 미만('완료')이면 보고로 보지 않는다(`ORD_REPORT_MIN`·`ROOM_REPORT_MIN`).
+  · 배지(`ordReportChip`·`roomReportChip`) = `완료·보고됨` · `완료·보고누락`(빨강) · `지연(15분+)`(차례·실행이 15분 넘음 — 답장만 남기고 `queue_done` 을 안 찍은 줄이 여기서 보인다). 머리말 `#ord-count` 에 `보고누락 N`.
+  · 보고누락 말에는 **경고 카드**(`data-report-missing`)를 그리고 `📣 결과 보고 요청` 버튼이 입력칸에 요청 말을 **채우기만** 한다(`ordAskReport`, 자동 전송 없음). 결과·보고가 있는 말에는 카드를 만들지 않는다(중복 없음).
+  · 상태 필터에 **`보고누락`** 칩(`ORD_FILTER='miss'`)·회의실 PWA(`st:'miss'`)가 같은 규칙을 쓴다.
+- **보고 규칙은 저장되는 프롬프트에 붙이지 않는다(2026-11-26)**: `Code.gs` 의 `QQ_REPORT_RULE` 을 `queue_enqueue`·`queue_claim`·`queue_done` **응답**과 웹훅 본문(`report_rule`)에 실어 준다. 프롬프트에 붙이면 승인 해시·중복 판정·다른 화면 본문이 다 바뀌고 토큰도 늘어난다. `queue_done` 은 결과가 비었을 때 `needs_report:true` + `hint` 를 돌려준다(비서가 한 줄이라도 남기게).
+- **💬 스레드 (2026-11-26)**: `ordThreadRoot`(reply_to 사슬을 거슬러 첫 말) · `ordThreadItems`(첫 말 + 이어진 답장 전부, 오래된 것 먼저) · `ordThreadBtn`(이어진 말 2개 이상일 때만 `💬 스레드 N`). 누르면 `#ord-thread` 모달(overlay)에 그 대화만 그린다 — `ordThreadRow` 는 id 없이 그려 타임라인의 `#chat-*` 와 겹치지 않고, `↗ 타임라인에서`(ordThreadJump)·`↩ 답장` 버튼이 있다. 회의실 PWA 는 `roomThreadRoot`·`roomThreadItems` + `#thread` 시트.
+- **🔎 역할·키워드 히스토리 (2026-11-26)**: `#ord-q` 검색칸(`ordSearchInput`)은 말·결과·오류·오더 id·대상에서 공백으로 나눈 낱말을 모두 만족하는 말만 남긴다. 비서 칩은 **그 비서와 얽힌 말**(보냄·받음·명시된 대상·처리·답장·멘션)을 보여준다(`ordSenderMatches` 확장 — 대상 칸이 빈 옛 줄은 '노트북'으로 읽지만 그걸로 치면 모든 글이 노트북 것이 되므로 **명시된 대상만** 본다). 나(portal)에게 온 말은 '내가 한 말'이 아니라서 `portal` 칩에는 안 들어간다. 라벨은 `레이 님`(포털 아님).
+- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · **17)절(GET 읽기·claim/done·mentions·reply_to·duty)** · **18)절(협업 필요 자동 멘션·source 보정·봉투 필드 승계·긴 글 자르기 없음)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)** · **X)절(닉네임·이모지 머리·부계정 자동 이름·담당 표시)** · **10)절(외부 비서 웹훅 — 발사 조건·무한루프·본문 규격·실패 격리)** · **19)절(answered·report_rule·needs_report)** · `portal_integration` **AF)절(스레드·비서별·키워드 히스토리)** · **AG)절(완료 보고 배지·필터·보고 요청)** · `room` **N-2)절(같은 규칙 + 검색·답장·스레드 계약)**.
 
 ## 🤖 노트북 오더함 (2026-11-15)
 
@@ -305,7 +314,8 @@
 ## 전용 앱 — AI 비서 회의실 (`room/`, 2026-11-25)
 
 - 포털 회의실을 **폰 홈 화면 앱**으로 따로 띄우는 화면이다: `https://s2ongrae.github.io/room/`. 포털의 다른 메뉴(달력·주식·보험)는 없다 — 방 제목·편대/사용량 서랍·타임라인·입력바뿐.
-- **`index.html`·`apps-script/Code.gs` 를 건드리지 않는다.** `room/` 폴더 안에서만 고친다(`index.html`, `app.css`, `app.js`, `manifest.webmanifest`, `sw.js`, `icons/`).
+- **회의실 규칙은 세 곳이 같아야 한다(2026-11-26 개정)**: 포털 회의실(`index.html`) · 서버(`apps-script/Code.gs`) · 전용 앱(`room/`). 예전에는 "room/ 안에서만 고친다"였지만, 완료 보고·스레드·히스토리 필터처럼 **규칙이 걸린 기능**은 세 곳을 같이 고친다 — 한쪽만 고치면 두 화면이 다른 말을 한다(`tests/room.test.js` N-2)절과 `portal_integration` AF·AG)절이 잡는다. 전용 앱만의 화면·스타일(매니페스트·SW·아이콘 등)은 지금처럼 `room/` 안에서 끝낸다.
+- 회의실 상단 `#fbar`(검색 `#srch` + `#fchips` + `#fcnt`)로 비서·상태(보고누락 포함)·키워드를 한 번에 거른다. 말풍선 `data-rep`(↩ 답장 → `#rep` 배너, `payload.reply_to`) · `data-th`(💬 스레드 → `#thread` 시트) · `data-go`(원문으로 이동). 인라인 `onclick` 은 쓰지 않는다(테스트).
 - 같은 큐·같은 키를 쓴다: `queue_list`(limit ≤ 20) · `usage_get` · `queue_status` · 전송은 `queue_enqueue`(`type:'claude_prompt'`, `payload.kind:'chat'`, `payload.target`). 인증은 포털과 같은 localStorage `portal_server_url`·`portal_server_key` 라서 포털에 넣은 기기면 자동 인식된다. **주소·키는 코드에 넣지 않는다.**
 - 편대 9명(피원·피투·노트북·큐·큐투·부이·뷔투·키링·키투)과 `@전체` 멘션 칩은 `app.js` 의 `ROOM_AGENTS`·`ROOM_CHIPS` 한 곳에서만 고친다.
 - 앱 안에서 승인·오더 실행은 하지 않는다(대화 전용). 승인은 포털 회의실에서.

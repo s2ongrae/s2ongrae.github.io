@@ -1392,6 +1392,56 @@ console.log('18) 🤝 협업 필요 줄 자동 멘션 · 발신자 source 보정
   ok(mark.source_fallback === true && mark.mention_auto === true, 'queue_list 가 source_fallback·mention_auto 표식을 준다(배포 확인용)');
 }
 
+console.log('19) ✅ 완료 보고 — answered · report_rule · needs_report (2026-11-26)');
+{
+  const KR = S.props.SECRET_KEY;
+  const SHEETR = 'SHEETidReport1901';
+  const HEADR = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const mkRowR = (id, source, payload, status, extra) => {
+    const row = new Array(HEADR.length).fill('');
+    row[HEADR.indexOf('id')] = id;
+    row[HEADR.indexOf('created_at')] = '2026-11-26T10:00:00+09:00';
+    row[HEADR.indexOf('source')] = source;
+    row[HEADR.indexOf('type')] = 'claude_prompt';
+    row[HEADR.indexOf('payload')] = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    row[HEADR.indexOf('status')] = status || 'PENDING';
+    Object.keys(extra || {}).forEach(k => { const i = HEADR.indexOf(k); if (i >= 0) row[i] = extra[k]; });
+    return row;
+  };
+  S.addSheet(SHEETR, { 'Command_Queue': [HEADR.slice(0),
+    mkRowR('Q-p1', 'portal', { prompt: '@큐 약속 잡아줘', mode: 'ask', kind: 'chat', target: 'cue' }, 'DONE',
+      { claimed_by: 'cue', finished_at: '2026-11-26T10:05:00+09:00', result: '금요일 15시로 잡았습니다' }),
+    mkRowR('Q-p2', 'portal', { prompt: '@키링 택배 확인해줘', mode: 'ask', kind: 'chat', target: 'keyring' }, 'PENDING'),
+    mkRowR('Q-p3', 'portal', { prompt: '@부이 비교표 만들어줘', mode: 'ask', kind: 'chat', target: 'vooy' }, 'PENDING')
+  ] });
+  S.props.QUEUE_SHEET_ID = SHEETR;
+  const itemR = id => post({ action: 'queue_list', key: KR, limit: 20 }).items.filter(x => x.id === id)[0] || {};
+
+  // ① 후속 보고가 없으면 answered=false — 화면은 이걸로 「완료·보고누락」을 그린다
+  ok(itemR('Q-p1').answered === false, '보고가 없으면 answered=false');
+  const rep = post({ action: 'queue_enqueue', key: KR, type: 'claude_prompt', workspace: 'gaegyebu', source: 'cue',
+    payload: { prompt: '@포털 금요일 15시로 잡았습니다', mode: 'ask', kind: 'chat', target: 'portal', reply_to: 'Q-p1' } });
+  ok(rep.ok === true, '비서가 같은 오더에 답장(보고)을 남긴다');
+  ok(itemR('Q-p1').answered === true && itemR('Q-p1').answer_by === 'cue', '보고가 달리면 answered=true · answer_by');
+
+  // ② 규칙은 저장되는 프롬프트를 건드리지 않고 **응답**으로 나간다(승인 해시·다른 화면이 안 바뀌게)
+  ok(/보고/.test(rep.report_rule || '') && /reply_to/.test(rep.report_rule || ''), 'queue_enqueue 응답에 보고 규칙이 실린다');
+  const claimed = post({ action: 'queue_claim', key: KR, as: 'keyring', id: 'Q-p2' });
+  ok(claimed.ok === true && /보고/.test(claimed.report_rule || ''), 'queue_claim 응답에도 보고 규칙(집은 비서가 바로 읽게)');
+  ok(String(claimed.item.summary || '').indexOf('[보고 규칙]') < 0, '저장된 본문에는 규칙 문구가 섞이지 않는다');
+
+  // ③ 결과가 비면 needs_report — 비서가 한 줄이라도 남기게
+  const empty = post({ action: 'queue_done', key: KR, as: 'keyring', id: 'Q-p2', status: 'DONE' });
+  ok(empty.ok === true && empty.needs_report === true && /결과가 비어/.test(empty.hint || ''), '결과 없이 끝내면 needs_report·안내');
+  const full = post({ action: 'queue_done', key: KR, as: 'vooy', id: 'Q-p3', status: 'DONE', result: '세 곳 비교표를 만들었어요 — 가격·평점·거리 순' });
+  ok(full.ok === true && full.needs_report === false && full.hint === '', '결과를 적었으면 needs_report=false');
+
+  // ④ 답장 자신은 또 다른 답장을 요구하지 않는다(무한 보고 방지)
+  ok(itemR(rep.item.id).answered === false, '답장 줄은 누군가의 보고 대상이 아니다(자기 자신은 reply_to 없음)');
+}
+
 console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');
 {
   const K4 = S.props.SECRET_KEY;
@@ -1410,7 +1460,9 @@ console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한�
   ok(call1.opts && call1.opts.method === 'post' && call1.opts.contentType === 'application/json', 'POST · application/json 으로 보낸다');
   ok(call1.opts && !call1.opts.headers, '인증 헤더 없음');
   const b1 = call1.opts ? JSON.parse(call1.opts.payload) : {};
-  ok(Object.keys(b1).sort().join(',') === 'created_at,id,mentions,prompt,summary,target', '본문은 {id,target,mentions,summary,prompt,created_at}');
+  // 2026-11-26 — 깨어난 비서가 바로 읽는 자리에 완료 보고 규칙(report_rule)을 더했다(기존 키는 그대로).
+  ok(Object.keys(b1).sort().join(',') === 'created_at,id,mentions,prompt,report_rule,summary,target', '본문은 {id,target,mentions,summary,prompt,created_at} + report_rule');
+  ok(typeof b1.report_rule === 'string' && /보고/.test(b1.report_rule) && /reply_to/.test(b1.report_rule), 'report_rule 에 “끝나면 회의실 보고”가 담긴다');
   ok(b1.id === w.item.id && b1.target === 'cue2' && b1.created_at === w.item.created_at, 'id · target · created_at 이 큐 줄과 같다');
   ok(Array.isArray(b1.mentions) && b1.mentions.indexOf('cue2') >= 0, 'mentions 에 큐투가 들어 있다');
   ok(typeof b1.summary === 'string' && b1.summary.indexOf('이거 봐줘') >= 0, 'summary 에 본문이 담긴다');

@@ -714,6 +714,154 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
   (Array.isArray(ids) ? ids : []).forEach(id => { c[roomAgentAct(id, items, sigs, usage, hb, now).state]++; });
   return c;
 }
+
+/* ── ✅ 완료 보고 · 지연(15분+) · 💬 스레드 · 🔎 검색 (2026-11-26) — 포털 index.html 과 같은 규칙 ──
+ *  · 보고 = 끝난 오더에 달린 후속 말(reply_to = 그 오더) 또는 결과 글(result).
+ *  · 보고누락 = 끝났는데 후속 말도 결과 글도 없는 경우 — 화면에 경고 카드로 남긴다.
+ *  · 끝나지 않은 말이 15분을 넘으면 '지연(15분+)' — 답장만 남기고 queue_done 을 안 찍은 줄이 여기서 보인다.
+ */
+const ROOM_FIN_ST = {DONE: 1, FAILED: 1, TIMEOUT_REVIEW: 1, REVIEW_NEEDED: 1};
+const ROOM_REP = {
+  ok:   {t: '완료·보고됨',   c: 'ok'},
+  auto: {t: '완료·보고됨',   c: 'ok'},
+  miss: {t: '완료·보고누락', c: 'bad'},
+  late: {t: '지연(15분+)',   c: 'wait'}
+};
+const ROOM_LATE_MIN = 15;      // 차례·실행이 이만큼 지나면 지연
+const ROOM_REPORT_MIN = 12;    // 결과 글이 이보다 짧으면('완료'·'Done') 보고로 보지 않는다
+function roomReplyToId(it){ return String((it && it.reply_to) || '').trim(); }
+function roomFinished(it){ return !!ROOM_FIN_ST[String((it && it.status) || '').toUpperCase()]; }
+function roomWantsReport(it){
+  if(!it || !it.id) return false;
+  if(String(it.type || '') !== 'claude_prompt') return false;   // git_pull·toss_sync 는 결과 카드가 곧 보고
+  return !roomReplyToId(it);
+}
+function roomChildren(items, id){
+  const k = String(id || '');
+  if(!k) return [];
+  return (Array.isArray(items) ? items : []).filter(x => x && x.id && roomReplyToId(x) === k);
+}
+function roomReportOf(it, items){
+  if(!it || !it.id) return null;
+  const by = String(it.answer_by || '').trim();
+  if(by) return {by: roomSenderKey({source: by}), at: String(it.answered_at || '')};
+  const kids = roomChildren(items, it.id);
+  if(kids.length){
+    const k = kids[kids.length - 1];
+    return {by: roomReplyKey(k), at: String(k.created_at || '')};
+  }
+  return null;
+}
+function roomHasResult(it){
+  return String(roomStripNote(it && (it.result || it.error))).replace(/\s+/g, ' ').trim().length >= ROOM_REPORT_MIN;
+}
+/** 'ok' 보고 있음 · 'auto' 결과 글로 대신 · 'miss' 보고누락 · '' 해당 없음 */
+function roomReportState(it, items){
+  if(!it || !it.id) return '';
+  if(!roomFinished(it) || !roomWantsReport(it) || roomIsPlainReply(it)) return '';
+  if(roomReportOf(it, items)) return 'ok';
+  return roomHasResult(it) ? 'auto' : 'miss';
+}
+function roomLateMin(it, now){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(st !== 'PENDING' && st !== 'RUNNING') return 0;
+  const t = Date.parse(String((it && (it.claimed_at || it.created_at)) || ''));
+  if(!isFinite(t)) return 0;
+  const n = roomNum(now) === null ? Date.now() : now;
+  return Math.floor(Math.max(0, n - t) / 60000);
+}
+function roomReportChip(it, items, now){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(st === 'PENDING' || st === 'RUNNING') return roomLateMin(it, now) >= ROOM_LATE_MIN ? ROOM_REP.late : null;
+  const r = roomReportState(it, items);
+  return r ? ROOM_REP[r] : null;
+}
+/** 💬 스레드 — reply_to 사슬을 거슬러 첫 말을 찾고, 거기 이어진 답장을 오래된 순으로 */
+function roomThreadRoot(items, id){
+  const byId = {};
+  (Array.isArray(items) ? items : []).forEach(x => { if(x && x.id) byId[x.id] = x; });
+  let cur = String(id || '').trim(), guard = 0;
+  const seen = {};
+  while(cur && !seen[cur] && guard++ < 40){
+    seen[cur] = 1;
+    const it = byId[cur];
+    const p = it ? roomReplyToId(it) : '';
+    if(!p || p === cur || !byId[p]) break;
+    cur = p;
+  }
+  return cur;
+}
+function roomThreadItems(items, id){
+  const list = Array.isArray(items) ? items : [];
+  const root = roomThreadRoot(list, id);
+  if(!root) return [];
+  const byId = {}, kids = {};
+  list.forEach(x => { if(x && x.id) byId[x.id] = x; });
+  list.forEach(x => {
+    const p = x && roomReplyToId(x);
+    if(!p || !byId[p]) return;
+    (kids[p] = kids[p] || []).push(x);
+  });
+  const out = [], seen = {}, queue = [byId[root] || {id: root}];
+  while(queue.length){
+    const x = queue.shift();
+    if(!x || !x.id || seen[x.id]) continue;
+    seen[x.id] = 1; out.push(x);
+    (kids[x.id] || []).slice()
+      .sort((a, b) => String(a.created_at || '') < String(b.created_at || '') ? -1 : 1)
+      .forEach(k => queue.push(k));
+  }
+  return out;
+}
+function roomThreadCount(items, id){ return roomThreadItems(items, id).length; }
+/** 인용 박스에 보일 원문 한 줄·이름 */
+function roomQuoteText(it){
+  if(!it) return '';
+  return roomSumLine(it) || String(it.result || it.error || '') || String(it.id || '');
+}
+function roomShort(t, n){
+  const s = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+  return s.length > n ? s.slice(0, Math.max(0, n - 1)) + '…' : s;
+}
+function roomQuoteAuthor(it){
+  const a = roomAgentById(roomSenderKey(it)) || ROOM_ME;
+  return (a.icon || '🤖') + ' ' + a.name;
+}
+/** 🔎 키워드 검색 — 말·결과·오더 id·대상(공백으로 여러 낱말을 모두 만족해야 함) */
+function roomSearchHit(it, q){
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if(!words.length) return true;
+  const s = [roomMsgText(it), it && it.summary, it && it.result, it && it.error, it && it.id,
+    it && it.source, it && it.claimed_by, it && it.replied_by, it && it.answer_by,
+    roomTargetLabel(roomTargetKey(it)).label]
+    .map(x => String(x == null ? '' : x).toLowerCase()).join(' ');
+  return words.every(w => s.indexOf(w) >= 0);
+}
+/** 이 말이 그 비서와 얽혔는가 — 보냄·받음·처리·답장·멘션 (명시된 대상만) */
+function roomAgentHit(it, key){
+  const k = String(key || 'all');
+  if(k === 'all') return true;
+  if(!it) return false;
+  if(roomSenderKey(it) === k) return true;
+  if(k !== 'portal' && ['claimed_by', 'replied_by', 'answer_by'].some(f => roomSenderKey({source: it[f]}) === k)) return true;
+  const t = String((it && it.target) || '').trim().toLowerCase();
+  if(k !== 'portal' && t && roomTargetKey(it) === k) return true;
+  const m = Array.isArray(it.mentions) ? it.mentions : [];
+  return m.indexOf(k) >= 0;
+}
+/** 필터 한 벌 — {who, st, q}. st: all|live|miss|wait|done */
+function roomVisible(it, f, items, now){
+  if(!it || !it.id) return false;
+  const st = String(it.status || '').toUpperCase();
+  const x = f || {};
+  if(x.st === 'live' && !((st === 'PENDING' || st === 'RUNNING') && !roomIsPlainReply(it))) return false;
+  if(x.st === 'miss' && roomReportState(it, items) !== 'miss') return false;
+  if(x.st === 'wait' && st !== 'WAITING_APPROVAL') return false;
+  if(x.st === 'done' && !roomFinished(it)) return false;
+  if(!roomAgentHit(it, x.who || 'all')) return false;
+  if(x.q && !roomSearchHit(it, x.q)) return false;
+  return true;
+}
 // </ROOM_CORE>
 
 /* ─────────────────────────────────────────────────────────
@@ -730,6 +878,10 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     wss: [], ws: lsGet('room_ws')
   };
   let pinned = true, toastTimer = null;
+  /* 🔎 히스토리 필터 · ↩ 답장 · 💬 스레드 (2026-11-26) */
+  const F = {who: 'all', st: 'all', q: ''};     // 비서 · 상태 · 키워드
+  let REPLY = null;                              // {id, text, who} — 지금 답장 중인 원문
+  let THREAD = '';                               // 펼친 스레드의 첫 말 id
   const SEND_ICON = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20V5M12 5l-6.6 6.6M12 5l6.6 6.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   /* ── 저장소 ── */
@@ -822,6 +974,29 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     const a = roomAgentById(key);
     return 'w-' + ((a && a.color) || 'me');
   }
+  /** ↩ 인용 박스 — 이 말이 답장이면 원 작성자·원문을 보여주고, 누르면 그 말로 간다 */
+  function quoteBox(it){
+    const rid = roomReplyToId(it);
+    if(!rid || rid === String((it && it.id) || '')) return '';
+    const orig = (S.items || []).filter(x => x && x.id === rid)[0];
+    if(!orig){
+      return '<button type="button" class="q miss" data-go="' + esc(rid) + '" title="원문이 지금 목록에 없어요">' +
+        '<span class="q-w">↩ 원문 · 지금 목록에 없어요</span><span class="q-t">' + esc(rid) + '</span></button>';
+    }
+    return '<button type="button" class="q" data-go="' + esc(rid) + '" title="누르면 원문으로 이동해요">' +
+      '<span class="q-w">' + esc(roomQuoteAuthor(orig)) + '</span>' +
+      '<span class="q-t">' + esc(roomShort(roomQuoteText(orig), 90)) + '</span></button>';
+  }
+  /** 말풍선 버튼 — ↩ 답장 · 💬 스레드 N (버튼은 data-속성만 두고 app.js 가 붙인다) */
+  function bubbleActs(it){
+    const id = String((it && it.id) || '');
+    if(!id) return '';
+    const n = roomThreadCount(S.items, id);
+    return '<div class="acts">' +
+      '<button type="button" class="act" data-rep="' + esc(id) + '" title="이 말에 답장하며 원문을 인용해요">↩ 답장</button>' +
+      (n >= 2 ? '<button type="button" class="act" data-th="' + esc(id) + '" title="원문과 거기 이어진 답장·보고만 모아 보기">💬 스레드 ' + n + '</button>' : '') +
+      '</div>';
+  }
   function bubbleMsg(it){
     const mine = roomIsMine(it);
     const key = roomSenderKey(it);
@@ -830,10 +1005,12 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     const tg = roomTargetLabel(roomTargetKey(it));
     const body = roomMsgText(it) || (mine ? '' : String((it && (it.result || it.error)) || '').trim()) || '(내용 없음)';
     const plain = roomIsPlainReply(it);
+    const rep = roomReportChip(it, S.items, Date.now());
     const meta = [
       '<span class="nm">' + (mine ? '레이 님' : roomMark(key, {mini: true}) + esc(who.name)) + '</span>',
       (mine && tg.id === 'portal') ? '' : '<span class="to">→ ' + esc(tg.label) + '</span>',
       plain ? '' : '<span class="chip ' + st.c + '">' + esc(st.t) + '</span>',
+      rep ? '<span class="chip ' + rep.c + '">' + esc(rep.t) + '</span>' : '',
       it.auto_approved ? '<span class="chip">자동(위임)</span>' : '',
       '<span class="tm">' + esc(roomWhen(it.created_at)) + '</span>'
     ].join('');
@@ -841,7 +1018,8 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     const aid = String((it && it.id) || '');
     return '<div class="msg ' + (mine ? 'me' : 'them') + '"' + (aid ? ' id="m-' + esc(aid) + '"' : '') + '>' + av +
       '<div class="bwrap ' + agentCls(key) + '"><div class="meta">' + meta + '</div>' +
-      '<div class="bub"><div class="txt">' + roomMd(body) + '</div></div></div></div>';
+      '<div class="bub">' + quoteBox(it) + '<div class="txt">' + roomMd(body) + '</div></div>' +
+      bubbleActs(it) + '</div></div>';
   }
   function bubbleReply(it){
     const st = String((it && it.status) || '').toUpperCase();
@@ -865,8 +1043,13 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     } else if(st === 'RUNNING'){
       inner = chat ? '답장 쓰는 중이에요…' : '실행 중이에요…';
     } else if(st === 'DONE'){
-      inner = chat ? roomMd(String(it.result || '네, 알겠습니다.'))
-        : roomMd('✅ ' + String(it.result || '완료'));
+      if(roomReportState(it, S.items) === 'miss'){
+        cls = 'err';
+        inner = '⚠️ 끝났다고만 남기고 회의실에 결과 보고가 없어요 — 무엇을 했고 결과가 어떤지 물어볼까요?';
+      } else {
+        inner = chat ? roomMd(String(it.result || '네, 알겠습니다.'))
+          : roomMd('✅ ' + String(it.result || '완료'));
+      }
     } else if(st === 'FAILED' || st === 'TIMEOUT_REVIEW'){
       cls = 'err';
       inner = esc(it.error ? '⚠️ ' + it.error : '⚠️ 답장을 만들지 못했어요');
@@ -881,16 +1064,21 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     }
     const badge = (st !== 'RUNNING' && st !== 'PENDING') &&
       ''.concat('<span class="chip rep">답장</span><span class="chip ' + s.c + '">' + esc(s.t) + '</span>');
+    const rep = roomReportChip(it, S.items, Date.now());
     const av = '<div class="av" role="img" aria-label="' + esc((who && who.name) || '노트북') + '">' + roomMark(key, {title: (who && who.name) || '노트북'}) + '</div>';
     const aid = String((it && it.id) || '');
     return '<div class="msg them"' + (aid ? ' id="r-' + esc(aid) + '"' : '') + '>' + av +
       '<div class="bwrap ' + agentCls(key) + '">' +
       '<div class="meta"><span class="nm">' + roomMark(key, {mini: true}) + esc((who && who.name) || '노트북') + '</span>' +
-      (badge || '') + '<span class="tm">' + esc(roomWhen(bot)) + '</span></div>' +
-      '<div class="bub ' + cls + '"><div class="txt">' + inner + '</div></div></div></div>';
+      (badge || '') + (rep ? '<span class="chip ' + rep.c + '">' + esc(rep.t) + '</span>' : '') +
+      '<span class="tm">' + esc(roomWhen(bot)) + '</span></div>' +
+      '<div class="bub ' + cls + '">' + quoteBox(it) + '<div class="txt">' + inner + '</div></div>' +
+      bubbleActs(it) + '</div></div>';
   }
   function sigOf(){
-    return S.items.map(i => [i.id, i.status, String(i.result || '').length, i.replied_by || '', i.beat_at || ''].join('~')).join('|');
+    return S.items.map(i => [i.id, i.status, String(i.result || '').length, i.replied_by || '', i.beat_at || '',
+      i.answer_by || '', i.finished_at || ''].join('~')).join('|') +
+      '#' + F.who + '/' + F.st + '/' + F.q;
   }
   function renderFeed(force){
     const box = $('feed');
@@ -905,8 +1093,14 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     if(!force && sig === S.sig) return;
     S.sig = sig;
     const near = nearBottom(), keep = box.scrollTop;
+    const list = S.items.filter(it => roomVisible(it, F, S.items, Date.now()));
+    if(!list.length){
+      box.innerHTML = '<div class="empty"><div class="big">🔎</div><h3>이 갈래에는 말이 없어요</h3>' +
+        '<p>위 필터를 풀거나 다른 키워드로 찾아보세요.</p></div>';
+      bindFeedButtons(); jumpOff(); return;
+    }
     let html = '', day = '';
-    S.items.slice().reverse().forEach(it => {
+    list.slice().reverse().forEach(it => {
       const d = roomDay(it.created_at);
       if(d && d !== day){ html += '<div class="day"><span>' + esc(d) + '</span></div>'; day = d; }
       html += bubbleMsg(it);
@@ -916,6 +1110,87 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     box.innerHTML = html;
     if(!S.painted || near){ box.scrollTop = box.scrollHeight; S.painted = true; jumpOff(); }
     else { box.scrollTop = keep; jumpOn(); }
+  }
+  function renderFilters(){
+    const box = $('fchips');
+    const cnt = $('fcnt');
+    if(!box) return;
+    const stC = [['all', '전체'], ['live', '진행'], ['miss', '보고누락'], ['wait', '승인'], ['done', '끝남']];
+    const who = [{id: 'all', name: '모두'}].concat([ROOM_ME].concat(ROOM_AGENTS));
+    const btn = (k, v, on, inner) => '<button type="button" class="fchip' + (on ? ' on' : '') + '" data-fk="' + k + '" data-fv="' + esc(v) + '">' + inner + '</button>';
+    box.innerHTML =
+      '<span class="fh">상태</span>' + stC.map(x => btn('st', x[0], F.st === x[0], esc(x[1]))).join('') +
+      '<span class="fh">비서</span>' + who.map(a => btn('who', a.id, F.who === a.id, roomMark(a.id, {mini: true}) + esc(a.name))).join('');
+    if(cnt){
+      const shown = S.items.filter(it => roomVisible(it, F, S.items, Date.now())).length;
+      const miss = S.items.filter(it => roomReportState(it, S.items) === 'miss').length;
+      cnt.textContent = shown + '/' + S.items.length + '건' + (miss ? ' · 보고누락 ' + miss : '') + (F.q ? ' · "' + F.q + '"' : '');
+    }
+  }
+  function setFilter(k, v){
+    if(k === 'st') F.st = ['all', 'live', 'miss', 'wait', 'done'].indexOf(v) >= 0 ? v : 'all';
+    else if(k === 'who') F.who = (v === 'all' || whoList().some(a => a.id === v)) ? v : 'all';
+    renderFilters(); renderFeed(true);
+  }
+  function whoList(){ return [ROOM_ME].concat(ROOM_AGENTS); }
+  function onSearch(){
+    const el = $('srch');
+    F.q = String((el && el.value) || '').trim();
+    renderFilters(); renderFeed(true);
+  }
+  /* ── ↩ 답장 · 💬 스레드 (2026-11-26) ── */
+  function setReply(id){
+    const it = S.items.filter(x => x && x.id === String(id || ''))[0];
+    if(!it) return;
+    REPLY = {id: it.id, who: roomQuoteAuthor(it), text: roomShort(roomQuoteText(it), 60)};
+    const box = $('rep');
+    if(box){
+      box.hidden = false;
+      $('rep-who').textContent = REPLY.who + '에게 답장';
+      $('rep-txt').textContent = REPLY.text;
+    }
+    const inp = $('inp');
+    try { inp.focus(); } catch(e) {}
+    toast('답장을 적어보세요 — 보내면 원문을 인용해요');
+  }
+  function clearReply(){
+    REPLY = null;
+    const box = $('rep');
+    if(box) box.hidden = true;
+  }
+  function openThread(id){
+    const rid = roomThreadRoot(S.items, id);
+    if(!rid) return;
+    THREAD = rid;
+    const items = roomThreadItems(S.items, rid);
+    const box = $('thread'), list = $('thread-list'), n = $('thread-n');
+    if(!box || !list) return;
+    if(n) n.textContent = items.length + '개 말';
+    list.innerHTML = items.map(thRow).join('') || '<div class="th-empty">이어진 말이 없어요</div>';
+    box.classList.add('on');
+  }
+  function closeThread(){
+    THREAD = '';
+    const box = $('thread');
+    if(box) box.classList.remove('on');
+  }
+  function thRow(it){
+    const mine = roomIsMine(it);
+    const key = mine ? roomSenderKey(it) : roomReplyWhoKey(it);
+    const who = roomAgentById(key) || ROOM_AGENTS[2];
+    const st = roomStatus(it);
+    const rep = roomReportChip(it, S.items, Date.now());
+    const body = roomMsgText(it) || String((it && (it.result || it.error)) || '');
+    const res = String((it && it.result) || '').trim();
+    return '<div class="th-row ' + (mine ? 'out' : 'in') + '">' +
+      '<div class="th-m">' + roomMark(key, {mini: true}) + '<b>' + esc(who.name) + '</b>' +
+      '<span class="chip ' + st.c + '">' + esc(st.t) + '</span>' +
+      (rep ? '<span class="chip ' + rep.c + '">' + esc(rep.t) + '</span>' : '') +
+      '<span class="th-tm">' + esc(roomWhen(it.created_at)) + '</span></div>' +
+      '<div class="th-txt">' + roomMd(body) + '</div>' +
+      (res && res !== body ? '<div class="th-res">' + roomMd(res) + '</div>' : '') +
+      '<div class="acts"><button type="button" class="act" data-go="' + esc(it.id) + '">↗ 타임라인에서</button>' +
+      '<button type="button" class="act" data-rep="' + esc(it.id) + '">↩ 답장</button></div></div>';
   }
   function bindFeedButtons(){
     const box = $('feed');
@@ -1142,10 +1417,13 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     try{
       const target = roomTargetFromText(text) || 'all';
       const payload = {prompt: text, mode: 'ask', kind: 'chat', target: target};
+      // 답장이면 어느 말에 대한 답장인지 함께 보낸다 — 서버가 오더를 이어 붙이고 화면이 인용 박스를 그린다(2026-11-26)
+      if(REPLY && REPLY.id && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/.test(REPLY.id)) payload.reply_to = REPLY.id;
       const ws = roomWsPick(S.wss, S.ws) || 'hub-agent';
       const d = await api('queue_enqueue', {type: 'claude_prompt', workspace: ws, payload: payload, source: 'portal', client_id: 'portal'});
       if(!d || d.ok !== true){ toast('접수 실패 — ' + ((d && (d.error || d.code)) || '서버 확인')); return; }
       inp.value = '';
+      clearReply();
       onInput();
       pinned = true;
       toast(d.duplicate ? '같은 말이 이미 대기 중이에요' : roomTargetLabel(target).label + ' 앞으로 보냈어요');
@@ -1237,6 +1515,7 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     S.lastFetch = Date.now();
     renderHead();
     renderFeed();
+    renderFilters();
     renderDrawer();
     if(kind === 'full'){ fetchUsage(); fetchStatus(); fetchSignals(); }
     else if(Date.now() - S.statusAt > STATUS_EVERY) fetchStatus();
@@ -1352,6 +1631,38 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
       e.preventDefault();
       send();
     });
+    $('feed').addEventListener('click', e => {
+      const t = e && e.target;
+      const b = (t && t.closest) ? t.closest('[data-rep],[data-th],[data-go]') : null;
+      if(!b) return;
+      const id = b.getAttribute('data-rep') || b.getAttribute('data-th') || b.getAttribute('data-go');
+      if(b.hasAttribute('data-rep')) setReply(id);
+      else if(b.hasAttribute('data-th')) openThread(id);
+      else jumpToMsg(id);
+    });
+    const fb = $('fchips');
+    if(fb && fb.addEventListener){
+      fb.addEventListener('click', e => {
+        const t = e && e.target;
+        const b = (t && t.closest) ? t.closest('[data-fk]') : null;
+        if(b) setFilter(b.getAttribute('data-fk'), b.getAttribute('data-fv'));
+      });
+    }
+    if($('srch')) $('srch').addEventListener('input', onSearch);
+    if($('rep-x')) $('rep-x').onclick = clearReply;
+    if($('thread-bg')) $('thread-bg').onclick = closeThread;
+    if($('thread-x')) $('thread-x').onclick = closeThread;
+    const tl = $('thread-list');
+    if(tl && tl.addEventListener){
+      tl.addEventListener('click', e => {
+        const t = e && e.target;
+        const b = (t && t.closest) ? t.closest('[data-rep],[data-go]') : null;
+        if(!b) return;
+        const id = b.getAttribute('data-rep') || b.getAttribute('data-go');
+        if(b.hasAttribute('data-rep')){ closeThread(); setReply(id); }
+        else { closeThread(); jumpToMsg(id); }
+      });
+    }
     $('feed').addEventListener('scroll', () => {
       pinned = nearBottom();
       if(pinned) jumpOff();
@@ -1364,6 +1675,7 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     document.addEventListener('keydown', e => {
       if(e.key !== 'Escape') return;
       if($('sheet').classList.contains('on')) closeSheet();
+      else if($('thread').classList.contains('on')) closeThread();
       else if($('drawer').classList.contains('on')) drawerClose();
     });
     document.addEventListener('visibilitychange', () => {
@@ -1383,6 +1695,7 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     loadLocalUsage();
     loadLocalSignals();
     renderHead();
+    renderFilters();
     renderFeed(true);
     renderDrawer();
     fetchSignals();          // 신호는 서버 없이도 저장소 파일에서 읽어요

@@ -550,6 +550,33 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .chat-row.cq-flash{animation:cqFlash 1.6s ease-out;border-radius:18px;padding:3px;margin:-3px}
 @keyframes cqFlash{0%{background:rgba(94,126,255,.22)}55%{background:rgba(94,126,255,.13)}100%{background:rgba(94,126,255,0)}}
 @media (prefers-reduced-motion:reduce){.chat-row.cq-flash{animation:none;background:rgba(94,126,255,.16)}}
+/* 🔎 키워드 검색 · ✅ 완료 보고 배지 · 💬 스레드 (2026-11-26) */
+.room-search{position:relative;display:flex;align-items:center;min-width:0}
+.ord-q{width:100%;border:1px solid var(--rl);background:#fff;border-radius:11px;padding:7px 30px 7px 11px;
+  font-size:11.5px;color:var(--rink2);font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s}
+.ord-q::placeholder{color:var(--rhint)}
+.ord-q:focus{border-color:#9DB0FF;box-shadow:0 0 0 3px rgba(94,126,255,.12)}
+.ord-q-x{position:absolute;right:6px;border:none;background:#EEF2FB;color:#5A6480;border-radius:999px;
+  width:20px;height:20px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;line-height:1}
+.ord-q-x[hidden]{display:none}
+.c-miss{background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5}
+.c-late{background:#FEF3C7;color:#92400E;border:1px solid #F7D08A}
+.chat-bubble.rep-miss{background:linear-gradient(180deg,#FFF8F8,#FFF1F1);border-color:#F8CFCF}
+.chat-bubble.rep-miss .chat-text.err{color:#B42318}
+.th-list{display:flex;flex-direction:column;gap:10px;max-height:62vh;overflow-y:auto;padding:2px 2px 4px}
+.th-row{display:flex;flex-direction:column;gap:3px;border:1px solid var(--rl);border-radius:12px;
+  padding:9px 11px;background:#FCFDFF;min-width:0}
+.th-row.out{background:#F3F6FF;border-color:#D9E2FF}
+.th-row[data-id]{scroll-margin:8px}
+.th-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:9.5px;color:#6F7A93}
+.th-meta b{font-size:10.5px;font-weight:800;color:var(--rink);display:inline-flex;align-items:center;gap:4px}
+.th-meta .ord-when{margin-left:auto;font-size:9px;color:var(--rhint);white-space:nowrap}
+.th-txt{font-size:12.5px;line-height:1.6;color:var(--rink2);white-space:pre-wrap;overflow-wrap:anywhere}
+.th-res{margin-top:4px;padding:6px 8px;background:#F1F5FF;border-left:3px solid #8FA6FF;border-radius:0 8px 8px 0;
+  font-size:11.5px;line-height:1.55;color:var(--rink2);white-space:pre-wrap;overflow-wrap:anywhere}
+.th-acts{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}
+.th-n{font-size:10.5px;font-weight:700;color:var(--rhint);margin-left:4px}
+@media (max-width:700px){ .th-list{max-height:64vh} }
 .room-compose{display:flex;flex-direction:column;gap:8px;min-width:0;padding:12px;border:1px solid var(--rl);
   border-radius:18px;background:linear-gradient(180deg,#FFFFFF,#FBFCFE);
 }
@@ -1403,6 +1430,12 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
       </div>
     </details>
     <div class="room-chat">
+      <!-- 🔎 키워드로 히스토리 찾기 + 비서별 칩 (2026-11-26) -->
+      <div class="room-search">
+        <input class="ord-q" id="ord-q" type="search" placeholder="키워드로 찾기 — 내용·결과·오더 id"
+          aria-label="키워드로 히스토리 찾기" oninput="ordSearchInput(this)">
+        <button class="ord-q-x" id="ord-q-x" type="button" onclick="ordSearchClear()" aria-label="검색 지우기" hidden>✕</button>
+      </div>
       <div class="room-filters" id="ord-filters"></div>
       <div class="room-feed ord-list" id="ord-list"><div class="ord-empty">첫 말을 걸면 여기에 카톡처럼 쌓여요</div></div>
       <div class="ord-pause" id="ord-paused"></div>
@@ -1519,6 +1552,17 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
       <button class="mbtn-cancel" onclick="closeMemo()">취소</button>
       <button class="mbtn-ok" onclick="saveMemoItem()">저장</button>
     </div>
+  </div></div>
+</div>
+
+<!-- 💬 스레드 모달 — 원문과 거기 달린 답장·보고만 모아 보기 (2026-11-26) -->
+<div class="overlay" id="ord-thread" aria-hidden="true" onclick="if(event.target===this)ordThreadClose()">
+  <div class="modal"><div class="modal-inner">
+    <div class="modal-head">
+      <div class="modal-title">💬 스레드 <span class="th-n" id="ord-thread-n"></span></div>
+      <button class="mclose" onclick="ordThreadClose()" aria-label="닫기">✕</button>
+    </div>
+    <div class="th-list" id="ord-thread-list"></div>
   </div></div>
 </div>
 
@@ -2107,15 +2151,22 @@ function ordFilterWhoList(){
   }
   return out;
 }
-/** 이 말이 그 사람과 얽혀 있는가 — 노트북은 발신(source)뿐 아니라 처리(claimed_by)·답장(replied_by)도 본다 */
+/**
+ * 이 말이 그 비서와 얽혀 있는가 — **보낸 사람 · 받을 사람 · 처리한 사람 · 답장한 사람 · 멘션** 모두 본다(2026-11-26).
+ *  예전에는 발신만 봤지만 "대화마다 역할마다 히스토리 찾기"에 발신만으로는 부족했다(사용자 지시).
+ */
 function ordSenderMatches(it, key){
   const k = String(key || 'all');
   if(k === 'all') return true;
+  if(!it) return false;
   if(ordSenderKey(it) === k) return true;
-  if(k === 'notebook'){
-    return ['claimed_by', 'replied_by'].some(f => ordSenderKey({source: (it || {})[f]}) === 'notebook');
-  }
-  return false;
+  if(k !== 'portal' && ['claimed_by', 'replied_by', 'answer_by'].some(f => ordSenderKey({source: (it || {})[f]}) === k)) return true;
+  // 대상은 **명시된 값**만 본다 — 비어 있는 옛 줄은 '노트북'으로 읽히지만, 그걸로 치면 모든 글이 노트북 글이 된다.
+  // 나(portal)에게 온 말은 '레이 님의 히스토리'가 아니라 남이 나에게 한 말이다 — 보낸 것만 센다.
+  const t = String((it && it.target) || '').trim().toLowerCase();
+  if(k !== 'portal' && t && ordTargetKey(it) === k) return true;
+  const m = Array.isArray(it.mentions) ? it.mentions : [];
+  return m.indexOf(k) >= 0;
 }
 function ordTargetList(){
   const out = [{id: 'all', label: '@전체', name: '전체 비서', icon: '👥'}];
@@ -2134,6 +2185,10 @@ let ORD_CHAT_OK = null;     // 서버가 kind:'chat' 을 아는가(null=모름 �
 let ORD_REPLY_TO = '';      // 답글 원문 요약(보낼 때 인용으로 붙어요)
 let ORD_REPLY_ID = '';      // 답장할 원문 오더 id — payload.reply_to 로 함께 보낸다(2026-11-25)
 let ORD_JUMP = '';          // 방금 인용 박스로 찾아간 원문 id(하이라이트 표시용)
+let ORD_Q = '';             // 키워드 검색 — 말풍선 본문·결과·오더 id (2026-11-26)
+let ORD_THREAD = '';        // 지금 펼친 스레드의 원문 id (2026-11-26)
+const ORD_LATE_MIN = 15;    // 차례·실행이 이만큼 지나면 '지연(15분+)'
+const ORD_REPORT_MIN = 12;  // 결과 글이 이보다 짧으면('완료'·'Done') 보고로 보지 않는다
 /* ── 🌿 어사이드(aside) — 집 노트북 로컬 자동화 (2026-11-25) ──
  *  포털 앱스크립트(Code.gs · 웹훅 v36)는 claude_prompt 만 받으므로 오더 타입을 새로 만들지 않고,
  *  **회의실 한 줄 명령**을 kind=chat 으로 보냅니다. 집 노트북(notebook-agent/lib/aside.js)이 이 모양을
@@ -2387,8 +2442,10 @@ function ordPollSchedule(){
 }
 function ordSig(items){
   // 2026-11-25: 발신자·답장자가 바뀌면 말풍선 색·이름이 바뀐다 — 그 값들도 서명에 넣어 즉시 다시 그린다.
+  // 2026-11-26: 답장(보고) 유무·끝난 시각·reply_to 도 서명에 넣는다 — 「완료·보고됨/보고누락」 배지가 바로 바뀌게.
   return (items || []).map(i => [i.id, i.status, i.result, i.error, i.duration_ms,
-    i.source, i.target, i.claimed_by, i.replied_by, i.beat_at].join('\u0001')).join('\u0002');
+    i.source, i.target, i.claimed_by, i.replied_by, i.beat_at,
+    i.answer_by, i.answered_at, i.finished_at, i.reply_to, i.type].join('\u0001')).join('\u0002');
 }
 /** 배지·확인 시각 — 목록은 그대로 두고 이것만 다시 써요. */
 function renderOrderHead(){
@@ -2397,12 +2454,14 @@ function renderOrderHead(){
   const p = ORD_ITEMS.filter(i => i.status === 'PENDING' && !ordIsPlainReply(i)).length;
   const r = ORD_ITEMS.filter(i => i.status === 'RUNNING' && !ordIsPlainReply(i)).length;
   const g = ORD_ITEMS.filter(i => i.status === 'REVIEW_NEEDED').length;
+  const m = ORD_ITEMS.filter(i => ordReportState(i) === 'miss').length;   // 끝났는데 보고가 없는 말(2026-11-26)
   if(cnt){
     const parts = [];
     if(r) parts.push('실행 ' + r);
     if(w) parts.push('승인 ' + w);
     if(g) parts.push('검토 ' + g);
     if(p) parts.push('대기 ' + p);
+    if(m) parts.push('보고누락 ' + m);
     cnt.textContent = parts.length ? parts.join(' · ') : (ORD_ITEMS.length ? '최근 ' + ORD_ITEMS.length + '건' : '');
   }
   if(stt) stt.textContent = ORD_AT ? ('최근 확인 ' + clockText(ORD_AT) + (ordActive() ? ' · 자동 갱신 중' : '')) : '';
@@ -2500,6 +2559,205 @@ function ordShowReply(it){
   if(st === 'PENDING') return false;
   const text = String((it && (it.result || it.error)) || '').trim();
   return !!text && text !== ordMsgText(it);
+}
+
+/* ════════ ✅ 완료 보고 — "처리했으면 했다고 보고를 남긴다" (2026-11-26 사용자 지시) ════════
+ *  · 보고 = 끝난 오더에 달린 후속 말(reply_to = 그 오더) 또는 결과 글(result/error).
+ *  · 보고누락 = 끝났다고만 남기고 후속 말도 결과 글도 없는 경우 — 화면에 경고 카드와 배지로 남긴다.
+ *  · 차례·실행이 15분을 넘으면 '지연(15분+)' — 답장만 남기고 queue_done 을 안 찍은 줄도 여기서 보인다.
+ *  · 숫자·상태를 지어내지 않는다: 근거(답장·결과)가 없을 때만 '누락'이라 한다.
+ */
+const ORD_FIN_ST = {DONE: 1, FAILED: 1, TIMEOUT_REVIEW: 1, REVIEW_NEEDED: 1};
+function ordFinished(it){ return !!ORD_FIN_ST[String((it && it.status) || '').toUpperCase()]; }
+/** 보고가 필요한 말인가 — 지시·대화(claude_prompt)이고 그 자체가 답장은 아닌 것. git_pull·toss_sync 는 결과 카드가 곧 보고. */
+function ordWantsReport(it){
+  if(!it || !it.id) return false;
+  if(String(it.type || '') !== 'claude_prompt') return false;
+  return !ordReplyToId(it);
+}
+/** 이 오더에 달린 후속 말(답장·보고) — 목록의 reply_to 로 찾는다 */
+function ordChildren(id){
+  const k = String(id || '');
+  if(!k) return [];
+  return (ORD_ITEMS || []).filter(x => x && x.id && ordReplyToId(x) === k);
+}
+/** 이 오더에 달린 보고 — 서버가 붙인 answer_by 우선, 없으면 목록의 reply_to 로 직접 찾는다 */
+function ordReportOf(it){
+  if(!it || !it.id) return null;
+  const by = String(it.answer_by || '').trim();
+  if(by) return {by: ordSenderKey({source: by}), at: String(it.answered_at || ''), auto: false};
+  const kids = ordChildren(it.id);
+  if(kids.length){
+    const k = kids[kids.length - 1];
+    return {by: ordReplyKey(k), at: String(k.created_at || ''), auto: !!k.auto_report};
+  }
+  return null;
+}
+/** 결과 글이 보고라고 부를 만한가 — '완료'·'Done' 한 마디는 보고가 아니다 */
+function ordHasResult(it){
+  const t = ordStripNote(it && (it.result || it.error)).replace(/\s+/g, ' ').trim();
+  return t.length >= ORD_REPORT_MIN;
+}
+/** 완료 보고 상태 — 'ok'(보고 있음) · 'auto'(결과 글로 대신) · 'miss'(보고누락) · ''(해당 없음) */
+function ordReportState(it){
+  if(!it || !it.id) return '';
+  if(!ordFinished(it) || !ordWantsReport(it) || ordIsPlainReply(it)) return '';
+  if(ordReportOf(it)) return 'ok';
+  return ordHasResult(it) ? 'auto' : 'miss';
+}
+/** 끝나지 않은 말이 이만큼 지났나 — PENDING·RUNNING 만 */
+function ordLateMin(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(st !== 'PENDING' && st !== 'RUNNING') return 0;
+  const s = ordStartMs(it) || Date.parse(String((it && (it.claimed_at || it.created_at)) || '')) || 0;
+  if(!s) return 0;
+  return Math.floor((Date.now() - s) / 60000);
+}
+const ORD_REP_CHIP = {
+  ok:   {t: '완료·보고됨',   c: 'c-ok'},
+  auto: {t: '완료·보고됨',   c: 'c-ok'},
+  miss: {t: '완료·보고누락', c: 'c-miss'},
+  late: {t: '지연(15분+)',   c: 'c-late'}
+};
+/** 배지 — 대기·진행 중인데 15분이 지났거나, 끝났는데 보고가 있는지/없는지 */
+function ordReportChip(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(st === 'PENDING' || st === 'RUNNING') return ordLateMin(it) >= ORD_LATE_MIN ? ORD_REP_CHIP.late : null;
+  const rep = ordReportState(it);
+  return rep ? ORD_REP_CHIP[rep] : null;
+}
+function ordReportTip(it, b){
+  const rep = ordReportState(it);
+  if(b === ORD_REP_CHIP.late) return '차례·실행이 ' + ordLateMin(it) + '분째 그대로예요 — 답장만 남기고 끝냈다고(queue_done)를 안 찍었을 수 있어요';
+  if(rep === 'ok') return '이 오더에 대한 보고가 회의실에 남았어요';
+  if(rep === 'auto') return '비서가 따로 한 줄 보고를 남기지 않아 결과 글로 대신 보여요';
+  if(rep === 'miss') return '끝났다고만 남기고 결과 보고가 없어요 — 아래에서 보고를 요청할 수 있어요';
+  return '';
+}
+function ordReportChipHtml(it){
+  const b = ordReportChip(it);
+  if(!b) return '';
+  return `<span class="ord-chip ${b.c}" title="${esc(ordReportTip(it, b))}">${esc(b.t)}</span>`;
+}
+/** 보고가 아예 없을 때 — 무엇을 했는지 물어볼 수 있는 경고 카드(중복 없음: 실제 보고가 오면 사라진다) */
+function ordMissCard(it){
+  if(ordReportState(it) !== 'miss') return '';
+  const who = ordReplyWhoKey(it);
+  const d = ordSenderLabel(who);
+  return `<div class="chat-row in rep-miss" data-report-missing="${esc(it.id)}">` +
+    `<div class="chat-av" role="img" aria-label="${esc(d.name)}">${agentMark(who, {title: d.name})}</div>` +
+    `<div class="chat-bubble side-in"><div class="chat-meta"><b>${agentMark(who, {mini: true})}${esc(d.name)}</b>` +
+    `<span class="ord-chip c-miss">완료·보고누락</span>` +
+    `<span class="ord-when">${esc(ordWhen(it.finished_at || it.created_at))}</span></div>` +
+    `<div class="chat-text err">⚠️ 끝났다고만 남기고 회의실에 결과 보고가 없어요 — 무엇을 했고 결과가 어떤지 물어볼까요?</div>` +
+    `<div class="chat-acts"><button class="chat-a" onclick="ordAskReport('${esc(it.id)}')">📣 결과 보고 요청</button>` +
+    `<button class="chat-a" onclick="ordReplyById('${esc(it.id)}')">↩ 답장</button></div></div></div>`;
+}
+/** 보고를 요청하는 말을 입력칸에 **채우기만** 한다(자동 전송 없음) */
+function ordAskReport(id){
+  const it = ordById(id);
+  if(!it) return;
+  const inp = document.getElementById('ord-inp');
+  const tg = ordTargetLabel(ordTargetKey(it));
+  ORD_REPLY_ID = String(it.id);
+  ORD_REPLY_TO = ordShort(ordQuoteText(it), 60);
+  if(inp){
+    inp.value = (tg.id === 'all' ? '@전체' : tg.label) + ' 이 오더 결과를 회의실에 한 줄로 보고해줘';
+    try { inp.focus(); } catch(e) {}
+  }
+  ordQuoteRender(); ordTyped();
+  sync('보고를 요청할 말을 채웠어요 — 확인하고 보내세요', 3600);
+}
+/* ════════ 💬 스레드 — 원문과 거기 달린 답장·보고만 모아 보기 (2026-11-26) ════════ */
+/** reply_to 사슬을 거슬러 올라가 스레드의 첫 말을 찾는다(목록 밖 원문이면 거기서 멈춘다) */
+function ordThreadRoot(id){
+  let cur = String(id || '').trim(), guard = 0;
+  const seen = {};
+  while(cur && !seen[cur] && guard++ < 40){
+    seen[cur] = 1;
+    const it = ordById(cur);
+    const p = it ? ordReplyToId(it) : '';
+    if(!p || p === cur || !ordById(p)) break;
+    cur = p;
+  }
+  return cur;
+}
+/** 스레드 한 벌 — 첫 말 + 거기 이어진 모든 답장(깊이 무관, 오래된 것 먼저) */
+function ordThreadItems(id){
+  const root = ordThreadRoot(String(id || '').trim());
+  if(!root) return [];
+  const byId = {}, kids = {};
+  (ORD_ITEMS || []).forEach(x => { if(x && x.id) byId[x.id] = x; });
+  (ORD_ITEMS || []).forEach(x => {
+    const p = x && ordReplyToId(x);
+    if(!p || !byId[p]) return;
+    (kids[p] = kids[p] || []).push(x);
+  });
+  const out = [], seen = {}, queue = [byId[root] || {id: root}];
+  while(queue.length){
+    const x = queue.shift();
+    if(!x || !x.id || seen[x.id]) continue;
+    seen[x.id] = 1; out.push(x);
+    (kids[x.id] || []).slice()
+      .sort((a, b) => String(a.created_at || '') < String(b.created_at || '') ? -1 : 1)
+      .forEach(k => queue.push(k));
+  }
+  return out;
+}
+function ordThreadCount(id){ return ordThreadItems(id).length; }
+/** 말풍선에 붙는 스레드 버튼 — 이어진 말이 2개 이상일 때만 */
+function ordThreadBtn(it){
+  if(!it || !it.id) return '';
+  const n = ordThreadCount(it.id);
+  if(n < 2) return '';
+  return `<button class="chat-a th-open" onclick="ordThreadOpen('${esc(it.id)}')" title="원문과 거기 이어진 답장·보고만 모아 보기">💬 스레드 ${n}</button>`;
+}
+function ordThreadRow(it){
+  const mine = ordIsMine(it);
+  const who = mine ? ordSenderKey(it) : ordReplyWhoKey(it);
+  const d = ordSenderLabel(who);
+  const s = ORD_STATUS[String(it.status || '').toUpperCase()] || {t: String(it.status || ''), c: 'c-off'};
+  const body = ordMsgText(it) || String(it.result || it.error || '');
+  const res = String(it.result || '').trim();
+  const b = ordReportChip(it);
+  return `<div class="th-row ${mine ? 'out' : 'in'}" data-id="${esc(it.id)}">` +
+    `<div class="th-meta"><b>${agentMark(who, {mini: true})}${esc(d.name)}</b>` +
+    `<span class="ord-chip ${s.c}">${esc(s.t)}</span>` +
+    (b ? `<span class="ord-chip ${b.c}">${esc(b.t)}</span>` : '') +
+    `<span class="ord-when">${esc(ordWhen(it.created_at))}</span></div>` +
+    `<div class="th-txt">${ordMentionHtml(esc(body))}</div>` +
+    (res && res !== body ? `<div class="th-res">${ordMentionHtml(esc(res))}</div>` : '') +
+    `<div class="th-acts"><button class="chat-a" onclick="ordThreadJump('${esc(it.id)}')">↗ 타임라인에서</button>` +
+    `<button class="chat-a" onclick="ordReplyById('${esc(it.id)}')">↩ 답장</button></div></div>`;
+}
+function ordThreadRender(){
+  const box = document.getElementById('ord-thread');
+  const list = document.getElementById('ord-thread-list');
+  const n = document.getElementById('ord-thread-n');
+  if(!box || !list) return;
+  if(!ORD_THREAD){ if(box.classList) box.classList.remove('on'); if(box.setAttribute) box.setAttribute('aria-hidden', 'true'); return; }
+  const items = ordThreadItems(ORD_THREAD);
+  if(n) n.textContent = items.length + '개 말';
+  list.innerHTML = items.map(ordThreadRow).join('') || '<div class="ord-empty">이어진 말이 없어요</div>';
+  if(box.classList) box.classList.add('on');
+  if(box.setAttribute) box.setAttribute('aria-hidden', 'false');
+}
+function ordThreadOpen(id){
+  const rid = String(id || '').trim();
+  if(!rid) return;
+  ORD_THREAD = ordThreadRoot(rid);
+  ordThreadRender();
+}
+function ordThreadClose(){
+  ORD_THREAD = '';
+  const box = document.getElementById('ord-thread');
+  if(box && box.classList) box.classList.remove('on');
+  if(box && box.setAttribute) box.setAttribute('aria-hidden', 'true');
+}
+/** 스레드 → 타임라인의 그 말풍선으로(스레드를 닫고 이동) */
+function ordThreadJump(id){
+  ordThreadClose();
+  ordJumpTo(id);
 }
 /**
  * 본문에 적힌 @이름/@ID 로 대상 하나를 고른다 — 칩을 누르지 않고 "@큐 이거 봐줘" 라고 써도 큐에게 가게.
@@ -2717,7 +2975,7 @@ function ordFilterSet(btn){
   const k = String((btn && btn.dataset && btn.dataset.k) || '');
   const v = String((btn && btn.dataset && btn.dataset.v) || 'all');
   if(k === 'who') ORD_WHO = (v === 'all' || ordFilterWhoList().some(x => x.id === v)) ? v : 'all';
-  else ORD_FILTER = ['all', 'live', 'wait', 'done'].indexOf(v) >= 0 ? v : 'all';
+  else ORD_FILTER = ['all', 'live', 'miss', 'wait', 'done'].indexOf(v) >= 0 ? v : 'all';
   renderOrders();
   // 「지금 작업 중」 판의 비서 칩은 타임라인으로 바로 내려가게(필터 행은 그 자리에 있으니 그대로)
   if(k === 'who' && btn && /(^|\s)rl-ag(\s|$)/.test(String(btn.className || ''))){
@@ -2730,22 +2988,49 @@ function ordVisible(it){
   const st = String(it.status || '').toUpperCase();
   // 비서가 남긴 순수 답장은 '진행' 이 아니다 — 처리할 사람이 없다(2026-11-25)
   if(ORD_FILTER === 'live' && !((st === 'PENDING' || st === 'RUNNING') && !ordIsPlainReply(it))) return false;
+  if(ORD_FILTER === 'miss' && ordReportState(it) !== 'miss') return false;
   if(ORD_FILTER === 'wait' && st !== 'WAITING_APPROVAL') return false;
   if(ORD_FILTER === 'done' && !(st === 'DONE' || st === 'FAILED' || st === 'REJECTED' || st === 'EXPIRED' || st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW')) return false;
   if(ORD_WHO !== 'all' && !ordSenderMatches(it, ORD_WHO)) return false;
+  if(ORD_Q && !ordSearchHit(it, ORD_Q)) return false;
   return true;
+}
+/** 키워드 하나로 말·결과·오더 id·대상을 찾는다(공백으로 여러 낱말을 모두 만족해야 함) */
+function ordSearchHit(it, q){
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if(!words.length) return true;
+  const s = [
+    ordMsgText(it), it && it.summary, it && it.result, it && it.error, it && it.id,
+    it && it.source, it && it.claimed_by, it && it.replied_by, it && it.answer_by,
+    ordTargetLabel(ordTargetKey(it)).label
+  ].map(x => String(x == null ? '' : x).toLowerCase()).join(' ');
+  return words.every(w => s.indexOf(w) >= 0);
+}
+function ordSearchInput(el){
+  ORD_Q = String((el && el.value) || '').trim();
+  const x = document.getElementById('ord-q-x');
+  if(x && x.removeAttribute) { if(ORD_Q) x.removeAttribute('hidden'); else x.setAttribute('hidden', ''); }
+  renderOrders(); ordFilterRender();
+}
+function ordSearchClear(){
+  ORD_Q = '';
+  const el = document.getElementById('ord-q');
+  if(el) el.value = '';
+  const x = document.getElementById('ord-q-x');
+  if(x && x.setAttribute) x.setAttribute('hidden', '');
+  renderOrders(); ordFilterRender();
 }
 function ordFilterRender(){
   const box = document.getElementById('ord-filters');
   if(!box) return;
-  const stC = [['all', '전체'], ['live', '진행'], ['wait', '승인'], ['done', '끝남']].map(x =>
+  const stC = [['all', '전체'], ['live', '진행'], ['miss', '보고누락'], ['wait', '승인'], ['done', '끝남']].map(x =>
     `<button class="rf${ORD_FILTER === x[0] ? ' on' : ''}" data-k="st" data-v="${x[0]}" onclick="ordFilterSet(this)">${esc(x[1])}</button>`).join('');
-  const whoC = [{id: 'all', label: '모두'}].concat(ordFilterWhoList().map(a => ({id: a.id, label: a.name}))).map(x =>
-    `<button class="rf${ORD_WHO === x.id ? ' on' : ''}" data-k="who" data-v="${esc(x.id)}" onclick="ordFilterSet(this)">${agentMark(x.id, {mini: true})}${esc(x.label)}</button>`).join('');
+  const whoC = [{id: 'all', label: '모두'}].concat(ordFilterWhoList().map(a => ({id: a.id, label: a.id === 'portal' ? '레이 님' : a.name}))).map(x =>
+    `<button class="rf${ORD_WHO === x.id ? ' on' : ''}" data-k="who" data-v="${esc(x.id)}" onclick="ordFilterSet(this)" title="이 비서와 얽힌 말(보냄·받음·처리·답장·멘션)">${agentMark(x.id, {mini: true})}${esc(x.label)}</button>`).join('');
   const shown = ORD_ITEMS.filter(ordVisible).length;
   box.innerHTML = '<span class="room-hint">상태</span>' + stC + '<span class="rf-sep"></span>' +
-    '<span class="room-hint">발신</span>' + whoC +
-    `<span class="room-hint" style="margin-left:auto">${shown}/${ORD_ITEMS.length}건</span>`;
+    '<span class="room-hint">비서</span>' + whoC +
+    `<span class="room-hint" style="margin-left:auto">${shown}/${ORD_ITEMS.length}건${ORD_Q ? ' · "' + esc(ORD_Q) + '"' : ''}</span>`;
   if(ordSenderSupported() === false){
     box.innerHTML += '<span class="room-hint" style="flex:1 1 100%">발신자·대상 표시는 서버(Apps Script)를 재배포하면 켜져요 — 지금은 모두 포털로 보여요</span>';
   }
@@ -3380,7 +3665,9 @@ function ordJumpTo(id){
   }
   // 필터에 가려져 있으면 먼저 풀어서 보이게 한다
   if(!ordVisible(it)){
-    ORD_FILTER = 'all'; ORD_WHO = 'all';
+    ORD_FILTER = 'all'; ORD_WHO = 'all'; ORD_Q = '';
+    const q = document.getElementById('ord-q'); if(q) q.value = '';
+    const qx = document.getElementById('ord-q-x'); if(qx && qx.setAttribute) qx.setAttribute('hidden', '');
     ordFilterRender(); renderOrders();
   }
   const el = document.getElementById('chat-' + rid) || document.getElementById('chat-' + rid + '-in');
@@ -3411,10 +3698,11 @@ function chatOut(it, left){
   const to = `<span class="chat-to">→ ${esc(tg.label)}</span>`;
   const av = left ? `<div class="chat-av" role="img" aria-label="${esc(who.name)}">${agentMark(ordSenderKey(it), {title: who.name})}</div>` : '';
   const qb = ordQuoteBox(it);
-  const acts = it.id ? `<div class="chat-acts"><button class="chat-a" onclick="ordReplyById('${esc(it.id)}')" title="이 말에 답장하며 원문을 인용해요">↩ 답장</button></div>` : '';
+  const acts = it.id ? `<div class="chat-acts"><button class="chat-a" onclick="ordReplyById('${esc(it.id)}')" title="이 말에 답장하며 원문을 인용해요">↩ 답장</button>${ordThreadBtn(it)}</div>` : '';
   return `<div class="chat-row ${left ? 'in' : 'out'}"${it.id ? ` id="chat-${esc(it.id)}"` : ''}>${av}<div class="chat-bubble${left ? ' side-in' : ''}">` +
     `<div class="chat-meta">${ordWhoBadge(ordSenderKey(it))}${to}` +
     (plain ? '' : `<span class="ord-chip ${s.c}">${esc(s.t)}</span>`) +
+    ordReportChipHtml(it) +
     (it.auto_approved ? '<span class="ord-chip c-auto" title="이미 지시한 일반 코드 작업이라 승인 없이 실행해요">자동(위임)</span>' : '') +
     `<span class="ord-when">${esc(ordWhen(it.created_at))}</span></div>` +
     qb +
@@ -3484,6 +3772,8 @@ function chatIn(it){
   // 답장·결과에 붙는 버튼 — 인용 답장 · 오더로 · 복사 · 다시 실행
   if(st === 'DONE' || st === 'FAILED' || st === 'TIMEOUT_REVIEW' || st === 'EXPIRED' || st === 'REJECTED' || st === 'REVIEW_NEEDED'){
     if(it.id) acts.push(`<button class="chat-a" onclick="ordReplyById('${esc(it.id)}')" title="이 답장에 인용 답장을 달아요">↩ 답장</button>`);
+    const thBtn = ordThreadBtn(it);
+    if(thBtn) acts.push(thBtn);
     acts.push(`<button class="chat-a" onclick="ordPromoteById('${esc(it.id)}')">📦 오더로</button>`);
     acts.push(`<button class="chat-a" onclick="ordCopyById('${esc(it.id)}')">📋 복사</button>`);
     if((it.type === 'git_pull' || it.type === 'toss_sync') && (st === 'FAILED' || st === 'TIMEOUT_REVIEW' || st === 'EXPIRED'))
@@ -3626,7 +3916,7 @@ function renderOrders(){
   items.forEach(it => {
     const d = ordChatDay(it.created_at);
     if(d && d !== day){ html += `<div class="chat-day">${esc(d)}</div>`; day = d; }
-    html += chatOut(it, !ordIsMine(it)) + (ordShowReply(it) ? chatIn(it) : '');
+    html += chatOut(it, !ordIsMine(it)) + (ordShowReply(it) ? chatIn(it) : '') + ordMissCard(it);
   });
   box.innerHTML = html;
   try { if(box.scrollTop !== undefined) box.scrollTop = nearBottom ? (numOf(box.scrollHeight) || 0) : keepTop; } catch(e) {}

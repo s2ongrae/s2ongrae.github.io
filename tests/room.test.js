@@ -144,7 +144,11 @@ function coreTests() {
     'roomSignalOf', 'roomSignalsFrom', 'roomSignalMin', 'roomSignalLive', 'roomStateOf', 'roomUseView', 'roomUseSummary',
     'ROOM_LIVE_ST', 'ROOM_LIVE_CLS', 'ROOM_LIVE_RANK', 'ROOM_ACT_TXT', 'ROOM_ACT_WAIT_MIN',
     'roomLiveOwner', 'roomLiveItems', 'roomLiveSince', 'roomLiveWhat', 'roomDur', 'roomAgentAct', 'roomActCounts',
-    'ROOM_MARKS', 'roomMarkInfo', 'roomMark', 'roomMentionHtml', 'roomCollabHit'];
+    'ROOM_MARKS', 'roomMarkInfo', 'roomMark', 'roomMentionHtml', 'roomCollabHit',
+    'roomReplyToId', 'roomFinished', 'roomWantsReport', 'roomChildren', 'roomReportOf', 'roomHasResult',
+    'roomReportState', 'roomLateMin', 'roomReportChip', 'roomThreadRoot', 'roomThreadItems', 'roomThreadCount',
+    'roomQuoteText', 'roomShort', 'roomQuoteAuthor', 'roomSearchHit', 'roomAgentHit', 'roomVisible',
+    'ROOM_REP', 'ROOM_LATE_MIN', 'ROOM_REPORT_MIN'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -451,6 +455,66 @@ function coreTests() {
     ok(!/onclick=/.test(html), '인라인 onclick 없음(동작은 app.js 가 붙임)');
     ok(/data-go=/.test(js) && /jumpToMsg/.test(js), '일 칩을 누르면 그 말로 이동');
     ok(/ROOM_LIVE_MAX/.test(js) && /live-more/.test(js) && /\.live-more/.test(css), '줄은 3개까지 — 나머지는 "+N건 더"');
+  }
+
+  console.log('N-2) ✅ 완료 보고 · 💬 스레드 · 🔎 히스토리 찾기 (2026-11-26)');
+  {
+    const now = new Date(2026, 10, 26, 12, 0).getTime();
+    const at = (h, mi) => new Date(2026, 10, 26, h, mi).toISOString();
+    const items = [
+      {id: 'T1', status: 'DONE', type: 'claude_prompt', kind: 'chat', source: 'portal', target: 'notebook',
+        created_at: at(10, 0), finished_at: at(10, 5), claimed_by: 'notebook', result: '가계부 11월 지출 82만원 — 카드값 25일'},
+      {id: 'T2', status: 'PENDING', type: 'claude_prompt', kind: 'chat', source: 'portal', target: 'notebook',
+        created_at: at(10, 30), reply_to: 'T1'},
+      {id: 'T3', status: 'DONE', type: 'claude_prompt', kind: 'chat', source: 'notebook', target: 'portal',
+        created_at: at(10, 40), finished_at: at(10, 40), reply_to: 'T1', result: '카드값은 25일입니다'},
+      {id: 'T4', status: 'DONE', type: 'claude_prompt', kind: 'chat', source: 'portal', target: 'cue',
+        created_at: at(9, 0), finished_at: at(9, 2), claimed_by: 'cue', result: ''},
+      {id: 'T5', status: 'PENDING', type: 'claude_prompt', kind: 'chat', source: 'portal', target: 'vooy',
+        created_at: at(11, 30)},
+      {id: 'T6', status: 'DONE', type: 'git_pull', source: 'portal', created_at: at(8, 0), claimed_by: 'notebook', result: ''}
+    ];
+    // ① 답장 추적 — 없으면 빈 값, 있으면 그 오더 id
+    ok(C.roomReplyToId({reply_to: ' T1 '}) === 'T1' && C.roomReplyToId({}) === '', 'reply_to 읽기(공백 정리)');
+    // ② 스레드 — 첫 말 + 이어진 답장(오래된 것 먼저)
+    ok(C.roomThreadRoot(items, 'T2') === 'T1' && C.roomThreadRoot(items, 'T3') === 'T1', '답장의 첫 말은 T1');
+    ok(C.roomThreadItems(items, 'T3').map(x => x.id).join(',') === 'T1,T2,T3', '스레드 = T1 + 답장 2개');
+    ok(C.roomThreadCount(items, 'T1') === 3 && C.roomThreadCount(items, 'T4') === 1, '스레드 크기');
+    ok(C.roomThreadRoot(items, '없는말') === '없는말', '모르는 id 는 그대로(무한 반복 없음)');
+    // ③ 완료 보고 — 근거(답장·결과)로만 판정
+    ok(C.roomReportState(items[0], items) === 'ok', 'T1 은 답장(보고)이 있어 보고됨');
+    ok(C.roomReportState(items[2], items) === '', '답장 자신은 보고 판정 대상이 아니다');
+    ok(C.roomReportState(items[3], items) === 'miss', 'T4 는 끝났는데 결과도 보고도 없다(보고누락)');
+    ok(C.roomReportState(items[4], items) === '', '아직 안 끝난 말은 대상 아님');
+    ok(C.roomReportState(items[5], items) === '', 'git_pull 은 결과 카드가 곧 보고 — 대상 아님');
+    ok(C.roomReportState({id: 'z', status: 'DONE', type: 'claude_prompt', kind: 'chat', source: 'portal', result: '성심당 · 진미오겹살 · 동양돌구이 세 곳'}, []) === 'auto',
+      '결과 글이 있으면 결과로 대신(보고로 인정)');
+    ok(C.roomReportState({id: 'y', status: 'DONE', type: 'claude_prompt', kind: 'chat', source: 'portal', result: '완료'}, []) === 'miss',
+      '결과가 한 마디뿐이면 보고로 보지 않는다');
+    ok(C.roomReportOf(items[0], items).by === 'notebook', '누가 보고했는지(reply)');
+    ok(C.roomReportChip(items[3], items, now).t === '완료·보고누락', '보고누락 배지');
+    ok(C.roomReportChip(items[0], items, now).t === '완료·보고됨', '보고됨 배지');
+    ok(C.roomReportChip(items[4], items, now).t === '지연(15분+)', '30분 넘은 대기는 지연 배지');
+    ok(C.roomLateMin({status: 'PENDING', created_at: at(11, 55)}, now) === 5 && C.roomReportChip({status: 'PENDING', created_at: at(11, 55)}, [], now) === null,
+      '5분은 지연 아님');
+    // ④ 검색·필터
+    ok(C.roomSearchHit(items[0], '82만원') === true && C.roomSearchHit(items[0], 'T1') === true, '결과·오더 id 로 찾는다');
+    ok(C.roomSearchHit(items[0], '지출 카드값') === true && C.roomSearchHit(items[0], '지출 없는말') === false, '여러 낱말은 모두 만족해야');
+    ok(C.roomAgentHit(items[3], 'cue') === true && C.roomAgentHit(items[0], 'cue') === false, '대상이 큐인 말은 큐의 히스토리');
+    ok(C.roomAgentHit({source: 'cue'}, 'notebook') === false, '대상이 빈 큐 글은 노트북 글이 아니다');
+    ok(C.roomVisible(items[0], {st: 'miss'}, items, now) === false && C.roomVisible(items[3], {st: 'miss'}, items, now) === true, '보고누락 필터');
+    ok(C.roomVisible(items[0], {st: 'all', who: 'notebook'}, items, now) === true, '노트북과 얽힌 말');
+    ok(C.roomVisible(items[0], {st: 'all', q: '82만원'}, items, now) === true && C.roomVisible(items[3], {st: 'all', q: '82만원'}, items, now) === false, '키워드 필터');
+    // ⑤ 화면 계약 — 답장·스레드·검색·배지가 실제로 붙어 있다
+    ['srch', 'fchips', 'fcnt', 'rep', 'rep-who', 'rep-txt', 'rep-x', 'thread', 'thread-list', 'thread-n', 'thread-bg', 'thread-x']
+      .forEach(id => ok(new RegExp('id="' + id + '"').test(html), '#' + id + ' 요소 있음'));
+    ok(/data-rep=/.test(js) && /data-th=/.test(js) && /data-go=/.test(js), '말풍선 버튼은 data-속성으로 붙인다(인라인 onclick 없음)');
+    ok(/payload\.reply_to/.test(js) && /clearReply\(\)/.test(js), '답장은 payload.reply_to 로 가고 보내면 배너를 비운다');
+    ok(/function renderFilters\(\)/.test(js) && /function setFilter\(/.test(js) && /function onSearch\(/.test(js), '필터·검색 그리기');
+    ok(/function openThread\(/.test(js) && /function thRow\(/.test(js) && /function closeThread\(/.test(js), '스레드 열기·그리기·닫기');
+    ok(/roomReportState\(it, S\.items\) === 'miss'/.test(js), '끝났는데 보고가 없으면 말풍선이 그렇게 말한다');
+    ok(/\.fchip/.test(css) && /\.q\{/.test(css) && /\.th-row/.test(css) && /\.rep\{/.test(css), '검색·인용·스레드·답장 배너 스타일');
+    ok(/\.chip\.miss/.test(css) && /\.chip\.late/.test(css), '보고누락·지연 칩 스타일');
   }
 
   console.log('N) 🎨 비서 마크 — 계열·호기 구분 (2026-11-26)');

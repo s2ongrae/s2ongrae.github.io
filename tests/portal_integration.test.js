@@ -1794,5 +1794,172 @@ console.log('AE) 🏷️ 명부에 남은 옛 이름(큐2·부이2·키링2) →
   ok(Y.run("ordTargetKey({target:'부이2'})") === 'vooy2' && Y.run("ordTargetKey({target:'all'})") === 'all' && Y.run("ordTargetKey({target:'없는이름'})") === 'notebook', '그 밖의 대상은 그대로');
 }
 
+
+console.log('AF) 💬 스레드 — 원문과 이어진 답장·보고 모아보기 (2026-11-26)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SB = mk();
+  const nowMs = Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, source, status, payload, x) => {
+    const r = [id, created, source, 'claude_prompt', 'gaegyebu', JSON.stringify(payload), status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  SB.props.QUEUE_SHEET_ID = 'SHEETidThreadTest001';
+  SB.addSheet('SHEETidThreadTest001', {'Command_Queue': [HEAD.slice(0)].concat([
+    row('Q-h1', at(nowMs - 20 * 60000), 'portal', 'DONE',
+      { prompt: '가계부 11월 지출 점검해줘', mode: 'ask', kind: 'chat', target: 'notebook' },
+      { claimed_by: 'notebook', finished_at: at(nowMs - 19 * 60000), result: '11월 지출은 82만원이에요 — 카드값 마감 25일' }),
+    row('Q-h2', at(nowMs - 12 * 60000), 'portal', 'PENDING',
+      { prompt: '카드값 마감일 확인해줘', mode: 'ask', kind: 'chat', target: 'notebook', reply_to: 'Q-h1' }),
+    row('Q-h3', at(nowMs - 9 * 60000), 'notebook', 'DONE',
+      { prompt: '카드값은 25일입니다', mode: 'ask', kind: 'chat', target: 'portal', reply_to: 'Q-h1' },
+      { claimed_by: 'notebook', finished_at: at(nowMs - 9 * 60000), result: '카드값은 25일입니다' }),
+    row('Q-h4', at(nowMs - 6 * 60000), 'portal', 'DONE',
+      { prompt: '대전 맛집 3곳 골라줘', mode: 'ask', kind: 'chat', target: 'cue' },
+      { claimed_by: 'cue', finished_at: at(nowMs - 5 * 60000), result: '대전 맛집 세 곳: 성심당 · 진미오겹살 · 동양돌구이' })
+  ])});
+  const DB = makeDevice(SB);
+  DB.config();
+  await DB.run('loadOrders()');
+  const feedB = () => DB.el('ord-list').innerHTML;
+
+  // ① 사슬의 첫 말 — 답장의 답장이어도 처음까지 거슬러 올라간다
+  ok(DB.run("ordThreadRoot('Q-h2')") === 'Q-h1', '답장 Q-h2 의 스레드 첫 말은 Q-h1');
+  ok(DB.run("ordThreadRoot('Q-h1')") === 'Q-h1', '첫 말은 자기 자신');
+  ok(DB.run("ordThreadRoot('Q-none')") === 'Q-none', '모르는 id 는 그대로(무한 반복 없음)');
+  ok(DB.run("ordThreadItems('Q-h3').map(x=>x.id).join(',')") === 'Q-h1,Q-h2,Q-h3', '스레드 = 첫 말 + 이어진 답장(오래된 것 먼저)');
+  ok(DB.run("ordThreadCount('Q-h2')") === 3 && DB.run("ordThreadCount('Q-h4')") === 1, '스레드 크기 — 이어진 말이 없으면 1');
+  ok(DB.run("ordChildren('Q-h1').length") === 2, '자식 = reply_to 가 Q-h1 인 말 2개');
+
+  // ② 말풍선의 💬 스레드 버튼 — 이어진 말이 2개 이상일 때만
+  const outB = DB.run("chatOut(ordById('Q-h1'), false)");
+  ok(/💬 스레드 3/.test(outB), '첫 말 말풍선에 “💬 스레드 3”');
+  ok(/ordThreadOpen\('Q-h1'\)/.test(outB), '누르면 그 스레드를 연다');
+  ok(!/💬 스레드/.test(DB.run("chatOut(ordById('Q-h4'), false)")), '이어진 말이 없는 오더에는 스레드 버튼 없음');
+  ok(/💬 스레드/.test(DB.run("chatIn(ordById('Q-h3'))")), '비서 답장 말풍선에도 스레드 버튼');
+
+  // ③ 스레드 모달 — 첫 말 + 답장만, 타임라인과 같은 이스케이프
+  DB.run("ordThreadOpen('Q-h3')");
+  ok(DB.run('ORD_THREAD') === 'Q-h1', '답장에서 열어도 첫 말 기준으로 모은다');
+  const th = DB.el('ord-thread-list').innerHTML;
+  ok((th.match(/class="th-row /g) || []).length === 3, '스레드에 세 줄(첫 말·답장·보고)');
+  ok(/가계부 11월 지출 점검해줘/.test(th) && /카드값 마감일 확인해줘/.test(th) && /카드값은 25일입니다/.test(th), '세 말이 모두 보인다');
+  ok(!/대전 맛집 세 곳/.test(th), '다른 대화는 섞이지 않는다');
+  ok(/ordThreadJump/.test(th) && /ordReplyById/.test(th), '스레드 줄에 “타임라인에서”·“답장” 버튼');
+  ok(DB.el('ord-thread-n').textContent === '3개 말', '스레드 머리에 개수');
+  DB.run("ordThreadOpen('Q-h1'); ORD_ITEMS = ORD_ITEMS.concat([{id:'Q-x9', status:'DONE', source:'portal', kind:'chat', summary:'<img src=x>스레드', reply_to:'Q-h1', created_at:new Date().toISOString()}]); ordThreadOpen('Q-h1')");
+  ok(DB.el('ord-thread-list').innerHTML.indexOf('<img') < 0 && /&lt;img/.test(DB.el('ord-thread-list').innerHTML), '스레드 본문도 이스케이프');
+  DB.run("ordThreadClose()");
+  ok(DB.run('ORD_THREAD') === '' && DB.el('ord-thread-list').innerHTML === '' || DB.run('ORD_THREAD') === '', '닫으면 스레드 상태를 비운다');
+
+  // ④ 비서별 히스토리 — 보낸·받은·처리한 말을 모두 그 비서 것으로
+  ok(DB.run("ordSenderMatches(ordById('Q-h4'), 'cue')") === true, '대상이 큐인 말도 큐의 히스토리');
+  ok(DB.run("ordSenderMatches(ordById('Q-h1'), 'notebook')") === true, '노트북이 처리한 말도 노트북 것');
+  ok(DB.run("ordSenderMatches(ordById('Q-h1'), 'cue')") === false, '상관없는 비서에게는 안 걸린다');
+  ok(DB.run("ordSenderMatches({source:'pi2', target:'portal'}, 'portal')") === false, '나에게 온 말은 “내가 한 말”이 아니다');
+  DB.run("ordFilterSet({dataset:{k:'who', v:'cue'}})");
+  ok(/대전 맛집/.test(feedB()) && !/가계부 11월 지출/.test(feedB()), '큐 칩 → 큐와 얽힌 말만');
+  DB.run("ordFilterSet({dataset:{k:'who', v:'all'}})");
+  ok(/레이 님/.test(DB.el('ord-filters').innerHTML), '칩에 “레이 님”으로 보인다(포털 아님)');
+  ok(/id="ord-q"/.test(html) && /ordSearchInput/.test(html), '회의실 상단에 키워드 검색칸');
+
+  // ⑤ 키워드 검색 — 내용·결과·id, 공백으로 여러 낱말
+  DB.run("ordSearchInput({value:'맛집'})");
+  ok(DB.run('ORD_Q') === '맛집', '검색어를 기억');
+  ok(/대전 맛집/.test(feedB()) && !/11월 지출/.test(feedB()), '키워드로 한 대화만 남긴다');
+  ok(DB.run("ordSearchHit(ordById('Q-h1'), '82만원')") === true, '결과 글도 검색된다');
+  ok(DB.run("ordSearchHit(ordById('Q-h1'), 'Q-h1')") === true, '오더 id 로도 찾는다');
+  ok(DB.run("ordSearchHit(ordById('Q-h1'), '지출 카드값')") === true, '여러 낱말은 모두 만족해야');
+  ok(DB.run("ordSearchHit(ordById('Q-h1'), '지출 없는말')") === false, '하나라도 없으면 빠진다');
+  DB.run("ordSearchClear()");
+  ok(DB.run('ORD_Q') === '' && /가계부 11월 지출/.test(feedB()), '✕ 로 검색을 지우면 다시 다 보인다');
+}
+
+console.log('AG) ✅ 완료 보고 — 배지·필터·보고 요청 (2026-11-26)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SC = mk();
+  const nowMs = Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, created, source, status, payload, x) => {
+    const r = [id, created, source, 'claude_prompt', 'gaegyebu', JSON.stringify(payload), status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  SC.props.QUEUE_SHEET_ID = 'SHEETidReportTest001';
+  SC.addSheet('SHEETidReportTest001', {'Command_Queue': [HEAD.slice(0)].concat([
+    // ① 끝났다고만 남기고 결과도 보고도 없다 — 진짜 '보고누락'
+    row('Q-m1', at(nowMs - 30 * 60000), 'portal', 'DONE',
+      { prompt: '메리 심장사상충 약 언제 먹이지', mode: 'ask', kind: 'chat', target: 'cue' },
+      { claimed_by: 'cue', finished_at: at(nowMs - 28 * 60000), result: '' }),
+    // ② 결과 글은 있다(따로 회의실 보고는 없음) — 결과로 대신 보여준다
+    row('Q-m2', at(nowMs - 60 * 60000), 'portal', 'DONE',
+      { prompt: '대전 맛집 3곳 골라줘', mode: 'ask', kind: 'chat', target: 'cue' },
+      { claimed_by: 'cue', finished_at: at(nowMs - 58 * 60000), result: '성심당 · 진미오겹살 · 동양돌구이 세 곳이에요' }),
+    // ③ 결과 + 후속 보고 둘 다 있다
+    row('Q-m3', at(nowMs - 90 * 60000), 'portal', 'DONE',
+      { prompt: '이번 주 일정 정리해줘', mode: 'ask', kind: 'chat', target: 'notebook' },
+      { claimed_by: 'notebook', finished_at: at(nowMs - 88 * 60000), result: '이번 주는 화·목 두 건이에요' }),
+    row('Q-m4', at(nowMs - 86 * 60000), 'notebook', 'DONE',
+      { prompt: '한 줄로 남깁니다 — 화·목 두 건', mode: 'ask', kind: 'chat', target: 'portal', reply_to: 'Q-m3' },
+      { claimed_by: 'notebook', finished_at: at(nowMs - 86 * 60000), result: '화·목 두 건입니다' }),
+    // ④ 15분 넘게 차례 대기 — 답장만 남기고 queue_done 을 안 찍은 모양
+    row('Q-m5', at(nowMs - 40 * 60000), 'portal', 'PENDING',
+      { prompt: '묘한살림 품절 점검해줘', mode: 'ask', kind: 'chat', target: 'vooy' })
+  ])});
+  const DC = makeDevice(SC);
+  DC.config();
+  await DC.run('loadOrders()');
+  const feedC = () => DC.el('ord-list').innerHTML;
+
+  // ① 상태 판정 — 근거(답장·결과)로만 말한다
+  ok(DC.run("ordReportState(ordById('Q-m1'))") === 'miss', '끝났는데 결과도 보고도 없으면 보고누락');
+  ok(DC.run("ordReportState(ordById('Q-m2'))") === 'auto', '결과 글이 있으면 결과로 대신(보고로 인정)');
+  ok(DC.run("ordReportState(ordById('Q-m3'))") === 'ok', '후속 보고가 달렸으면 보고됨');
+  ok(DC.run("ordReportState(ordById('Q-m5'))") === '', '끝나지 않은 말은 보고 판정 대상이 아니다');
+  ok(DC.run("ordReportOf(ordById('Q-m4')) === null") === true, '답장 자신은 누군가의 보고가 아니다');
+  ok(DC.run("ordReportOf(ordById('Q-m3')).by") === 'notebook', '누가 보고했는지');
+
+  // ② 배지 — 완료·보고됨 / 완료·보고누락 / 지연(15분+)
+  ok(DC.run("ordReportChip(ordById('Q-m1')).t") === '완료·보고누락', '보고누락 배지');
+  ok(DC.run("ordReportChip(ordById('Q-m2')).t") === '완료·보고됨', '결과가 있으면 보고됨 배지');
+  ok(DC.run("ordReportChip(ordById('Q-m3')).t") === '완료·보고됨', '보고가 달린 말도 보고됨');
+  ok(DC.run("ordReportChip(ordById('Q-m5')).t") === '지연(15분+)', '15분 넘은 대기는 지연 배지');
+  ok(DC.run("ordLateMin({status:'PENDING', created_at:new Date(Date.now()-5*60000).toISOString()})") < 15, '5분은 지연 아님');
+  ok(/c-miss/.test(DC.run("ordReportChipHtml(ordById('Q-m1'))")), '누락 배지는 빨간 칩');
+  ok(/완료·보고누락/.test(feedC()) && /완료·보고됨/.test(feedC()) && /지연\(15분\+\)/.test(feedC()), '타임라인 말풍선에 배지가 보인다');
+  ok(/보고누락 1/.test(DC.el('ord-count').textContent), '머리말에 보고누락 건수');
+
+  // ③ 보고누락 카드 — 무엇을 했는지 물어볼 수 있다
+  ok(/data-report-missing="Q-m1"/.test(feedC()), '누락 말에는 경고 카드');
+  ok(!/data-report-missing="Q-m2"/.test(feedC()) && !/data-report-missing="Q-m3"/.test(feedC()), '결과·보고가 있는 말에는 카드를 만들지 않는다(중복 없음)');
+  ok(/끝났다고만 남기고/.test(feedC()), '카드 문구');
+  DC.run("ordAskReport('Q-m1')");
+  ok(DC.run('ORD_REPLY_ID') === 'Q-m1', '보고 요청은 그 오더에 대한 답장으로 잡힌다');
+  ok(/보고해줘/.test(DC.el('ord-inp').value), '요청 말을 입력칸에 채우기만 한다(자동 전송 없음)');
+  ok(!DC.calls.some(c => JSON.parse(c.opts.body).action === 'queue_enqueue'), '자동으로 보내지 않는다');
+  DC.run("ordQuoteClear()");
+
+  // ④ 상태 필터 — 보고누락만 모아보기
+  DC.run("ordFilterSet({dataset:{k:'st', v:'miss'}})");
+  ok(/data-report-missing="Q-m1"/.test(feedC()) && !/대전 맛집/.test(feedC()), '보고누락 필터는 누락만 남긴다');
+  DC.run("ordFilterSet({dataset:{k:'st', v:'all'}})");
+  ok(DC.run("ordFilterSet({dataset:{k:'st', v:'nope'}}), ORD_FILTER") === 'all', '모르는 상태 값은 전체로');
+
+  // ⑤ 지시가 아닌 기계 작업(git_pull)은 결과 카드가 곧 보고 — 누락으로 잡지 않는다
+  ok(DC.run("ordReportState({id:'Q-g', type:'git_pull', status:'DONE', result:''})") === '', 'git_pull 은 보고 판정 대상 아님');
+  ok(DC.run("ordReportState({id:'Q-r', type:'claude_prompt', status:'DONE', kind:'chat', source:'portal', target:'cue', claimed_by:'cue', summary:'한 줄 보고', result:'완료'})") === 'miss', '결과가 한 마디뿐이면 보고로 보지 않는다');
+  ok(DC.run("ordReportState({id:'Q-p2', type:'claude_prompt', status:'DONE', kind:'chat', source:'cue', target:'portal', summary:'한 줄 보고', result:'완료'})") === '', '비서가 남긴 순수 답장은 보고 판정 대상이 아니다(그 말 자체가 내용)');
+  ok(DC.run("ordReportState({id:'Q-s', type:'claude_prompt', status:'DONE', reply_to:'Q-p', result:''})") === '', '답장 자체는 보고 판정 대상이 아니다');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
