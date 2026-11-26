@@ -1,0 +1,35 @@
+name: test
+
+# 테스트 CI — PR 과 main 푸시에서 포털 시험을 돌린다.
+#  `npm test` = node tools/check.js && node tests/run-all.js
+#  (정적 검사 + 포털 서버·병합·통합·사전진단·메모 안전·PWA·날짜 시험)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 시험
+        run: npm test
