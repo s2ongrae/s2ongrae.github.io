@@ -16,7 +16,7 @@ const ROOM_AGENTS = [
   {id: 'pi1',      name: '피원', icon: '🍋', color: 'pi1',  role: '총괄 비서',        duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘', quota: true},
   {id: 'pi2',      name: '피투', icon: '🤖', color: 'pi2',  role: '부계정 비서',       duty: 'GitHub PR/이슈·분산 실행·SNS·커머스 보조', quota: true},
   {id: 'notebook', name: '노트북', icon: '🖥️', color: 'nb',  role: '실행 엔진',        duty: '24시간 즉답·코드 실행·숏폼 무토큰 렌더', quota: false},
-  {id: 'cue',      name: '큐',   icon: '🌀', color: 'cue',  role: '리서처',           duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)', quota: true},
+  {id: 'cue',      name: '큐',   icon: '🌀', color: 'cue',  role: '일정 전담 · 리서처', duty: '레이 님 일정 관리 전담 · 최신 정보 리서치·팩트체크', quota: true},
   {id: 'cue2',     name: '큐투', icon: '🌀', color: 'cue',  role: '리서처 · 부계정',   duty: '큐의 부계정 — 리서치·팩트체크 보조', quota: true},
   {id: 'vooy',     name: '부이', icon: '🫛', color: 'vooy', role: '정리 담당',         duty: '후보 비교·체크리스트·채용 리서치·PDF/HWP 문서 읽기', quota: true},
   {id: 'vooy2',    name: '뷔투', icon: '🫛', color: 'vooy', role: '정리 담당 · 부계정', duty: '부이의 부계정 — 비교·정리 보조', quota: true},

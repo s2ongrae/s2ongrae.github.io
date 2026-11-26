@@ -46,11 +46,13 @@ module.exports = function makePortalServer(){
   const allFiles=()=>{ const out=[]; (function walk(f){ out.push(...f.files); f.folders.forEach(walk); })(ROOT); return out; };
   // 캘린더
   let evSeq=0; const events=[];
-  const mkEv=(title,start,end,allDay)=>{ const e={id:'ev'+(++evSeq),title,start,end,allDay,desc:''};
+  const mkEv=(title,start,end,allDay)=>{ const e={id:'ev'+(++evSeq),title,start,end,allDay,desc:'',loc:''};
     return Object.assign(e,{ getId:()=>e.id,getTitle:()=>e.title,isAllDayEvent:()=>e.allDay,getStartTime:()=>e.start,getEndTime:()=>e.end,getColor:()=>'',getDescription:()=>e.desc,
-      setDescription:d=>{e.desc=d;},deleteEvent:()=>{const i=events.indexOf(e);if(i>=0)events.splice(i,1);} }); };
+      setDescription:d=>{e.desc=d;},getLocation:()=>e.loc,setLocation:l=>{e.loc=l;},setTitle:t=>{e.title=t;},
+      setTime:(s,x)=>{e.start=s;e.end=x;e.allDay=false;},setAllDayDates:(s,x)=>{e.start=s;e.end=x;e.allDay=true;},
+      deleteEvent:()=>{const i=events.indexOf(e);if(i>=0)events.splice(i,1);} }); };
   const calendar={ getEvents:(s,e)=>events.filter(ev=>ev.start<e&&ev.end>s),
-    createAllDayEvent:(t,d)=>{const e=mkEv(t,d,new Date(d.getTime()+86400000),true);events.push(e);return e;},
+    createAllDayEvent:(t,d,end)=>{const e=mkEv(t,d,end||new Date(d.getTime()+86400000),true);events.push(e);return e;},
     createEvent:(t,s,e)=>{const x=mkEv(t,s,e,false);events.push(x);return x;},
     getEventById:id=>events.find(e=>e.id===id)||null };
   // Tasks
@@ -74,6 +76,7 @@ module.exports = function makePortalServer(){
       computeDigest:(alg,s)=>Array.from(nodeCrypto.createHash('sha256').update(String(s==null?'':s),'utf8').digest()),
       base64EncodeWebSafe:s=>Buffer.from(String(s==null?'':s),'utf8').toString('base64').replace(/\+/g,'-').replace(/\//g,'_'),
       formatDate:(d,tz,f)=>{const x=new Date(d.getTime()+9*3600e3),p=n=>String(n).padStart(2,'0');
+        f=String(f).replace(/'([^']*)'/g,'$1');            // GAS 의 작은따옴표 글자 그대로
         return f.replace('yyyy',x.getUTCFullYear()).replace('MM',p(x.getUTCMonth()+1)).replace('dd',p(x.getUTCDate()))
           .replace('HHmmss',p(x.getUTCHours())+p(x.getUTCMinutes())+p(x.getUTCSeconds())).replace('HH',p(x.getUTCHours())).replace('mm',p(x.getUTCMinutes()));} },
     ContentService:{MimeType:{JSON:'j'},createTextOutput:t=>({_t:t,setMimeType(){return this;},getContent(){return this._t;}})},

@@ -1233,7 +1233,7 @@ console.log('X) 🏷️ 말풍선 닉네임·이모지 · 부계정(*2·_2·pi3)
   // ③ 담당(duty)이 화면에 보인다 — 사용량 카드 한 줄 + 머리말 title(전체 역할표)
   ok(/총괄 조율/.test(D17.el('use-grid').innerHTML) && /팩트체크/.test(D17.el('use-grid').innerHTML), '사용량 카드에 담당 한 줄');
   ok(/피원\(pi1\) — 총괄 조율/.test(D17.el('room-people').title) && /키링\(keyring\) — 전화 발신/.test(D17.el('room-people').title), '참여자 수 title 에 전체 역할표');
-  ok(/담당: 최신 정보 리서치/.test(D17.run("ordTargetTip(ordTargetList().filter(t=>t.id==='cue')[0])")), '대상 칩 툴팁에 담당');
+  ok(/담당: 레이 님 일정 관리 전담/.test(D17.run("ordTargetTip(ordTargetList().filter(t=>t.id==='cue')[0])")), '대상 칩 툴팁에 담당');
 
   // ④ ＋추가 폼의 담당 칸 — 서버까지 같이 간다
   D17.run('useAddStart()');

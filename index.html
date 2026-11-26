@@ -1761,7 +1761,7 @@ const AGENT_SEED = [
   {id: 'pi1',        name: '피원',                 icon: '🍋', role: '비서', color: 'pi1', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '본계정 비서 (pi1)', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘', status: 'agent.json'},
   {id: 'pi2',        name: '피투',                 icon: '🤖', role: '비서', color: 'pi2', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '부계정 비서 (pi2)', duty: 'GitHub PR/이슈·분산 실행·SNS/커머스 보조', status: 'pi2.json'},
   // 2026-11-25(v27) — 폰 부계정 비서 셋. 여기 한 줄씩 있으면 @멘션 칩·말풍선 배지·사용량 카드가 같이 생긴다.
-  {id: 'cue',        name: '큐',                   icon: '🌀', role: '비서', color: 'cue', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '리서치·외부 자동화 (cue)', duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)'},
+  {id: 'cue',        name: '큐',                   icon: '🌀', role: '비서', color: 'cue', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '일정 전담·리서치 (cue)', duty: '레이 님 일정 관리 전담 · 최신 정보 리서치·팩트체크'},
   {id: 'vooy',       name: '부이',                 icon: '🫛', role: '비서', color: 'vooy', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '일정·비교 정리 (vooy)', duty: '후보 비교/체크리스트·채용/면접 리서치·PDF/HWP 문서 읽기'},
   {id: 'keyring',    name: '키링',                 icon: '🔑', role: '비서', color: 'key', quota: true,  mention: true,  group: '일일', reset: 'daily04', sub: '생활 예약·전화 보조 (keyring)', duty: '전화 발신 검증·KTX/예약·대전 밥집/쇼핑커넥트 발굴'},
   {id: 'notebook',   name: '집 노트북',            icon: '🖥️', role: '실행', color: 'nb',  quota: false, mention: true,  mentionAs: '노트북', group: '일일', reset: 'daily04', sub: 'hub-agent — 오더를 실제로 실행', duty: '24시간 즉답·코드 실행·숏폼 무토큰 렌더'},
@@ -1966,7 +1966,7 @@ function agentMentionMap(){
 // 2026-11-25(v28): 부계정 비서(cue2·vooy2·keyring2·pi3·*_2)도 **코드 수정 없이**
 //  베이스 모델의 닉네임·이모지를 따라가게 한다. 예: cue2 → 🌀 큐2 · pi3 → 🤖 피3
 const AGENT_BASES = {
-  cue:     {name: '큐',   icon: '🌀', duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)'},
+  cue:     {name: '큐',   icon: '🌀', duty: '레이 님 일정 관리 전담 · 최신 정보 리서치·팩트체크'},
   vooy:    {name: '부이', icon: '🫛', duty: '후보 비교/체크리스트·채용/면접 리서치·PDF/HWP 문서 읽기'},
   keyring: {name: '키링', icon: '🔑', duty: '전화 발신 검증·KTX/예약·대전 밥집/쇼핑커넥트 발굴'},
   pi:      {name: '피',   icon: '🤖', duty: '피원·피투 보조 — 분산 실행·조사'},
@@ -2157,7 +2157,8 @@ const ORD_PRESETS = [
   {icon: '🛒', label: '품절 점검', fill: '묘한살림 상품 중에 품절·가격 이상한 것만 집어서 알려줘'},
   {icon: '📊', label: '상태 확인', fill: '지금 큐 상황과 노트북이 마지막으로 한 일을 3줄로 알려줘'},
   {icon: '🧾', label: '할 일 뽑기', fill: '이번 주 할 일 후보 5개만 뽑아줘 — 돈 되는 것부터'},
-  {icon: '🌿', label: '어사이드', fill: '🌿어사이드 상태'}
+  {icon: '🌿', label: '어사이드', fill: '🌿어사이드 상태'},
+  {icon: '📅', label: '내 일정', fill: '@큐 오늘부터 일주일 일정 정리해서 알려줘 — 구글 캘린더 그대로'}
 ];
 
 /* ── 📊 비서 사용량 (2026-11-25) — 남은 % 를 직접 넣어 기록한다(토큰 0원) ── */

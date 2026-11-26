@@ -81,6 +81,9 @@ function doPost(e) {
       case 'getCalendarEvents': return out(getCalendarEvents(body.ym));
       case 'createEvent':       return out(createEvent(body));
       case 'deleteEvent':       return out(deleteCalEvent(body.eventId));
+      case 'cal_list':          return out(calList(body));          // 🗓️ 비서용 일정 조회(큐 전담 — 2026-11-26)
+      case 'cal_create':        return out(calCreate(body));        // 🗓️ 비서용 일정 등록
+      case 'cal_update':        return out(calUpdate(body));        // 🗓️ 비서용 일정 수정(삭제는 없다)
       case 'loadMemos':         return out(loadMemos());
       case 'saveMemos':         return out(saveMemos(body));
       case 'queue_status':      return out(queueStatus());   // 포털 상단 상태등(읽기 전용)
@@ -230,6 +233,206 @@ function deleteCalEvent(eventId) {
   const ev = CalendarApp.getDefaultCalendar().getEventById(id);
   if (ev) ev.deleteEvent();
   return { ok: true };
+}
+
+// ── 캘린더 — 비서(큐)가 쓰는 조회·등록·수정 (2026-11-26) ──────────
+//  레이 님 지시로 일정 관리는 큐(cue)가 전담한다. 비서가 직접 부르는 세 갈래만 둔다.
+//    cal_list(조회) · cal_create(등록) · cal_update(수정) — **삭제는 넣지 않는다.**
+//    지우는 일은 되돌릴 수 없어서 사람이 포털 화면(deleteEvent)에서만 한다.
+//  · 날짜·시각: 'YYYY-MM-DD'(종일) 또는 'YYYY-MM-DDTHH:mm'·'YYYY-MM-DD HH:mm'.
+//    시간대를 안 붙이면 스크립트 시간대(Asia/Seoul)로 읽는다. 'Z'·'+09:00'을 붙이면 그 순간 그대로다.
+//  · **종일 일정의 end 는 마지막 날(포함)** — cal_list 가 준 값을 그대로 cal_update 에 넣어도 하루 밀리지 않는다.
+//    (구글 캘린더 내부는 끝나는 날을 빼고 세므로, 넣고 뺄 때 하루씩 옮겨 준다.)
+const CAL_MAX_DAYS = 62;          // 한 번에 훑는 기간 상한(실수로 10년치를 읽지 않게)
+const CAL_LIST_MAX = 200;         // 한 번에 돌려주는 일정 수 상한
+function calTz() { return Session.getScriptTimeZone() || TZ; }
+function ymdOf(d) { return Utilities.formatDate(d, calTz(), 'yyyy-MM-dd'); }
+function midnightOf(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function calFmt(d, allDay) {
+  return Utilities.formatDate(d, calTz(), allDay ? 'yyyy-MM-dd' : "yyyy-MM-dd'T'HH:mm");
+}
+/** 날짜 문자열 → { d: Date, dateOnly: bool }. 잘못된 값은 bad_request 로 거절한다. */
+function calParse(v, label) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) throw qqErr_('bad_request', label + ' 날짜가 비어 있어요.');
+  if (s.length > 40) throw qqErr_('bad_request', label + ' 날짜가 너무 길어요.');
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) {
+    const y = +m[1], mo = +m[2], da = +m[3];
+    const d = new Date(y, mo - 1, da);
+    if (d.getFullYear() !== y || d.getMonth() !== mo - 1 || d.getDate() !== da) {
+      throw qqErr_('bad_request', label + ' 날짜가 달력에 없어요: ' + s);
+    }
+    return { d: d, dateOnly: true };
+  }
+  m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:?\d{2})?$/.exec(s);
+  if (!m) throw qqErr_('bad_request', label + ' 날짜 형식이 올바르지 않아요(YYYY-MM-DD 또는 YYYY-MM-DDTHH:mm).');
+  if (m[7]) {                                   // 시간대를 붙였으면 그 순간 그대로 쓴다
+    const ms = Date.parse(s.replace(' ', 'T'));
+    if (!isFinite(ms)) throw qqErr_('bad_request', label + ' 날짜를 읽지 못했어요: ' + s);
+    return { d: new Date(ms), dateOnly: false };
+  }
+  const y = +m[1], mo = +m[2], da = +m[3], hh = +m[4], mi = +m[5], ss = +(m[6] || 0);
+  if (hh > 23 || mi > 59 || ss > 59) throw qqErr_('bad_request', label + ' 시각이 올바르지 않아요: ' + s);
+  const d = new Date(y, mo - 1, da, hh, mi, ss);
+  if (d.getFullYear() !== y || d.getMonth() !== mo - 1 || d.getDate() !== da) {
+    throw qqErr_('bad_request', label + ' 날짜가 달력에 없어요: ' + s);
+  }
+  return { d: d, dateOnly: false };
+}
+/** CalendarEvent → 비서가 읽기 좋은 모양(종일은 end 가 마지막 날) */
+function calOut(ev) {
+  const allDay = ev.isAllDayEvent();
+  const s = ev.getStartTime(), e = ev.getEndTime();
+  const endIn = allDay ? addDays(midnightOf(e), -1) : e;
+  return {
+    id: ev.getId(), title: ev.getTitle(), allDay: allDay,
+    start: calFmt(s, allDay), end: calFmt(endIn, allDay),
+    location: ev.getLocation() || '', description: ev.getDescription() || '',
+    dayUrl: 'https://calendar.google.com/calendar/r/day/' + ymdOf(s).replace(/-/g, '/')
+  };
+}
+/** 같은 제목·같은 시작 시각의 일정이 이미 있나(두 번 등록 누르기 방지) */
+function calDup(cal, title, startD, endD, allDay) {
+  const t = String(title).trim();
+  const hits = cal.getEvents(midnightOf(startD), endD).filter(function (ev) {
+    return String(ev.getTitle()).trim() === t && ev.isAllDayEvent() === allDay &&
+      Math.abs(ev.getStartTime().getTime() - startD.getTime()) < 60000;
+  });
+  return hits.length ? hits[0] : null;
+}
+/**
+ * cal_list — start·end 범위의 일정(기본: 오늘부터 7일).
+ *   { start?, end?(포함), q?(제목·장소·설명 검색), limit? }
+ */
+function calList(body) {
+  const b = isObj(body) ? body : {};
+  const sp = calParse(b.start !== undefined && b.start !== null && b.start !== '' ? b.start : ymdOf(new Date()), '시작');
+  const start = midnightOf(sp.d);
+  let end;                                      // end 는 **포함하지 않는** 경계
+  if (b.end !== undefined && b.end !== null && b.end !== '') {
+    const ep = calParse(b.end, '끝');
+    end = ep.dateOnly ? addDays(midnightOf(ep.d), 1) : ep.d;
+  } else {
+    end = addDays(start, 8);                    // 오늘부터 7일(8일째 0시 전까지)
+  }
+  if (!(end > start)) throw qqErr_('bad_request', '끝이 시작보다 앞서요.');
+  if (end.getTime() - start.getTime() > CAL_MAX_DAYS * 86400000) {
+    throw qqErr_('range_too_long', '한 번에 ' + CAL_MAX_DAYS + '일까지만 볼 수 있어요. 기간을 나눠 주세요.');
+  }
+  const q = clip(b.q, 100).trim().toLowerCase();
+  let items = CalendarApp.getDefaultCalendar().getEvents(start, end).map(calOut);
+  if (q) {
+    items = items.filter(function (x) {
+      return (x.title + ' ' + x.location + ' ' + x.description).toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  items.sort(function (a, b2) {                 // 시작이 빠른 것부터, 같으면 종일 먼저
+    if (a.start !== b2.start) return a.start < b2.start ? -1 : 1;
+    return (b2.allDay ? 1 : 0) - (a.allDay ? 1 : 0);
+  });
+  const total = items.length;
+  const limit = qqInt_(b.limit, 1, CAL_LIST_MAX, 50);
+  return {
+    ok: true, calendar: '기본 캘린더', tz: calTz(),
+    start: sp.dateOnly ? ymdOf(start) : calFmt(start, false),
+    end: calFmt(addDays(end, -1), true), total: total, count: Math.min(total, limit),
+    items: items.slice(0, limit)
+  };
+}
+/**
+ * cal_create — 일정 등록. { title, start, end?, allDay?, location?, description?, allowDuplicate? }
+ *   같은 제목·같은 시작이 이미 있으면 만들지 않고 그 일정을 돌려준다(duplicate:true).
+ *   정말 두 개가 필요하면 allowDuplicate:true.
+ */
+function calCreate(body) {
+  const b = isObj(body) ? body : {};
+  const title = clip(b.title, 500).trim();
+  if (!title) throw qqErr_('bad_request', '제목이 비어 있어요.');
+  if (b.start === undefined || b.start === null || b.start === '') {
+    throw qqErr_('bad_request', 'start 가 필요해요(YYYY-MM-DD 또는 YYYY-MM-DDTHH:mm).');
+  }
+  const sp = calParse(b.start, '시작');
+  const allDay = b.allDay === true || (b.allDay !== false && sp.dateOnly);
+  const cal = CalendarApp.getDefaultCalendar();
+  let startD, endD;
+  if (allDay) {
+    startD = midnightOf(sp.d);
+    if (b.end !== undefined && b.end !== null && b.end !== '') {
+      endD = addDays(midnightOf(calParse(b.end, '끝').d), 1);     // 마지막 날(포함) → 내부 경계
+    } else {
+      endD = addDays(startD, 1);
+    }
+  } else {
+    startD = sp.d;
+    if (b.end !== undefined && b.end !== null && b.end !== '') endD = calParse(b.end, '끝').d;
+    else endD = new Date(startD.getTime() + 3600000);             // 끝이 없으면 1시간
+  }
+  if (!(endD > startD)) throw qqErr_('bad_request', '끝이 시작보다 앞서요.');
+  if (b.allowDuplicate !== true) {
+    const dup = calDup(cal, title, startD, endD, allDay);
+    if (dup) {
+      const o = calOut(dup); o.ok = true; o.duplicate = true; o.created = false;
+      o.note = '같은 일정이 이미 있어요. 새로 만들지 않았어요.'; return o;
+    }
+  }
+  const ev = allDay ? cal.createAllDayEvent(title, startD, endD) : cal.createEvent(title, startD, endD);
+  if (b.location !== undefined) ev.setLocation(clip(b.location, 500));
+  const desc = b.description !== undefined ? b.description : b.desc;
+  if (desc !== undefined) ev.setDescription(clip(desc, 8000));
+  const o = calOut(ev); o.ok = true; o.duplicate = false; o.created = true;
+  o.note = '등록했어요.'; return o;
+}
+/**
+ * cal_update — id 로 일정의 제목·시간·장소·설명을 고친다(안 보낸 값은 그대로 둔다).
+ *   { id, title?, start?, end?, allDay?, location?, description? }
+ */
+function calUpdate(body) {
+  const b = isObj(body) ? body : {};
+  const id = clip(b.id, 300).trim();
+  if (!id) throw qqErr_('bad_request', '일정 id 가 필요해요.');
+  const cal = CalendarApp.getDefaultCalendar();
+  const ev = cal.getEventById(id);
+  if (!ev) {
+    return { ok: false, code: 'event_not_found', error: '그 일정을 찾지 못했어요(이미 지워졌거나 다른 캘린더에 있어요).' };
+  }
+  // 값은 **먼저 다 검사한 뒤**에 손댄다 — 중간에 실패해 일정이 반쯤 바뀌는 일을 막는다.
+  const wantTitle = b.title === undefined ? '' : clip(b.title, 500).trim();
+  if (b.title !== undefined && !wantTitle) throw qqErr_('bad_request', '제목이 비어 있어요.');
+  const allDay = b.allDay === undefined ? ev.isAllDayEvent() : b.allDay === true;
+  const curS = ev.getStartTime(), curE = ev.getEndTime();
+  let startD = null, endD = null;
+  if (b.start !== undefined && b.start !== null && b.start !== '') {
+    const sp = calParse(b.start, '시작');
+    startD = allDay ? midnightOf(sp.d) : sp.d;
+  }
+  if (b.end !== undefined && b.end !== null && b.end !== '') {
+    const ep = calParse(b.end, '끝');
+    endD = allDay ? addDays(midnightOf(ep.d), 1) : ep.d;
+  } else if (startD) {                                 // 시각만 옮기면 길이는 그대로
+    if (allDay) endD = addDays(startD, Math.max(1, Math.round((curE.getTime() - curS.getTime()) / 86400000)));
+    else endD = new Date(startD.getTime() + Math.max(60000, curE.getTime() - curS.getTime()));
+  }
+  if (startD && !(endD > startD)) {
+    if (allDay) endD = addDays(startD, 1);             // 종일은 하루짜리로
+    else throw qqErr_('bad_request', '끝이 시작보다 앞서요.');
+  }
+  // 종일만 시간 일정으로 바꾸면 몇 시인지 알 수 없다 — 시각을 같이 달라고 먼저 확인한다.
+  if (allDay === false && ev.isAllDayEvent() && !startD) {
+    throw qqErr_('bad_request', '종일 일정을 시간 일정으로 바꿀 때는 start(시각)도 함께 주세요.');
+  }
+  if (wantTitle) ev.setTitle(wantTitle);
+  if (b.location !== undefined) ev.setLocation(clip(b.location, 500));
+  if (b.description !== undefined) ev.setDescription(clip(b.description, 8000));
+  if (startD) {
+    if (allDay) ev.setAllDayDates(startD, endD);       // 종일(끝 경계는 하루 뒤)
+    else ev.setTime(startD, endD);
+  } else if (allDay && !ev.isAllDayEvent()) {           // 시간 일정 → 종일(그 날 하루)
+    ev.setAllDayDates(midnightOf(curS), addDays(midnightOf(curS), 1));
+  }
+  const o = calOut(ev); o.ok = true; o.updated = true;
+  o.note = '고쳤어요.'; return o;
 }
 
 // ── Google Tasks ───────────────────────────────────
@@ -834,7 +1037,7 @@ const AG_RESERVED = ['all', 'portal', 'phone', 'telegram', 'notebook', 'pi1', 'p
 const AG_BUILTINS = [
   { id: 'pi1', name: '피원', icon: '🍋', group: '일일', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘' },
   { id: 'pi2', name: '피투', icon: '🤖', group: '일일', duty: 'GitHub PR/이슈·분산 실행·SNS/커머스 보조' },
-  { id: 'cue', name: '큐', icon: '🌀', group: '일일', duty: '최신 정보 리서치·근거 확인·결과 교차검증(팩트체크)' },
+  { id: 'cue', name: '큐', icon: '🌀', group: '일일', duty: '레이 님 일정 관리 전담 · 최신 정보 리서치·팩트체크' },
   { id: 'vooy', name: '부이', icon: '🫛', group: '일일', duty: '후보 비교/체크리스트·채용/면접 리서치·PDF/HWP 문서 읽기' },
   { id: 'keyring', name: '키링', icon: '🔑', group: '일일', duty: '전화 발신 검증·KTX/예약·대전 밥집/쇼핑커넥트 발굴' },
   { id: 'notebook', name: '집 노트북', icon: '🖥️', group: '일일', duty: '24시간 즉답·코드 실행·숏폼 무토큰 렌더' }

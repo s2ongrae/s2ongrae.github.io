@@ -6,7 +6,7 @@ const memo = (id,x={})=>Object.assign({id,title:'제목'+id,body:'내용'+id,col
 
 console.log('1) 접근 통제');
 let r = S.doGet(); ok(r.ok===false && r.error==='POST로만 사용할 수 있어요.' && Object.keys(r).length===2, 'doGet은 안내 문구만(캘린더·메모 안 줌)');
-for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide','webhook_set','agent_beat']){
+for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','cal_list','cal_create','cal_update','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide','webhook_set','agent_beat']){
   r = post({action:a}); ok(r.error==='unauthorized', `키 없이 ${a} 거절`);
   r = post({action:a, key:'x'.repeat(64)}); ok(r.error==='unauthorized', `틀린 키로 ${a} 거절`);
 }
@@ -33,6 +33,60 @@ for(const bad of ['2026-13','26-10','abc',null,'2026-10-01','2026-1']){ ok(post(
 const evId = S.events[0].id;
 r = post({action:'deleteEvent',key:K,eventId:evId}); ok(r.ok && !S.events.some(e=>e.id===evId), '일정 삭제');
 ok(post({action:'deleteEvent',key:K,eventId:''}).ok===false && post({action:'deleteEvent',key:K,eventId:'x'.repeat(400)}).ok===false, '이상한 일정 ID 거절');
+
+console.log('2-2) 🗓️ 일정 API — cal_list · cal_create · cal_update (큐 전담 · 2026-11-26)');
+const evN = S.events.length;
+r = post({action:'cal_create',key:K,title:'치과',start:'2026-10-14T14:00',end:'2026-10-14T15:00',location:'유성구 치과',description:'스케일링'});
+ok(r.ok && r.created===true && /^ev/.test(r.id||''), '시간 일정 등록 — id·created');
+ok(r.start==='2026-10-14T14:00' && r.end==='2026-10-14T15:00', '넣은 시각 그대로 돌려줌');
+ok(r.location==='유성구 치과' && r.description==='스케일링' && r.allDay===false, '장소·설명 저장 · allDay=false');
+const dentist = r.id;
+r = post({action:'cal_create',key:K,title:'치과',start:'2026-10-14T14:00'});
+ok(r.ok && r.duplicate===true && r.created===false && r.id===dentist, '같은 제목·같은 시작은 중복으로 보고 새로 만들지 않는다');
+ok(S.events.length===evN+1, '중복일 때 일정이 늘지 않는다');
+r = post({action:'cal_create',key:K,title:'치과',start:'2026-10-14T14:00',allowDuplicate:true});
+ok(r.ok && r.created===true && r.id!==dentist, 'allowDuplicate 면 하나 더 만든다');
+r = post({action:'cal_create',key:K,title:'짧은 통화',start:'2026-10-16 09:30'});
+ok(r.ok && r.start==='2026-10-16T09:30' && r.end==='2026-10-16T10:30', '끝을 안 주면 1시간 · 공백 형식도 읽는다');
+r = post({action:'cal_create',key:K,title:'제주 여행',start:'2026-10-15',end:'2026-10-16'});
+ok(r.ok && r.allDay===true && r.start==='2026-10-15' && r.end==='2026-10-16', '종일 일정 — end 는 마지막 날(포함)');
+ok(S.events.find(e=>e.id===r.id).end.getDate()===17, '구글 안쪽 끝 경계는 하루 뒤(17일 0시)');
+const travel = r.id;
+ok(post({action:'cal_create',key:K,start:'2026-10-14'}).ok===false && post({action:'cal_create',key:K,title:'   ',start:'2026-10-14'}).ok===false, '시작·제목이 없으면 거절');
+for(const bad of ['2026-02-30','abc','2026-13-01','2026-10-14T25:00','x'.repeat(50)]){
+  ok(post({action:'cal_create',key:K,title:'x',start:bad}).ok===false, `이상한 날짜 거절: ${bad.slice(0,12)}`);
+}
+r = post({action:'cal_list',key:K,start:'2026-10-14',end:'2026-10-14'});
+ok(r.ok && r.total===2 && r.count===2, '하루 범위 조회(치과 2건)');
+ok(r.items.every(x=>x.id&&x.title&&typeof x.allDay==='boolean'&&x.start&&x.end&&typeof x.location==='string'&&x.description!==undefined), '일정 모양(id·제목·시작·끝·종일·장소·설명)');
+r = post({action:'cal_list',key:K});
+ok(r.ok && r.start==='2026-10-13' && r.end==='2026-10-20', '기본 범위는 오늘부터 +7일(포함)');
+r = post({action:'cal_list',key:K,start:'2026-10-13',end:'2026-10-19'});
+ok(r.ok && r.total===4 && r.items[0].start <= r.items[1].start, '기간 안의 일정만 · 시작 빠른 순');
+r = post({action:'cal_list',key:K,start:'2026-10-13',end:'2026-10-19',q:'치과'});
+ok(r.ok && r.total===2, 'q 로 제목·장소·설명 검색');
+r = post({action:'cal_list',key:K,start:'2026-10-13',end:'2026-10-19',limit:1});
+ok(r.ok && r.count===1 && r.total===4, 'limit 은 돌려주는 수만 줄인다(total 은 전체)');
+ok(post({action:'cal_list',key:K,start:'2026-10-20',end:'2026-10-14'}).ok===false, '끝이 시작보다 앞서면 거절');
+r = post({action:'cal_list',key:K,start:'2026-10-01',end:'2027-06-01'});
+ok(r.ok===false && r.code==='range_too_long', '너무 긴 기간은 range_too_long');
+ok(JSON.parse(S.sb.doGet({parameter:{action:'cal_list',key:K}}).getContent()).code==='read_only', 'GET 으로는 일정을 안 준다(키가 URL·로그에 남지 않게)');
+r = post({action:'cal_update',key:K,id:dentist,title:'치과(스케일링)',start:'2026-10-14T16:00',location:'관평동 치과'});
+ok(r.ok && r.updated===true && r.title==='치과(스케일링)' && r.start==='2026-10-14T16:00', '제목·시각 수정');
+ok(r.end==='2026-10-14T17:00', '시각만 옮기면 길이(1시간) 유지');
+ok(r.location==='관평동 치과' && r.description==='스케일링', '안 보낸 장소·설명은 그대로 둔다');
+r = post({action:'cal_update',key:K,id:'없는일정id'});
+ok(r.ok===false && r.code==='event_not_found', '없는 일정은 event_not_found');
+ok(post({action:'cal_update',key:K,id:''}).ok===false && post({action:'cal_update',key:K,id:dentist,title:'   '}).ok===false, 'id·빈 제목 거절');
+ok(S.events.find(e=>e.id===dentist).title==='치과(스케일링)', '거절된 수정은 일정을 안 바꾼다');
+r = post({action:'cal_update',key:K,id:dentist,allDay:true});
+ok(r.ok && r.allDay===true && r.start==='2026-10-14' && r.end==='2026-10-14', '시간 일정 → 종일(그 날 하루)');
+ok(post({action:'cal_update',key:K,id:dentist,allDay:false}).ok===false, '종일 → 시간은 시각을 같이 줘야 한다');
+r = post({action:'cal_update',key:K,id:dentist,allDay:false,start:'2026-10-14T10:00',end:'2026-10-14T11:00'});
+ok(r.ok && r.allDay===false && r.start==='2026-10-14T10:00' && r.end==='2026-10-14T11:00', '종일 → 시간(시각을 주면 바뀐다)');
+r = post({action:'cal_update',key:K,id:travel,start:'2026-10-15',end:'2026-10-17'});
+ok(r.ok && r.start==='2026-10-15' && r.end==='2026-10-17', '종일 기간 늘리기(end 포함)');
+ok(post({action:'cal_delete',key:K,id:dentist}).ok===false && S.events.some(e=>e.id===dentist), '삭제는 없다(cal_delete 미지원 · 일정 그대로)');
 
 console.log('3) Tasks');
 r = post({action:'getTaskLists',key:K}); ok(r.ok && r.lists.length===2, '목록 조회');
