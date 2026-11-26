@@ -1345,7 +1345,7 @@ function qqMask_(s, max) {
        .replace(/\b01[016789][-– ]?\d{3,4}[-– ]?\d{4}\b/g, '[REDACTED]')
        .replace(/\b0(?:2|3[1-9]|[4-6]\d|70)[-– ]?\d{3,4}[-– ]?\d{4}\b/g, '[REDACTED]');
   const lim = (max === undefined || max === null || Number(max) <= 0) ? QQ_CELL_MAX : Math.min(Number(max), QQ_CELL_MAX);
-  return t.length > lim ? t.slice(0, lim) + '…' : t;
+  return t.length > lim ? t.slice(0, Math.max(0, lim - 1)) + '…' : t;
 }
 
 function qqParse_(s) {
