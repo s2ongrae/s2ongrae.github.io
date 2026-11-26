@@ -870,6 +870,7 @@ console.log('14) 💬 회의실 — 발신(source)·대상(target)·대화(kind)
   const all = post({action: 'queue_list', key: K9, limit: 20});
   ok(all.items.length > mine.items.length, '필터 없이 부르면 전체');
   ok(all.chat === true, '이 배포가 대화(kind=chat)와 대상(target)을 안다고 알려준다');
+  ok(all.source_fallback === true, '이 배포가 발신자를 payload.source 에서도 읽는다고 알려준다(배포 확인용)');
 
   // ④ 발신별 건수 — 화면 필터가 쓰는 source 가 목록에 실린다
   const seen = {};

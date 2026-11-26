@@ -1969,6 +1969,8 @@ function queueList(body) {
     review: c.review, done: c.done, failed: c.failed,
     workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES), engines: QQ_ENGINES.slice(),
     chat: true, targets: qqWithRoster_(QQ_TARGETS), sources: qqWithRoster_(QQ_SOURCES), sources_seen: srcSeen,
+    // 2026-11-26 — 이 배포가 발신자를 payload.source 에서도 읽는다는 표시(배포 확인용).
+    source_fallback: true,
     duties: agentDuties_(),
     approval_ttl_min: Math.round(QQ_APPROVAL_TTL_MS / 60000)
   };
