@@ -1692,6 +1692,94 @@ console.log('\n21) 👀 이모지 반응 — queue_react · 자동 「전달됨 
   S.props.QUEUE_SHEET_ID = SH;
 }
 
+console.log('\n22) 🧹 묵은 대화 정리 — queue_sweep (미리보기 기본 · 안전한 두 갈래만) (2026-11-26)');
+{
+  const KW = S.props.SECRET_KEY;
+  const SW = 'SHEETidSweep2201';
+  const HEADW = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const now = S.sb.Date.now();
+  const iso = ms => new Date(ms).toISOString();
+  const mkW = (id, hoursAgo, source, payload, status) => {
+    const row = new Array(HEADW.length).fill('');
+    row[HEADW.indexOf('id')] = id; row[HEADW.indexOf('created_at')] = iso(now - hoursAgo * 3600000);
+    row[HEADW.indexOf('source')] = source; row[HEADW.indexOf('type')] = 'claude_prompt';
+    row[HEADW.indexOf('payload')] = JSON.stringify(payload); row[HEADW.indexOf('status')] = status || 'PENDING';
+    return row;
+  };
+  const chat = (target, prompt, x) => Object.assign({ prompt, mode: 'ask', kind: 'chat', target }, x || {});
+  S.addSheet(SW, {
+    'Command_Queue': [HEADW.slice(0),
+      mkW('Q-w1', 30, 'pi1', chat('cue', '@큐 일정 전담 맡아줘')),                       // 큐가 답함 → answered
+      mkW('Q-w2', 29, 'cue', chat('portal', '맡을게요 — 내일부터', { reply_to: 'Q-w1' }), 'DONE'),
+      mkW('Q-w3', 25, 'portal', chat('vooy', '@부이 오래된 요청')),                         // 오래됐고 접수 없음 → stale
+      mkW('Q-w4', 24, 'portal', chat('vooy2', '@뷔투 오래됐지만 접수함')),                  // 👀 접수 → 안 건드림
+      mkW('Q-w5', 2, 'portal', chat('keyring', '@키링 방금 온 말')),                        // 신선 → 안 건드림
+      mkW('Q-w6', 40, 'portal', chat('all', '@전체 오래된 공지')),                          // @전체 → 안 건드림
+      mkW('Q-w7', 40, 'portal', { prompt: '가계부 점검', mode: 'ask' }),                    // 노트북 앞 실행 오더 → 안 건드림
+      mkW('Q-w8', 40, 'portal', chat('notebook', '@노트북 오래된 말')),                     // 노트북 앞 대화 → 안 건드림
+      mkW('Q-w9', 40, 'pi1', chat('portal', '사람 앞 오래된 말')),                          // 사람 앞 → 안 건드림
+      mkW('Q-wa', 40, 'portal', chat('keyring2', '@키투 오래됐고 아무 반응 없음')),           // stale
+      mkW('Q-wb', 40, 'portal', chat('pi2', '@피투 오래됐지만 승인 대기'), 'WAITING_APPROVAL') // 승인 대기 → 안 건드림
+    ],
+    'Reactions': [['at', 'order_id', 'agent', 'emoji'], [iso(now - 23 * 3600000), 'Q-w4', 'vooy2', '👀'], [iso(now - 30 * 3600000), 'Q-w3', 'vooy', '✓']]
+  });
+  S.props.QUEUE_SHEET_ID = SW;
+  const sweep = x => post(Object.assign({ action: 'queue_sweep', key: KW }, x || {}));
+  const rowW = id => S.books[SW]['Command_Queue'].find(r => r[0] === id) || [];
+  const stW = id => rowW(id)[HEADW.indexOf('status')];
+  const before = JSON.stringify(S.books[SW]['Command_Queue']);
+
+  // ① 미리보기가 기본 — 아무것도 바꾸지 않는다
+  let pv = sweep();
+  ok(pv.ok === true && pv.apply === false && /미리보기/.test(pv.note || ''), '기본은 미리보기');
+  ok(pv.answered === 1 && pv.stale === 2 && pv.plan === 3, '닫을 후보: 답장됨 1 + 미접수 2');
+  ok(JSON.stringify(S.books[SW]['Command_Queue']) === before, '미리보기는 시트를 하나도 안 바꾼다');
+  ok(!S.books[SW]['Audit_Log'], '미리보기는 감사 로그도 안 남긴다');
+  const ids = pv.items.map(x => x.id).sort().join(',');
+  ok(ids === 'Q-w1,Q-w3,Q-wa', '후보 = 답장된 말(w1) · 접수 없는 묵은 말(w3, ✓ 전달됨만 있음) · 반응 없는 묵은 말(wa)');
+  ok(pv.items.every(x => typeof x.text === 'string' && x.text.length <= 70 && x.age_h >= 0), '후보마다 한 줄 요약(70자)·나이');
+  ok(pv.by_agent.cue.answered === 1 && pv.by_agent.vooy.stale === 1 && pv.by_agent.keyring2.stale === 1, '비서별 집계');
+  ok(sweep({ apply: 'no' }).apply === false && sweep({ apply: 1 }).apply === false, 'apply 는 true 일 때만(다른 값은 미리보기)');
+  ok(post({ action: 'queue_sweep', key: 'x'.repeat(64) }).error === 'unauthorized', '키 없이는 거절');
+
+  // ② 나이 기준 — 6~168시간으로 고정, 더 짧게 못 준다
+  ok(sweep({ min_age_hours: 1 }).min_age_hours === 6 && sweep({ min_age_hours: 9999 }).min_age_hours === 168, '기준은 6~168시간으로 묶인다');
+  ok(sweep({ min_age_hours: 48 }).stale === 0, '48시간 기준이면 미접수 묵은 말이 없다(가장 오래된 게 40시간)');
+
+  // ③ 실제로 닫기
+  const ap = sweep({ apply: true });
+  ok(ap.ok === true && ap.apply === true && ap.applied === 3 && ap.remaining === 0, 'apply 로 3건을 닫는다');
+  ok(stW('Q-w1') === 'DONE' && rowW('Q-w1')[HEADW.indexOf('claimed_by')] === 'cue' && rowW('Q-w1')[HEADW.indexOf('result')] === '↩ 답장 Q-w2', '답장된 말은 DONE · 처리자 · 결과칸 ↩ 답장 <id>');
+  ok(stW('Q-w3') === 'EXPIRED' && /정리/.test(rowW('Q-w3')[HEADW.indexOf('error')]) && rowW('Q-w3')[HEADW.indexOf('result')] === '', '미접수 묵은 말은 DONE 이 아니라 EXPIRED — 사유는 error 에, 결과칸은 비어 있다');
+  ok(stW('Q-wa') === 'EXPIRED', '반응 없는 묵은 말도 EXPIRED');
+  // ④ 건드리면 안 되는 것
+  ok(stW('Q-w4') === 'PENDING', '접수(👀)한 말은 오래돼도 안 닫는다');
+  ok(stW('Q-w5') === 'PENDING', '신선한 말은 안 닫는다');
+  ok(stW('Q-w6') === 'PENDING', '@전체 는 안 닫는다');
+  ok(stW('Q-w7') === 'PENDING', '실행 오더(비-chat)는 안 닫는다');
+  ok(stW('Q-w8') === 'PENDING', '노트북 앞 대화는 안 닫는다');
+  ok(stW('Q-w9') === 'PENDING', '사람(포털) 앞 말은 안 닫는다');
+  ok(stW('Q-wb') === 'WAITING_APPROVAL', '승인 대기는 안 건드린다');
+  ok(S.books[SW]['Audit_Log'] && S.books[SW]['Audit_Log'].some(r => r.indexOf('sweep') >= 0), '감사 로그에 정리 한 줄');
+  // ⑤ 다시 불러도 더 닫을 게 없다
+  const again = sweep({ apply: true });
+  ok(again.applied === 0 && again.plan === 0, '두 번째 apply 는 할 일이 없다(멱등)');
+  // ⑥ 한 번에 limit 건 — 남으면 remaining
+  const many = [HEADW.slice(0)];
+  for (let i = 0; i < 5; i++) many.push(mkW('Q-m' + i, 30, 'portal', chat('vooy', '@부이 묵은 ' + i)));
+  S.addSheet('SHEETidSweep2202', { 'Command_Queue': many });
+  S.props.QUEUE_SHEET_ID = 'SHEETidSweep2202';
+  const lim = sweep({ apply: true, limit: 2 });
+  ok(lim.applied === 2 && lim.remaining === 3 && lim.plan === 5, 'limit 만큼만 닫고 남은 수를 알린다');
+  ok(sweep({ apply: true, limit: 99 }).applied === 3, '한 번 더 부르면 나머지를 닫는다');
+  // ⑦ 브리핑에서 안 읽음이 줄어든다
+  const br = post({ action: 'queue_brief', key: KW });
+  ok(br.ok === true && (br.agents.find(a => a.id === 'vooy') || {}).unread === 0, '정리 뒤 브리핑의 안 읽음이 0');
+  S.props.QUEUE_SHEET_ID = SW;
+}
+
 console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');
 {
   const K4 = S.props.SECRET_KEY;

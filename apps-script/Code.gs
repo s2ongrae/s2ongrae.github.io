@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-26.brief5';
+const SERVER_VERSION = '2026-11-26.brief6';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -97,6 +97,7 @@ function doPost(e) {
       case 'queue_brief':       return out(queueBrief(body));     // 📋 오늘 브리핑 — 비서별 받은 일·처리·밀림(읽기 전용)
       case 'queue_inbox':       return out(queueInbox(body));     // 📥 내 받은편지함 — 지금 처리할 말만(주기 확인형 비서용)
       case 'queue_react':       return out(queueReact(body));     // 👀 이모지 반응 — 확인 답장 대신(접수·진행 중·완료·내 일 아님)
+      case 'queue_sweep':       return out(queueSweep(body));     // 🧹 묵은 대화 정리 — 기본은 미리보기(apply:true 일 때만 닫는다)
       case 'webhook_last':      return out(queueWebhookLast());   // 🔔 웹훅 발사 결과(읽기 전용 — 주소 없음)
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
       case 'webhook_set':       return out(queueWebhookSet(body)); // 🔔 외부 비서 웹훅 주소 등록(ScriptProperties)
@@ -2813,6 +2814,95 @@ function qqDeliverMark_(ctx, me, ids, rmap) {
     if (rows.length) qqReactAppend_(ctx, rows);
   } catch (err) { /* 진단용 — 실패해도 받은편지함 응답에는 영향 없다 */ }
 }
+// ═══════════════════════════════════════════════════════════════
+// 🧹 묵은 대화 정리 — queue_sweep (2026-11-26, 사용자 "정리해줘")
+//
+//  쌓인 PENDING 대화를 안전한 두 갈래로만 닫는다. **기본은 미리보기**(apply:true 일 때만 쓴다).
+//   ① answered — 받는 비서(target)가 이미 reply_to 로 답한 말 → DONE(결과칸 `↩ 답장 <id>`). 새 규칙(답장하면 원글 닫기)이 하던 일을 묵은 말에 한 번.
+//   ② stale    — 대화인데 min_age_hours(기본 12, 6~168)가 넘도록 받는 비서가 **가져가서 접수(👀·🔧)한 적도 없는** 말 → EXPIRED(사유를 error 에).
+//                실행 안 한 채 닫는 거라 DONE 이 아니라 EXPIRED 로 정직하게 남긴다. 필요하면 다시 보내면 된다.
+//  건드리지 않는 것: 실행 오더(git_pull·렌더 등 비-chat) · @전체 · 노트북 앞 · 사람(포털) 앞 · 승인 대기 · 접수(👀·🔧)한 말.
+//  apply 는 한 번에 최대 limit(기본 30)건 — 남으면 remaining 으로 알리니 한 번 더 부른다(30초 제한 방어). Audit_Log 에 한 줄.
+// ═══════════════════════════════════════════════════════════════
+const QQ_SWEEP_LIMIT = 30;
+function queueSweep(body) {
+  const apply = !!(body && (body.apply === true || String(body.apply) === 'true'));
+  const hours = Math.min(168, Math.max(6, Number(body && body.min_age_hours) || 12));
+  const limit = Math.min(60, Math.max(1, Math.round(Number(body && body.limit) || QQ_SWEEP_LIMIT)));
+  const run = function () {
+    const ctx = qqOpen_();
+    const rows = qqRows_(ctx, QQ_SCAN_ROWS);
+    const rmap = qqReactRead_(ctx);
+    const nowMs = Date.now();
+    const firstReply = {};                              // 원글 id → {답한 비서: 그 답장의 id}
+    rows.forEach(function (r) {
+      const m = QQ_REPLY_JSON_RE.exec(String(r.payload == null ? '' : r.payload));
+      if (!m) return;
+      const by = qqLow_(r.source);
+      const slot = firstReply[m[1]] || (firstReply[m[1]] = {});
+      if (by && !slot[by]) slot[by] = String(r.id);
+    });
+    const plan = [];
+    rows.forEach(function (r) {
+      const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
+      if (st !== 'PENDING') return;
+      const p = qqParse_(r.payload);
+      if (qqLow_(p.kind) !== 'chat') return;            // 실행 오더는 안 건드린다
+      const t = qqRowTarget_(r);
+      if (!qqIsAiId_(t) || t === 'notebook') return;    // @전체·노트북·사람(포털) 앞은 안 건드린다
+      const id = String(r.id);
+      const rid = firstReply[id] && firstReply[id][t];
+      if (rid) { plan.push({ row: r, kind: 'answered', to: t, reply: rid, ageH: 0 }); return; }
+      const ageH = (nowMs - (Date.parse(String(r.created_at || '')) || nowMs)) / 3600000;
+      const seen = (rmap[id] || []).some(function (x) { return x.by === t && (x.e === '👀' || x.e === '🔧'); });
+      if (!seen && ageH >= hours) plan.push({ row: r, kind: 'stale', to: t, reply: '', ageH: ageH });
+    });
+    const count = { answered: 0, stale: 0 };
+    const byAgent = {};
+    plan.forEach(function (x) {
+      count[x.kind]++;
+      const a = byAgent[x.to] || (byAgent[x.to] = { answered: 0, stale: 0 });
+      a[x.kind]++;
+    });
+    const batch = plan.slice(0, limit);
+    const show = function (x) {
+      return { id: String(x.row.id), kind: x.kind, to: x.to, from: qqLow_(x.row.source),
+        age_h: Math.round(((nowMs - (Date.parse(String(x.row.created_at || '')) || nowMs)) / 3600000) * 10) / 10,
+        text: clip(qqBriefText_(x.row), 70) };
+    };
+    const res = { ok: true, apply: apply, min_age_hours: hours, scanned: rows.length, plan: plan.length,
+      answered: count.answered, stale: count.stale, by_agent: byAgent, version: SERVER_VERSION };
+    if (!apply) {
+      res.items = batch.map(show);
+      res.note = '미리보기예요 — 아무것도 바꾸지 않았어요. 닫으려면 apply:true 로 다시 부르세요.';
+      return res;
+    }
+    const nowIso = qqIso_(nowMs);
+    const done = [];
+    batch.forEach(function (x) {
+      const r = x.row;
+      if (x.kind === 'answered') {
+        qqUpdateRow_(ctx, r.__row, { status: 'DONE', claimed_by: x.to, claimed_at: nowIso, finished_at: nowIso,
+          duration_ms: 0, exit_code: 0, result: QQ_REPLY_CLOSE_MARK + x.reply });
+      } else {
+        qqUpdateRow_(ctx, r.__row, { status: 'EXPIRED', finished_at: nowIso,
+          error: '🧹 정리: ' + hours + '시간 넘게 받는 비서가 접수하지 않아 닫았어요(필요하면 다시 보내 주세요).' });
+      }
+      done.push(show(x));
+    });
+    if (done.length) {
+      qqAudit_(ctx, { id: 'sweep', type: 'sweep', workspace: '', risk: 'LOW', decision: 'sweep', by: 'api', channel: 'api',
+        note: '정리 ' + done.length + '건 — 답장됨 ' + done.filter(function (d) { return d.kind === 'answered'; }).length +
+          ' · 미접수 ' + done.filter(function (d) { return d.kind === 'stale'; }).length, payloadHash: '', source: 'api' });
+    }
+    res.applied = done.length;
+    res.remaining = plan.length - done.length;
+    res.items = done;
+    return res;
+  };
+  return apply ? qqLock_(run) : run();
+}
+
 /** 비서가 오더에 이모지로 반응한다. {action:'queue_react', key, as, id, emoji:'👀'|'🔧'|'✅'|'🙅'} */
 function queueReact(body) {
   const as = qqActorOf_(body);
