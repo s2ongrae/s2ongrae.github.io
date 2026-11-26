@@ -1215,11 +1215,13 @@ console.log('17) 🔓 GET 읽기 · queue_claim/done · mentions·reply_to · �
   ok(r1.ok === true && (r1.item.mentions || []).indexOf('cue') >= 0 && (r1.item.mentions || []).indexOf('pi2') >= 0, '여러 멘션을 배열로 준다(@큐 @피투)');
 
   // ③ reply_to · replied_by — 답장 추적(중복 답장 방지)
-  const rr = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'keyring',
-    payload: { prompt: '@포털 예약했어요', mode: 'ask', kind: 'chat', target: 'portal', reply_to: 'Q-k1' } });
+  //  2026-11-26 — 주인(키링)이 답장하면 원글이 닫히므로(20절), 여기서는 곁에서 거든 피투의 답장으로 추적만 본다.
+  const rr = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'pi2',
+    payload: { prompt: '@포털 키링 예약 사이트 링크 붙여 둘게요', mode: 'ask', kind: 'chat', target: 'portal', reply_to: 'Q-k1' } });
   ok(rr.ok === true && rr.item.reply_to === 'Q-k1', 'reply_to 가 payload·item 에 실린다');
-  ok(item('Q-k1').replied_by === 'keyring' && !!item('Q-k1').replied_at, '답장이 달린 원본은 replied_by 가 보인다');
-  ok(item('Q-k1').answer_by === 'keyring', '답장한 비서는 answer_by 로도 남는다');
+  ok(!rr.closed, '주인이 아닌 비서의 답장은 원글을 닫지 않는다');
+  ok(item('Q-k1').replied_by === 'pi2' && !!item('Q-k1').replied_at, '답장이 달린 원본은 replied_by 가 보인다');
+  ok(item('Q-k1').answer_by === 'pi2', '답장한 비서는 answer_by 로도 남는다');
   g = get({ action: 'queue_head', key: KS, target: 'keyring' });
   ok(g.item && typeof g.item.replied_by === 'string' && typeof g.item.reply_to === 'string', 'queue_head 에도 replied_by·reply_to 가 실린다');
   ok(post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
@@ -1440,6 +1442,125 @@ console.log('19) ✅ 완료 보고 — answered · report_rule · needs_report (
 
   // ④ 답장 자신은 또 다른 답장을 요구하지 않는다(무한 보고 방지)
   ok(itemR(rep.item.id).answered === false, '답장 줄은 누군가의 보고 대상이 아니다(자기 자신은 reply_to 없음)');
+}
+
+console.log('20) ↩ 답장하면 원글을 닫는다 · 📋 오늘 브리핑(queue_brief) · 서버 버전 (2026-11-26)');
+{
+  const KB = S.props.SECRET_KEY;
+  const SHEETB = 'SHEETidBrief2001';
+  const HEADB = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const now = S.sb.Date.now();                       // 가짜 서버 시계(2026-10-13 12:00 KST) 기준으로 '오늘'
+  const iso = ms => new Date(ms).toISOString();
+  const mkB =(id, ago, source, payload, status, extra, type) => {
+    const row = new Array(HEADB.length).fill('');
+    row[HEADB.indexOf('id')] = id;
+    row[HEADB.indexOf('created_at')] = iso(now - ago * 60000);
+    row[HEADB.indexOf('source')] = source;
+    row[HEADB.indexOf('type')] = type || 'claude_prompt';
+    row[HEADB.indexOf('payload')] = JSON.stringify(payload);
+    row[HEADB.indexOf('status')] = status || 'PENDING';
+    Object.keys(extra || {}).forEach(k => { const i = HEADB.indexOf(k); if (i >= 0) row[i] = extra[k]; });
+    return row;
+  };
+  const chat = (target, prompt, x) => Object.assign({ prompt, mode: 'ask', kind: 'chat', target }, x || {});
+  S.addSheet(SHEETB, { 'Command_Queue': [HEADB.slice(0),
+    mkB('Q-b1', 300, 'pi1', chat('cue', '[임명] 큐 — 오늘부터 일정 전담이에요')),                     // 큐: 안 읽음(가장 오래)
+    mkB('Q-b2', 120, 'portal', chat('cue', '@큐 내일 일정 알려줘')),                                // 큐: 답은 했는데 안 닫음(아래 b3)
+    mkB('Q-b3', 110, 'cue', chat('portal', '내일은 10시 치과 한 건이에요', { reply_to: 'Q-b2' }), 'DONE'),
+    mkB('Q-b4', 60, 'vooy', chat('pi1', '@피원 확인했어요.'), 'DONE', { claimed_by: 'pi1', finished_at: iso(now - 55 * 60000), result: '수신 완료' }),
+    mkB('Q-b5', 50, 'vooy', chat('pi1', '@피원 확인했어요. 이 오더 닫을게요.'), 'DONE', { claimed_by: 'pi1', finished_at: iso(now - 45 * 60000), result: '수신 완료' }),
+    mkB('Q-b6', 40, 'portal', chat('all', '@전체 다들 상태 알려줘')),                                // 전체 앞 — 누구의 '안 읽음'도 아니다
+    mkB('Q-b7', 30, 'portal', { prompt: '가계부 최신화', mode: 'ask' }, 'PENDING', {}, 'claude_prompt'), // 노트북 앞 실행 오더
+    mkB('Q-b8', 20, 'portal', chat('vooy2', '@뷔투 협업 태그 왜 안 해?')),                           // 뷔투: 안 읽음
+    mkB('Q-b9', 10, 'pi2', chat('portal', 'PR #26 올렸어요 — 카드뉴스 1차')),                         // 나에게 온 말
+    mkB('Q-b10', 5, 'portal', chat('keyring', '@키링 기차표 봐줘'), 'FAILED', { claimed_by: 'keyring', finished_at: iso(now - 2 * 60000), error: '예약 사이트 접속 실패' })
+  ] });
+  S.props.QUEUE_SHEET_ID = SHEETB;
+  const rowOf = id => { const sh = S.books[SHEETB]['Command_Queue']; return sh.find(r => r[0] === id) || []; };
+  const col = (id, k) => rowOf(id)[HEADB.indexOf(k)];
+
+  // ⓪ 서버 버전 — 배포가 무엇인지 화면이 확인할 수 있게
+  let p = post({ action: 'ping', key: KB });
+  ok(p.ok === true && /^\d{4}-\d{2}-\d{2}\./.test(p.version || ''), 'ping 이 서버 버전을 돌려준다');
+  p = JSON.parse(S.sb.doGet({ parameter: { action: 'ping', key: KB } }).getContent());
+  ok(p.ok === true && p.version === post({ action: 'ping', key: KB }).version, 'GET ping 도 같은 버전');
+
+  // ① 브리핑 — 답장 자동 닫기 전 상태를 먼저 본다
+  let b = post({ action: 'queue_brief', key: KB });
+  const ag = id => (b.agents || []).find(a => a.id === id) || {};
+  ok(b.ok === true && b.scanned === 10 && b.version === p.version, '브리핑 응답 — 훑은 줄 수·버전');
+  ok((b.agents || []).slice(0, 9).map(a => a.id).join(',') === 'pi1,pi2,cue,cue2,vooy,vooy2,keyring,keyring2,notebook', '비서 9명이 정해진 순서로 온다(기록이 없어도)');
+  ok(ag('cue').unread === 1 && ag('cue').replied_open === 1, '큐 — 안 읽음 1 · 답만 하고 안 닫음 1 을 가른다');
+  ok(ag('cue').oldest_unread && ag('cue').oldest_unread.id === 'Q-b1' && ag('cue').oldest_unread.from === 'pi1' && /임명/.test(ag('cue').oldest_unread.text), '가장 오래 안 읽은 말 — 누가·무슨 말');
+  ok(ag('vooy2').unread === 1 && ag('pi1').unread === 0, '뷔투 안 읽음 1 · 피원은 다 처리');
+  ok(ag('pi1').handled_today === 2, '피원 오늘 처리 2(부이가 보낸 두 말을 끝냄)');
+  ok(ag('cue').handled_today === 1, '큐 오늘 처리 1(답장 단 원글 기준)');
+  ok(ag('vooy').sent_today === 2 && ag('vooy').acks_today === 2, '부이 — 보낸 말 2 중 확인만 한 말 2');
+  ok(ag('cue').acks_today === 0, '내용 있는 답장은 확인만 한 말이 아니다');
+  ok(ag('keyring').failed_today === 1 && b.totals.failed_today === 1, '키링 오늘 실패 1');
+  ok(ag('notebook').unread === 1, '대상 없는 실행 오더는 노트북의 안 읽음');
+  ok(b.totals.all_open === 1 && b.totals.unread === 3 && b.totals.replied_open === 1, '전체 앞 말은 따로 · 합계');
+  ok(b.totals.to_me_today === 2, '오늘 나에게 온 말(큐 답장 · 피투 PR)');
+  ok(ag('pi2').last && ag('pi2').last.kind === 'sent' && /PR #26/.test(ag('pi2').last.text) && ag('pi2').last.to === 'portal', '마지막 활동 — 보낸 말과 받는 쪽');
+  ok(ag('pi1').last && ag('pi1').last.kind === 'done' && ag('pi1').last.text === '수신 완료', '끝낸 일이 마지막이면 그 결과 글');
+  ok(!JSON.stringify(b).includes('"payload"'), '브리핑은 payload 원문을 내보내지 않는다');
+  const gb = JSON.parse(S.sb.doGet({ parameter: { action: 'queue_brief', key: KB } }).getContent());
+  ok(gb.ok === true && gb.agents.length === b.agents.length, 'GET queue_brief 도 읽힌다(비서가 자기 밀린 일 확인)');
+  ok(post({ action: 'queue_brief' }).error === 'unauthorized', '키 없으면 거절');
+
+  // ② 답장하면 원글을 닫는다 — 주인이 답했을 때만
+  const enq = (source, payload) => post({ action: 'queue_enqueue', key: KB, type: 'claude_prompt', workspace: 'gaegyebu', source, payload });
+  let e = enq('cue', chat('pi1', '@피원 일정 전담 맡을게요 — 내일 아침부터 브리핑', { reply_to: 'Q-b1' }));
+  ok(e.ok === true && e.closed && e.closed.id === 'Q-b1' && e.closed.by === 'cue', '주인(큐)이 답장하면 원글을 닫고 응답에 알린다');
+  ok(col('Q-b1', 'status') === 'DONE' && col('Q-b1', 'claimed_by') === 'cue' && String(col('Q-b1', 'result')).indexOf('↩ 답장 ' + e.item.id) === 0, '원글 DONE · 처리자 · 결과칸에 답장 id');
+  e = enq('pi1', chat('portal', '뷔투 대신 답할게요', { reply_to: 'Q-b8' }));
+  ok(e.ok === true && !e.closed && col('Q-b8', 'status') === 'PENDING', '주인이 아닌 비서의 답장은 원글을 닫지 않는다');
+  e = enq('cue', chat('portal', '큐는 이상 없어요', { reply_to: 'Q-b6' }));
+  ok(!e.closed && col('Q-b6', 'status') === 'PENDING', '@전체 원글은 한 명이 답해도 닫지 않는다');
+  e = enq('pi2', chat('portal', '노트북 일인데 제가 답해요', { reply_to: 'Q-b7' }));
+  ok(!e.closed && col('Q-b7', 'status') === 'PENDING', '노트북 앞 실행 오더는 답장으로 닫지 않는다');
+  e = enq('portal', chat('vooy2', '레이가 다시 묻는다', { reply_to: 'Q-b8' }));
+  ok(!e.closed && col('Q-b8', 'status') === 'PENDING', '사람(portal)의 답장은 원글을 닫지 않는다');
+
+  // ③ 자동으로 닫힌 뒤 queue_done 으로 결과를 주면 그 결과로 바뀐다(결과를 잃지 않는다)
+  const d = post({ action: 'queue_done', key: KB, as: 'cue', id: 'Q-b1', status: 'DONE', result: '일정 전담 시작 — 내일 07:30 첫 브리핑' });
+  ok(d.ok === true && d.changed === true && col('Q-b1', 'result') === '일정 전담 시작 — 내일 07:30 첫 브리핑', '답장으로 닫힌 오더에 나중 결과를 덧붙인다');
+  const d2 = post({ action: 'queue_done', key: KB, as: 'cue', id: 'Q-b1', status: 'DONE', result: '두 번째 결과' });
+  ok(d2.changed === false && col('Q-b1', 'result') === '일정 전담 시작 — 내일 07:30 첫 브리핑', '진짜 결과가 적힌 뒤에는 덮지 않는다');
+
+  // ④ 닫은 뒤 브리핑 — 큐의 안 읽음이 사라진다
+  b = post({ action: 'queue_brief', key: KB });
+  ok(ag('cue').unread === 0 && ag('cue').handled_today >= 2, '답장으로 닫힌 뒤 큐 안 읽음 0 · 오늘 처리 늘어남');
+
+  // ⑤ 📥 주기 확인형 비서(키링·부이 계열) — 받은편지함 한 번에 '지금 처리할 말'만
+  S.props.WEBHOOK_TRIGGERS_JSON = JSON.stringify({ cue: 'https://hook.test/cue' });
+  S.sb.CacheService.getScriptCache().put('qq_check_log_v1', '{}');   // 앞 절의 확인 기록을 비우고 시작
+  let ib = post({ action: 'queue_inbox', key: KB, as: 'vooy2' });
+  const ids = ib.items.map(x => x.id);
+  ok(ib.ok === true && ib.count === 3 && ids.indexOf('Q-b6') >= 0 && ids.indexOf('Q-b8') >= 0, '뷔투 받은편지함 = 뷔투 앞 2(원글·레이의 재질문) + @전체 1');
+  ok(/reply_to/.test(ib.how || '') && /보고/.test(ib.report_rule || ''), '답하는 법·보고 규칙을 같이 준다');
+  enq('vooy2', chat('portal', '태그 규칙 지킬게요 — 다음 보고부터 협업 줄에 이름 넣습니다', { reply_to: 'Q-b8' }));
+  ib = post({ action: 'queue_inbox', key: KB, as: 'vooy2' });
+  ok(ib.count === 2 && ib.items.every(x => x.id !== 'Q-b8'), '답한 말은 받은편지함에서 빠진다(내 앞 말은 닫히고)');
+  enq('vooy2', chat('portal', '뷔투 상태 정상', { reply_to: 'Q-b6' }));
+  ib = post({ action: 'queue_inbox', key: KB, as: 'vooy2' });
+  ok(ib.count === 1 && ib.replied_open === 1 && ib.items.every(x => x.id !== 'Q-b6'), '@전체 말은 닫히지 않지만 내 받은편지함에서는 빠진다(답함으로 셈)');
+  ok(post({ action: 'queue_inbox', key: KB, as: 'vooy2', since: new Date(now + 60000).toISOString() }).count === 0, 'since 이후 새 말만');
+  ok(post({ action: 'queue_inbox', key: KB }).ok === false && post({ action: 'queue_inbox', key: KB, as: 'portal' }).ok === false, 'as 가 없거나 portal 이면 거절');
+  const gi = JSON.parse(S.sb.doGet({ parameter: { action: 'queue_inbox', key: KB, as: 'keyring' } }).getContent());
+  ok(gi.ok === true && gi.as === 'keyring', 'GET queue_inbox 도 읽힌다(주기 확인용)');
+  // 확인 기록 — 받은편지함·queue_head target 을 읽으면 브리핑에 '마지막 확인'이 남는다
+  S.sb.doGet({ parameter: { action: 'queue_head', key: KB, target: 'keyring2' } });
+  b = post({ action: 'queue_brief', key: KB });
+  ok(!!ag('vooy2').last_check_at && !!ag('keyring').last_check_at && !!ag('keyring2').last_check_at, '확인한 비서는 last_check_at 이 남는다');
+  ok(ag('vooy').last_check_at === '', '확인한 적 없으면 비어 있다(지어내지 않는다)');
+  ok(ag('cue').wake === 'webhook' && ag('vooy').wake === 'poll' && ag('keyring2').wake === 'poll' && ag('notebook').wake === 'worker', '깨우는 방식 — 웹훅 / 주기 확인 / 워커');
+  ok(!JSON.stringify(b).includes('hook.test'), '브리핑에 웹훅 주소가 나가지 않는다');
+  const wl = post({ action: 'webhook_last', key: KB });
+  ok(wl.ok === true && !JSON.stringify(wl).includes('hook.test'), 'POST webhook_last 도 읽힌다(주소 없음)');
+  delete S.props.WEBHOOK_TRIGGERS_JSON;
 }
 
 console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');

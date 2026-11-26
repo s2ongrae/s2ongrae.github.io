@@ -62,6 +62,16 @@
 - **시트 시각은 '노트북 생존'의 근거가 아니다(2026-11-18 개정)**: 노트북 `heartbeat.json` 은 노트북 디스크에만 있어서, `HEARTBEAT_FILE_ID` 가 없으면 `queue_status` 는 `heartbeat:{state:'unknown', source:'sheet', approx:true, reason:'no_heartbeat', min, at}` 로 답한다. 화면은 노트북 배지를 **회색 '신호 없음'** 으로 두고 시트 활동을 '오더를 넣은 흔적'으로만 title·보조줄에 적는다. 피클이 오더를 넣기만 해도 초록이 되던 거짓 안심을 없앴다(실전점검 2026-11-18 P0).
 - **검토 필요(REVIEW_NEEDED) 카드**: 차단 사유·변경 요약·바뀐 파일·브랜치와 compare 링크에 더해 `[⧉ 병합 1줄 복사]` 버튼(`ordMergeCmd` → `git fetch && git merge origin/auto-review/<id>`)을 둔다. 브랜치 칸이 비면 오더 id 로 만들고, `main` 같은 다른 브랜치는 받지 않는다. 클립보드는 https 에서만 동작하므로 실패하면 임시 입력칸 선택 복사 → 안내 순서로 떨어진다.
 
+## 📋 오늘 브리핑 · 응답 구조 (2026-11-26, 사용자 "얘네가 뭐 하고 있는지 모르겠어")
+
+- **실측(2026-11-26 17시)**: 최근 400행 대기 45건 중 절반이 '답장은 했는데 `queue_done` 안 찍은' 원글이었다(큐 4/8 · 큐투 3/4 · 피투 5/8 · 뷔투 2/7). 피원은 응답 중간값 3분, 큐·피투는 13시간. 부이↔피원 사이에 내용 없는 "확인했어요 / 수신 완료" 왕복이 20초에 5번.
+- **맨 위 `#brief-card`(📋 오늘 브리핑)**: 서버 `queue_brief` 한 번으로 비서 9명(`BRIEF_ORDER` = 피원·피투·큐·큐투·부이·뷔투·키링·키투·노트북, 순서 고정)마다 안 읽음 · 답만 함 · 실행 중 · 오늘 처리 · 실패 · 보낸 말(확인만 N) · 가장 오래 안 읽은 말(누가·언제·무슨 말) · 마지막 활동 · 깨우는 방식(⚡ 즉시 웹훅 / ⏱ 주기 확인 / 🖥️ 워커) · 마지막 확인. 색 = 2시간 넘은 안 읽음·실패 빨강 / 밀림 노랑 / 초록(`briefLevel`). 줄을 누르면 회의실 필터가 그 비서(`briefPick` → `ordFilterSet`). 1분 캐시(`BRIEF_TTL`), `bootData`·관제 ⟳ 에서 읽는다.
+  - 예전 배포(queue_brief 모름)면 `briefFromItems(ORD_ITEMS)` 로 어림하고 안내줄에 **어림이라고 밝힌다**. 숫자를 지어내지 않는다.
+- **↩ 답장하면 원글을 닫는다(`qqCloseOnReply_`)**: `reply_to` 를 단 비서가 그 원글의 주인(PENDING=target, RUNNING=claimed_by)이면 원글을 `DONE`·`claimed_by`·결과칸 `↩ 답장 <id>` 로 닫는다. `@전체` 원글·노트북 앞/노트북이 집은 오더·사람(portal)의 답장은 닫지 않는다. 그 뒤 `queue_done` 으로 결과를 주면 그 결과로 바꿔 준다(`QQ_REPLY_CLOSE_MARK` 로 시작할 때만). `queue_enqueue` 응답에 `closed:{id,by}`.
+- **📥 주기 확인형 비서(키링·키투·부이·뷔투 — 웹훅 없음, 5~30분 주기)**: `queue_inbox {as, since?}`(POST·GET) = **지금 처리할 말만**(내 앞·@전체 PENDING 중 내가 아직 답 안 한 것 + 내가 집고 안 끝낸 것), `count`·`replied_open`·답하는 법(`how`). 비서가 자기 앞을 읽으면(`queue_inbox`·`queue_head target`·`queue_list target`·`queue_claim`) **마지막 확인 시각**을 CacheService(`qq_check_log_v1`, 6시간)에 남기고 브리핑이 보여 준다 — 확인이 꾸준한데 밀리면 '느린 것', 확인도 끊기면 '멈춘 것'. 주기 자체는 각 비서 플랫폼 설정이라 포털이 바꿀 수 없다.
+- **서버 버전**: `SERVER_VERSION`(Code.gs 맨 위) — `ping`·`queue_brief` 가 돌려주고 브리핑 안내줄에 보인다. **배포할 때마다 올린다**("재배포 필요"가 진짜 반영됐는지 확인용).
+- 테스트: `portal_server` **20)절**(브리핑 집계·답장 닫기 규칙·결과 덧붙이기·받은편지함·확인 기록·웹훅 주소 비노출) · `portal_integration` **AH)절**(9명 순서·색·XSS·캐시·줄 누르기·어림 안내·설정 전 무요청).
+
 ## 💬 비서 통합 회의실 (2026-11-25) — 오더함이 카톡방이 됐다
 
 `#order-card` 하나가 `# 비서-통합-회의실` 이다(예전 「🤖 노트북 오더함」을 그 안에 품고 있다 — 같은 DOM id 유지).
@@ -249,7 +259,7 @@
 ## 서버 (Code.gs)
 
 - POST 전용, 모든 요청에 비밀 키. `doGet` 은 안내 문구만.
-- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `cal_list` / `cal_create` / `cal_update`(🗓️ 비서·큐 전담 일정 API — 2026-11-26, **삭제는 없다**), `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태 + `direct`·`pc` 비트 + `beat_targets`), `queue_list` / `queue_enqueue` / `queue_decide` / `queue_claim` / `queue_done`(오더함), `agent_beat`(기기 상태 비트 — `target:'direct'|'pc'`, `stale_min` 5~240, `source`), `usage_get` / `usage_set` / `usage_report`(📊 비서 사용량), `agents_get` / `agent_save`(👥 참여 비서 명부·담당), `webhook_set`(🔔 외부 비서 웹훅 주소 — ScriptProperties). GET 읽기는 `ping`·`queue_status`·`queue_list`·`queue_head`·`usage_get`·`agents_get`·`webhook_last`·`auth_link` 여덟 개(`GET_ACTIONS`).
+- 동작: `ping`, `getTaskLists`, `getTasks`, `addTask`, `completeTask`, `deleteTask`, `getCalendarEvents`(ym), `createEvent`, `deleteEvent`, `cal_list` / `cal_create` / `cal_update`(🗓️ 비서·큐 전담 일정 API — 2026-11-26, **삭제는 없다**), `loadMemos`, `saveMemos`(baseRev, force), `queue_status`(읽기 전용), `agent_status`(읽기 전용 — 드라이브 피클 상태 + `direct`·`pc` 비트 + `beat_targets`), `queue_list` / `queue_enqueue` / `queue_decide` / `queue_claim` / `queue_done`(오더함), `agent_beat`(기기 상태 비트 — `target:'direct'|'pc'`, `stale_min` 5~240, `source`), `usage_get` / `usage_set` / `usage_report`(📊 비서 사용량), `agents_get` / `agent_save`(👥 참여 비서 명부·담당), `webhook_set`(🔔 외부 비서 웹훅 주소 — ScriptProperties). GET 읽기는 `ping`·`queue_status`·`queue_list`·`queue_head`·`queue_brief`·`queue_inbox`·`usage_get`·`agents_get`·`webhook_last`·`auth_link` 열 개(`GET_ACTIONS`).
 - **일정 API(2026-11-26)**: 큐가 직접 부른다. 날짜는 'YYYY-MM-DD'(종일)·'YYYY-MM-DDTHH:mm'·공백 형식, 시간대 생략 시 `Asia/Seoul`. **종일 `end` 는 마지막 날(포함)** — `cal_list` 결과를 `cal_update` 에 그대로 넣어도 하루 밀리지 않는다. `cal_create` 는 같은 제목·같은 시작이면 `duplicate:true` 로 기존 id 를 돌려주고(`allowDuplicate:true` 로 해제), `cal_update` 는 안 보낸 값을 그대로 둔다. 기간 상한 62일. **삭제 액션은 없다** — 지우는 일은 화면(`deleteEvent`)에서만.
 - **`agent_beat`(2026-11-18)**: `target` 이 없으면 `direct` — 예전 `$PROFILE free` 함수와 그대로 호환된다. 파일은 `포털_agent_직접.json` / `포털_agent_pc.json` 두 장(같은 스키마·이력 8건·`qqMask_` 가림). `agent_status` 는 둘을 `direct`·`pc` 블록으로 내려주고 `beat_targets` 로 **이 배포가 pc 를 아는지** 알려준다(화면이 재배포 안내를 고를 때 씀).
 - **오더함은 `work/hub-agent/gas/CommandQueue.gs` 와 100% 호환**이어야 한다: 같은 22칸(`CQ_COLS`), 같은 상태값(`PENDING`·`WAITING_APPROVAL`·`RUNNING`·`DONE`·`FAILED`·`REJECTED`·`EXPIRED`·`TIMEOUT_REVIEW`), 같은 `Audit_Log` 11칸, 같은 payload 해시(canonical JSON 의 SHA-256 — 워커 `lib/approval.js` 와 같은 값). 바꿀 때는 양쪽을 같이 고친다.

@@ -1963,5 +1963,78 @@ console.log('AG) ✅ 완료 보고 — 배지·필터·보고 요청 (2026-11-26
   ok(DC.run("ordReportState({id:'Q-s', type:'claude_prompt', status:'DONE', reply_to:'Q-p', result:''})") === '', '답장 자체는 보고 판정 대상이 아니다');
 }
 
+console.log('AH) 📋 오늘 브리핑 — 비서 9명 한 판 · 예전 배포 어림 · 줄 누르면 그 비서 말만 (2026-11-26)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SB = mk();
+  const nowMs = SB.sb.Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, agoMin, source, status, payload, x) => {
+    const r = [id, at(nowMs - agoMin * 60000), source, 'claude_prompt', 'gaegyebu', JSON.stringify(payload), status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  const chat = (target, prompt, x) => Object.assign({ prompt, mode: 'ask', kind: 'chat', target }, x || {});
+  SB.props.QUEUE_SHEET_ID = 'SHEETidBriefUi01';
+  SB.addSheet('SHEETidBriefUi01', {'Command_Queue': [HEAD.slice(0),
+    row('Q-u1', 200, 'pi1', 'PENDING', chat('cue', '[임명] 큐 — 일정 전담 <img src=x onerror=alert(1)>')),
+    row('Q-u2', 30, 'vooy', 'DONE', chat('pi1', '@피원 확인했어요.'), { claimed_by: 'pi1', finished_at: at(nowMs - 25 * 60000), result: '수신 완료' }),
+    row('Q-u3', 10, 'pi2', 'DONE', chat('portal', 'PR #26 올렸어요')),
+    row('Q-u4', 5, 'portal', 'PENDING', chat('vooy2', '@뷔투 태그해줘'))
+  ]});
+  const DB = makeDevice(SB);
+  DB.config();
+  await DB.run('loadOrders()');
+  await DB.run('briefLoad(true)');
+  const list = () => DB.el('brief-list').innerHTML;
+
+  // ① 서버 브리핑 — 9명이 정해진 순서로, 누가 밀렸는지
+  ok(DB.run('BRIEF_MODE') === 'server' && DB.calls.some(c => JSON.parse(c.opts.body).action === 'queue_brief'), '서버 queue_brief 로 읽는다(POST·키)');
+  const order = [...list().matchAll(/data-brief="([a-z0-9_-]+)"/g)].map(m => m[1]);
+  ok(order.slice(0, 9).join(',') === 'pi1,pi2,cue,cue2,vooy,vooy2,keyring,keyring2,notebook', '비서 9명이 정해진 순서로 그려진다');
+  ok(/data-brief="cue"[^>]*>[\s\S]*?안 읽음 1/.test(list()), '큐 줄에 안 읽음 1');
+  ok(/가장 오래 안 읽은 말 · 피원/.test(list()), '가장 오래 안 읽은 말 — 누가 보냈는지 이름으로');
+  ok(!/<img src=x/.test(list()) && /&lt;img src=x/.test(list()), '비서가 쓴 말은 이스케이프한다(XSS)');
+  ok(/class="brief-row lv-bad" data-k="who" data-v="cue"/.test(list()), '2시간 넘게 안 읽은 비서는 빨강');
+  // (가짜 서버 시계는 10/13, 화면은 실제 시계라 '막 밀린' 판정은 값을 직접 넣어 본다)
+  ok(DB.run("briefLevel({unread:1, oldest_unread:{at:new Date(Date.now()-5*60000).toISOString()}})") === 'warn', '막 밀린 비서는 노랑');
+  ok(DB.run("briefLevel({replied_open:2})") === 'warn' && DB.run("briefLevel({failed_today:1})") === 'bad', '답만 함 = 노랑 · 실패 = 빨강');
+  ok(/class="brief-row lv-ok" data-k="who" data-v="pi1"/.test(list()), '다 처리한 비서는 초록');
+  ok(/보낸 말 1 \(확인만 1\)/.test(list()), "부이 — '확인했어요'만 한 말을 따로 센다");
+  ok(/안 읽은 일 <b>2<\/b>/.test(DB.el('brief-sum').innerHTML) && /오늘 나에게 온 말 <b>1<\/b>/.test(DB.el('brief-sum').innerHTML), '요약 알약 — 안 읽은 일·나에게 온 말');
+  ok(DB.el('brief-badge').textContent === '밀림 2', '제목 배지 = 밀린 수');
+  ok(/서버 \d{4}-\d{2}-\d{2}\./.test(DB.el('brief-note').textContent), '안내줄에 서버 버전(배포 확인용)');
+  ok(/data-mark="cue2"/.test(list()) && /큐투/.test(list()), '명부에 없던 큐투도 이름·마크가 붙는다');
+
+  // ② 1분 안에는 다시 부르지 않는다
+  const n0 = DB.calls.filter(c => JSON.parse(c.opts.body).action === 'queue_brief').length;
+  await DB.run('briefLoad()');
+  ok(DB.calls.filter(c => JSON.parse(c.opts.body).action === 'queue_brief').length === n0, '1분 안에는 캐시 — 서버를 다시 부르지 않는다');
+
+  // ③ 줄을 누르면 회의실에서 그 비서의 말만
+  DB.run("briefPick({dataset:{k:'who', v:'cue'}})");
+  ok(DB.run('ORD_WHO') === 'cue', '비서 줄 → 회의실 필터가 그 비서');
+  DB.run("ordFilterSet({dataset:{k:'who', v:'all'}})");
+
+  // ④ 예전 배포(queue_brief 모름) — 지금 목록으로 어림하고 그렇다고 밝힌다
+  ok(DB.run(`(()=>{ const b = briefFromItems(ORD_ITEMS); const c = b.agents.find(a=>a.id==='cue'); return b.local === true && c.unread === 1 && c.oldest_unread.from === 'pi1'; })()`) === true,
+    '목록으로 어림해도 같은 모양(안 읽음·가장 오래된 말)');
+  DB.run(`BRIEF_MODE='local'; BRIEF=briefFromItems(ORD_ITEMS); renderBrief();`);
+  ok(/어림했어요/.test(DB.el('brief-note').textContent) && /재배포/.test(DB.el('brief-note').textContent), '어림이면 안내줄에 밝힌다(숫자를 지어내지 않는다)');
+
+  // ⑤ 가동 한 줄 — 깨우는 방식·확인 시각, 근거 없으면 '기록 없음'
+  ok(DB.run("briefPulse({wake:'poll', last_check_at:new Date(Date.now()-3*60000).toISOString()}).t") === '⏱ 주기 확인 · 확인 3분 전', '주기 확인 비서는 마지막 확인 시각');
+  ok(DB.run("briefPulse({}).t") === '기록 없음' && DB.run("briefPulse({}).cls") === 'off', '근거가 없으면 기록 없음');
+  ok(DB.run("briefPulse({wake:'webhook', last:{at:new Date(Date.now()-5*60000).toISOString()}}).cls") === 'on', '최근 활동이면 초록');
+
+  // ⑥ 설정 전엔 요청 없이 안내만
+  const DN = makeDevice(SB);
+  await DN.run('briefLoad(true)');
+  ok(DN.calls.length === 0 && /서버를 연결하면/.test(DN.el('brief-list').innerHTML), '서버 설정 전엔 요청 없이 안내만');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();

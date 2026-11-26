@@ -1205,6 +1205,44 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
   .portal-hero p{font-size:11.5px}
   .page{padding-left:10px;padding-right:10px}
 }
+
+/* ── 📋 오늘 브리핑 (2026-11-26) — 비서 9명이 오늘 뭘 했고 뭐가 밀렸는지 맨 위 한 판 ── */
+.brief-card{background:var(--surface);border-radius:18px;padding:20px 22px;box-shadow:var(--shadow);border-top:4px solid #526DFF;min-width:0}
+.brief-card .section-head{margin-bottom:6px}
+.brief-sum{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 14px}
+.brief-pill{font-size:12px;line-height:1.2;padding:5px 10px;border-radius:999px;background:#F1F3F7;color:var(--text2);font-weight:600;white-space:nowrap}
+.brief-pill b{font-weight:800}
+.brief-pill.bad{background:var(--red-l);color:var(--red)}
+.brief-pill.warn{background:var(--gold-l);color:#B45309}
+.brief-pill.ok{background:var(--green-l);color:var(--green)}
+.brief-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:10px}
+.brief-row{appearance:none;font:inherit;text-align:left;color:inherit;display:flex;flex-direction:column;gap:7px;min-width:0;
+  padding:12px 14px;border:1px solid var(--border);border-left:4px solid var(--green);border-radius:12px;background:#fff;cursor:pointer;
+  transition:box-shadow .15s,transform .15s}
+.brief-row.lv-warn{border-left-color:#F59E0B}
+.brief-row.lv-bad{border-left-color:var(--red);background:#FFFBFB}
+.brief-row:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+.brief-row:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.brief-who{display:flex;align-items:center;gap:8px;min-width:0}
+.brief-who b{font-size:14px;white-space:nowrap}
+.brief-who small{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.brief-who small.on{color:var(--green)}
+.brief-who small.off{color:var(--red)}
+.brief-nums{display:flex;flex-wrap:wrap;gap:4px}
+.bn{font-style:normal;font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:#F1F3F7;color:var(--text2);white-space:nowrap}
+.bn.bad{background:var(--red-l);color:var(--red)}
+.bn.warn{background:var(--gold-l);color:#B45309}
+.bn.ok{background:var(--green-l);color:var(--green)}
+.brief-line{font-size:12px;color:var(--text2);line-height:1.5;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.brief-line i{font-style:normal;color:var(--muted);margin-right:6px;font-weight:600}
+.brief-line.old{color:#9A3412}
+.brief-line.none{color:var(--hint)}
+.brief-note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5}
+@media(max-width:700px){
+  .brief-card{padding:16px}
+  .brief-list{grid-template-columns:minmax(0,1fr)}
+}
 </style>
 </head>
 <body>
@@ -1231,6 +1269,20 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
 </header>
 
 <div class="page">
+
+  <!-- 📋 오늘 브리핑 — 비서 9명이 오늘 뭘 했고, 뭐가 밀렸는지 맨 위 한 판 (2026-11-26) -->
+  <section class="brief-card" id="brief-card" aria-label="오늘 브리핑">
+    <div class="section-head">
+      <div class="section-title">📋 오늘 브리핑 <span class="badge badge-blue" id="brief-badge"></span></div>
+      <div class="ord-head-right">
+        <span class="ord-hint" id="brief-at"></span>
+        <button class="ord-refresh" onclick="briefLoad(true)" title="비서들 상황을 지금 다시 읽기" aria-label="브리핑 새로고침">⟳</button>
+      </div>
+    </div>
+    <div class="brief-sum" id="brief-sum"></div>
+    <div class="brief-list" id="brief-list"><div class="ord-empty">⚙️ 서버를 연결하면 비서들이 오늘 한 일과 밀린 일이 여기 보여요</div></div>
+    <div class="brief-note" id="brief-note"></div>
+  </section>
 
   <section class="portal-hero" aria-label="레이의 업무 허브">
     <div class="hero-copy">
@@ -3924,8 +3976,185 @@ function renderOrders(){
   try { if(box.scrollTop !== undefined) box.scrollTop = nearBottom ? (numOf(box.scrollHeight) || 0) : keepTop; } catch(e) {}
   ordTickStart();
 }
+/* ── 📋 오늘 브리핑 (2026-11-26, 사용자 "얘네가 뭐 하고 있는지 모르겠어") ─────────────
+ *  서버 queue_brief 한 번으로 비서마다: 안 읽음 · 답만 하고 안 닫음 · 오늘 처리 · 실패 · 보낸 말(그중 '확인했어요'만)
+ *  · 가장 오래 안 읽은 말 · 마지막 활동 · 깨우는 방식(웹훅/주기 확인/워커) · 마지막 확인 시각.
+ *  예전 배포(queue_brief 모름)면 지금 받은 목록(ORD_ITEMS)으로 어림하고 그렇다고 밝힌다 — 숫자를 지어내지 않는다.
+ *  비서 줄을 누르면 회의실에서 그 비서의 말만 보인다(ordFilterSet who).
+ */
+const BRIEF_TTL = 60000;
+const BRIEF_ORDER = ['pi1', 'pi2', 'cue', 'cue2', 'vooy', 'vooy2', 'keyring', 'keyring2', 'notebook'];
+const BRIEF_ACK_RE = /^(?:@\S+\s*)*(?:네[,.!\s]|넵|확인했어요|확인했습니다|확인 완료|수신 완료|알겠습니다|알겠어요|접수했어요|접수했습니다|접수 완료|잘 받았|받았어요|받았습니다)/;
+const BRIEF_WAKE_TXT = {webhook: '⚡ 즉시', poll: '⏱ 주기 확인', worker: '🖥️ 워커'};
+let BRIEF = null, BRIEF_BUSY = false, BRIEF_AT = 0, BRIEF_MODE = '';
+function briefMin(iso){
+  const t = Date.parse(String(iso || ''));
+  return isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 60000)) : null;
+}
+function briefDay(ms){ return new Date(ms + 9 * 3600000).toISOString().slice(0, 10); }
+function briefName(id){
+  const a = agentById(id);
+  return a ? String(a.mentionAs || a.name) : agentAutoInfo(id).name;
+}
+/** 지금 받은 회의실 목록으로 어림한 브리핑 — 서버가 queue_brief 를 모를 때만(같은 모양) */
+function briefFromItems(items){
+  const list = (Array.isArray(items) ? items : []).slice().reverse();     // 오래된 것 → 새것
+  const today = briefDay(Date.now());
+  const dayOf = v => { const t = Date.parse(String(v || '')); return isFinite(t) ? briefDay(t) : ''; };
+  const low = v => String(v == null ? '' : v).trim().toLowerCase();
+  const ids = BRIEF_ORDER.slice();
+  list.forEach(it => { const s = low(it.source); if(s && s !== 'portal' && ids.indexOf(s) < 0 && agentById(s)) ids.push(s); });
+  const A = {};
+  ids.forEach(id => { A[id] = {id, unread: 0, replied_open: 0, running: 0, handled: {}, sent_today: 0, acks_today: 0, failed_today: 0,
+    oldest_unread: null, last: null, lastMs: 0, wake: '', last_check_at: ''}; });
+  const tot = {unread: 0, replied_open: 0, running: 0, all_open: 0, waiting: 0, review: 0, failed_today: 0, to_me_today: 0};
+  list.forEach(it => {
+    const st = String(it.status || '').toUpperCase(), src = low(it.source), by = low(it.claimed_by);
+    const tgt = low(it.target) || 'notebook', text = String(it.summary || '').replace(/\s+/g, ' ').trim();
+    if(st === 'PENDING' || st === 'RUNNING'){
+      const owner = st === 'RUNNING' && by ? by : tgt;
+      if(owner === 'all') tot.all_open++;
+      else if(A[owner]){
+        if(low(it.answer_by) === owner) A[owner].replied_open++;
+        else if(st === 'RUNNING') A[owner].running++;
+        else { A[owner].unread++; if(!A[owner].oldest_unread) A[owner].oldest_unread = {id: it.id, at: it.created_at, from: src, text: text.slice(0, 160)}; }
+      }
+    }
+    if(st === 'WAITING_APPROVAL') tot.waiting++;
+    if(st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW') tot.review++;
+    if(st === 'DONE' && by && A[by] && by !== src && dayOf(it.finished_at) === today) A[by].handled[it.id] = true;
+    if(it.reply_to && A[src] && dayOf(it.created_at) === today) A[src].handled[it.reply_to] = true;
+    if(st === 'FAILED' && dayOf(it.finished_at) === today){ const f = A[by || tgt]; if(f) f.failed_today++; tot.failed_today++; }
+    if(A[src] && dayOf(it.created_at) === today){ A[src].sent_today++; if(text.length <= 120 && BRIEF_ACK_RE.test(text)) A[src].acks_today++; }
+    if(tgt === 'portal' && src && src !== 'portal' && dayOf(it.created_at) === today) tot.to_me_today++;
+    const sMs = A[src] ? (Date.parse(it.created_at) || 0) : 0;
+    if(sMs && sMs >= A[src].lastMs){ A[src].lastMs = sMs; A[src].last = {id: it.id, kind: 'sent', at: it.created_at, to: tgt, text: text.slice(0, 160)}; }
+    const dMs = by && A[by] && by !== src ? (Date.parse(it.finished_at) || 0) : 0;
+    if(dMs && dMs > A[by].lastMs){ A[by].lastMs = dMs; A[by].last = {id: it.id, kind: 'done', at: it.finished_at, to: src,
+      text: String(it.result || text).replace(/\s+/g, ' ').trim().slice(0, 160)}; }
+  });
+  const agentsOut = ids.map(id => {
+    const a = A[id];
+    const handled = Object.keys(a.handled).length;
+    tot.unread += a.unread; tot.replied_open += a.replied_open; tot.running += a.running;
+    return {id, unread: a.unread, replied_open: a.replied_open, running: a.running, handled_today: handled,
+      sent_today: a.sent_today, acks_today: a.acks_today, failed_today: a.failed_today,
+      oldest_unread: a.oldest_unread, last: a.last, wake: '', last_check_at: ''};
+  });
+  tot.handled_today = agentsOut.reduce((s, a) => s + a.handled_today, 0);
+  return {ok: true, local: true, at: new Date().toISOString(), day: today, scanned: list.length, agents: agentsOut, totals: tot};
+}
+/** 비서 한 줄의 색 — 2시간 넘게 안 읽은 말·실패 = 빨강 / 밀린 말 = 노랑 / 그 외 초록 */
+function briefLevel(a){
+  const old = a && a.oldest_unread ? briefMin(a.oldest_unread.at) : null;
+  if(numOf(a.failed_today) > 0 || (old !== null && old >= 120)) return 'bad';
+  if(numOf(a.unread) > 0 || numOf(a.replied_open) > 0) return 'warn';
+  return 'ok';
+}
+/** 가동 한 줄 — 깨우는 방식 · 마지막 확인 · 마지막 활동. 근거가 없으면 '기록 없음'(지어내지 않는다) */
+function briefPulse(a){
+  const act = briefMin(a.last && a.last.at), chk = briefMin(a.last_check_at);
+  const bits = [];
+  if(BRIEF_WAKE_TXT[a.wake]) bits.push(BRIEF_WAKE_TXT[a.wake]);
+  if(chk !== null) bits.push('확인 ' + agoText(chk));
+  if(act !== null) bits.push('활동 ' + agoText(act));
+  const fresh = [act, chk].filter(x => x !== null);
+  const near = fresh.length ? Math.min.apply(null, fresh) : null;
+  const cls = near === null ? 'off' : (near <= 60 ? 'on' : (near >= 24 * 60 ? 'off' : ''));
+  return {cls, t: bits.length ? bits.join(' · ') : '기록 없음'};
+}
+function briefRow(a){
+  const id = String(a.id || '');
+  const name = briefName(id);
+  const nums = [];
+  if(a.unread) nums.push(`<em class="bn bad" title="이 비서 앞으로 왔는데 아직 답도 처리도 없는 말">안 읽음 ${numOf(a.unread)}</em>`);
+  if(a.replied_open) nums.push(`<em class="bn warn" title="답장은 했는데 처리 완료를 찍지 않은 말">답만 함 ${numOf(a.replied_open)}</em>`);
+  if(a.running) nums.push(`<em class="bn">실행 중 ${numOf(a.running)}</em>`);
+  nums.push(`<em class="bn ok" title="오늘 끝냈거나 답장한 말(같은 말은 한 번)">오늘 처리 ${numOf(a.handled_today) || 0}</em>`);
+  if(a.failed_today) nums.push(`<em class="bn bad">실패 ${numOf(a.failed_today)}</em>`);
+  if(a.sent_today) nums.push(`<em class="bn" title="오늘 회의실에 남긴 말 — 괄호는 내용 없이 '확인했어요'만 한 말">보낸 말 ${numOf(a.sent_today)}${a.acks_today ? ' (확인만 ' + numOf(a.acks_today) + ')' : ''}</em>`);
+  const last = a.last
+    ? `<span class="brief-line"><i>${a.last.kind === 'done' ? '끝낸 일' : '마지막 말'} · ${esc(agoText(briefMin(a.last.at)) || '')}</i>${esc(a.last.text || '')}</span>`
+    : '<span class="brief-line none">최근 기록이 없어요</span>';
+  const o = a.oldest_unread;
+  const old = o ? `<span class="brief-line old"><i>⚠ 가장 오래 안 읽은 말 · ${esc(briefName(o.from))} · ${esc(agoText(briefMin(o.at)) || '')}</i>${esc(o.text || '')}</span>` : '';
+  const p = briefPulse(a);
+  return `<button type="button" class="brief-row lv-${briefLevel(a)}" data-k="who" data-v="${esc(id)}" data-brief="${esc(id)}" onclick="briefPick(this)" title="${esc(name)}의 말만 회의실에서 보기">` +
+    `<span class="brief-who">${agentMark(id, {title: name})}<b>${esc(name)}</b><small class="${p.cls}">${esc(p.t)}</small></span>` +
+    `<span class="brief-nums">${nums.join('')}</span>${last}${old}</button>`;
+}
+function briefSumHtml(d){
+  const t = (d && d.totals) || {};
+  const ags = (d && Array.isArray(d.agents)) ? d.agents : [];
+  let oldest = null;
+  ags.forEach(a => { const m = a.oldest_unread ? briefMin(a.oldest_unread.at) : null; if(m !== null && (oldest === null || m > oldest)) oldest = m; });
+  const pill = (cls, txt, title) => `<span class="brief-pill ${cls}"${title ? ' title="' + esc(title) + '"' : ''}>${txt}</span>`;
+  const out = [];
+  out.push(t.unread ? pill('bad', `안 읽은 일 <b>${numOf(t.unread)}</b>` + (oldest !== null ? ' · 가장 오래 ' + esc(agoText(oldest)) : ''), '비서 앞으로 왔는데 답도 처리도 없는 말')
+    : pill('ok', '안 읽은 일 <b>0</b>'));
+  if(t.replied_open) out.push(pill('warn', `답만 하고 안 닫음 <b>${numOf(t.replied_open)}</b>`, '답장은 했는데 처리 완료를 안 찍은 말 — 서버 새 배포부터는 답장하면 저절로 닫혀요'));
+  out.push(pill('ok', `오늘 처리 <b>${numOf(t.handled_today) || 0}</b>`));
+  if(t.failed_today) out.push(pill('bad', `오늘 실패 <b>${numOf(t.failed_today)}</b>`));
+  if(t.review) out.push(pill('warn', `검토 대기 <b>${numOf(t.review)}</b>`, '노트북이 main 반영을 보류한 작업 — 사람이 병합'));
+  if(t.waiting) out.push(pill('warn', `승인 대기 <b>${numOf(t.waiting)}</b>`));
+  if(t.all_open) out.push(pill('', `@전체 열린 말 <b>${numOf(t.all_open)}</b>`));
+  if(t.to_me_today) out.push(pill('', `오늘 나에게 온 말 <b>${numOf(t.to_me_today)}</b>`));
+  return out.join('');
+}
+function renderBrief(){
+  const box = document.getElementById('brief-list');
+  if(!box) return;
+  const d = BRIEF;
+  if(!d || !Array.isArray(d.agents)){ return; }
+  box.innerHTML = d.agents.map(briefRow).join('');
+  const sum = document.getElementById('brief-sum');
+  if(sum) sum.innerHTML = briefSumHtml(d);
+  const t = d.totals || {};
+  const badge = document.getElementById('brief-badge');
+  if(badge) badge.textContent = t.unread ? '밀림 ' + numOf(t.unread) : '밀린 일 없음';
+  const at = document.getElementById('brief-at');
+  if(at) at.textContent = clockText(d.at) ? clockText(d.at) + ' 기준' : '';
+  const note = document.getElementById('brief-note');
+  if(note){
+    note.textContent = d.local
+      ? `서버가 아직 브리핑을 모르는 배포예요 — 지금 받은 회의실 ${numOf(d.scanned) || 0}건으로 어림했어요(Code.gs 재배포 뒤 정확해져요).`
+      : `큐 최근 ${numOf(d.scanned) || 0}줄 기준${d.version ? ' · 서버 ' + d.version : ''} · 비서 줄을 누르면 회의실에서 그 비서의 말만 보여요. ` +
+        '⏱ 주기 확인 비서(키링·부이 계열)는 웹훅이 없어 몇 분~30분마다 스스로 확인해요 — "확인 N분 전"이 꾸준하면 느린 것, 끊겼으면 멈춘 것.';
+  }
+}
+function briefEmpty(msg){
+  const box = document.getElementById('brief-list');
+  if(box) box.innerHTML = `<div class="ord-empty">${esc(msg)}</div>`;
+}
+async function briefLoad(force){
+  if(BRIEF_BUSY) return null;
+  if(!serverConfigured()){ briefEmpty('⚙️ 서버를 연결하면 비서들이 오늘 한 일과 밀린 일이 여기 보여요'); return null; }
+  if(!force && BRIEF && BRIEF_MODE === 'server' && Date.now() - BRIEF_AT < BRIEF_TTL) return BRIEF;
+  BRIEF_BUSY = true;
+  try{
+    const d = await post({action: 'queue_brief'});
+    if(d && d.ok === true && Array.isArray(d.agents)){ BRIEF = d; BRIEF_MODE = 'server'; BRIEF_AT = Date.now(); renderBrief(); return d; }
+    if(d && /알 수 없는 요청/.test(String(d.error || ''))){
+      BRIEF_MODE = 'local'; BRIEF_AT = Date.now(); BRIEF = briefFromItems(ORD_ITEMS); renderBrief(); return BRIEF;
+    }
+    if(!BRIEF) briefEmpty(d && d.code === 'unauthorized' ? '비밀 키가 맞지 않아요 — ⚙️ 서버 설정을 확인해 주세요' : '브리핑을 불러오지 못했어요 — ⟳ 로 다시 확인해 주세요');
+    return null;
+  } catch(e){
+    if(!BRIEF) briefEmpty('브리핑을 불러오지 못했어요 — ⟳ 로 다시 확인해 주세요');
+    return null;
+  } finally { BRIEF_BUSY = false; }
+}
+/** 비서 줄 → 회의실에서 그 비서의 말만 */
+function briefPick(btn){
+  const id = String(btn && btn.dataset ? btn.dataset.v || '' : '');
+  if(!id) return;
+  ordFilterSet({dataset: {k: 'who', v: id}, className: 'rl-ag'});
+}
 function applyOrderList(d){
   ORD_ITEMS = Array.isArray(d.items) ? d.items : [];
+  // 📋 브리핑 — 예전 배포면 이 목록으로 다시 어림하고, 새 배포면 1분 넘었을 때만 다시 읽는다
+  if(BRIEF_MODE === 'local'){ BRIEF = briefFromItems(ORD_ITEMS); try { renderBrief(); } catch(e) {} }
+  else if(BRIEF_MODE === 'server' && Date.now() - BRIEF_AT > BRIEF_TTL){ try { briefLoad(); } catch(e) {} }
   ORD_AT = d.at || '';
   ORD_FETCH_AT = Date.now();
   ORD_SUM = {pending: numOf(d.pending), running: numOf(d.running), waiting: numOf(d.waiting),
@@ -4880,7 +5109,7 @@ function monFilter(btn){
 async function monRefresh(force){
   const jobs = [refreshQueueStatus(true)];
   jobs.push(useServerGet());
-  if(serverConfigured()) jobs.push(loadOrders());
+  if(serverConfigured()){ jobs.push(loadOrders()); jobs.push(briefLoad(true)); }
   if(ghCanFetch()) jobs.push(ghRefresh(!!force));
   jobs.push(agentLoad(true));
   try { await Promise.all(jobs); } catch(e) {}
@@ -5475,7 +5704,7 @@ async function restoreMemoCheckpoint(id){
   saveLocalMemos(); renderMemos(); closeSettings();
   await forcePushMemos('체크포인트 복원');
 }
-function bootData(){ loadCalEvents(); loadTaskLists(); loadMemos(); loadOrders(); }
+function bootData(){ loadCalEvents(); loadTaskLists(); loadMemos(); loadOrders(); briefLoad(); }
 
 // 키보드 단축키
 document.addEventListener('keydown',e=>{
