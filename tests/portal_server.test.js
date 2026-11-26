@@ -1656,6 +1656,22 @@ console.log('\n21) 👀 이모지 반응 — queue_react · 자동 「전달됨 
   const cl = post({ action: 'queue_claim', key: KR, as: 'keyring', id: 'Q-r5' });
   ok(cl.ok === true && cl.changed === true && (rx() || []).some(r => r[1] === 'Q-r5' && r[2] === 'keyring' && r[3] === '🔧'), 'queue_claim 으로 집으면 🔧 반응도 남는다');
 
+  // ⑧-2 지금 비서들이 쓰는 읽기(queue_list target=내id)에도 전달됨이 자동으로 — 비서 수정 없이 효과가 난다
+  S.addSheet('SHEETidReact2103', { 'Command_Queue': [HEADR.slice(0),
+    mkR('Q-t1', 30, 'pi1', chat('keyring2', '@키투 하나')), mkR('Q-t2', 20, 'pi1', chat('all', '@전체 둘')), mkR('Q-t3', 10, 'pi1', chat('cue', '@큐 셋'))] });
+  S.props.QUEUE_SHEET_ID = 'SHEETidReact2103';
+  ok(S.books['SHEETidReact2103']['Reactions'] === undefined, '(준비) 반응 탭 없음');
+  post({ action: 'queue_list', key: KR, limit: 20 });
+  ok(S.books['SHEETidReact2103']['Reactions'] === undefined, 'target 없이 읽으면(포털·폰 앱) 전달됨이 찍히지 않는다');
+  const tl = JSON.parse(S.sb.doGet({ parameter: { action: 'queue_list', key: KR, target: 'keyring2', limit: 20 } }).getContent());
+  const tdel = (S.books['SHEETidReact2103']['Reactions'] || []).filter(r => r[3] === '✓');
+  ok(tdel.length === 1 && tdel[0][1] === 'Q-t1' && tdel[0][2] === 'keyring2', 'GET queue_list target=keyring2 — 내 앞 PENDING 에만 ✓ 한 줄(@전체·남의 말에는 없다)');
+  ok(tl.items.find(x => x.id === 'Q-t1').reactions.some(x => x.by === 'keyring2' && x.e === '✓'), '응답 항목에도 전달됨이 보인다');
+  JSON.parse(S.sb.doGet({ parameter: { action: 'queue_list', key: KR, target: 'keyring2', limit: 20 } }).getContent());
+  ok((S.books['SHEETidReact2103']['Reactions'] || []).filter(r => r[3] === '✓').length === 1, '다시 읽어도 쌓이지 않는다');
+  ok(JSON.parse(S.sb.doGet({ parameter: { action: 'queue_list', key: KR, target: 'portal', limit: 20 } }).getContent()).ok === true && (S.books['SHEETidReact2103']['Reactions'] || []).filter(r => r[2] === 'portal').length === 0, 'target=portal(사람)은 전달됨을 남기지 않는다');
+  S.props.QUEUE_SHEET_ID = SH;
+
   // ⑨ 브리핑 — 안 읽음을 미전달 / 전달됨 / 접수로 가른다 + 접수까지 걸린 시간
   const SB2 = 'SHEETidReact2102';
   S.addSheet(SB2, { 'Command_Queue': [HEADR.slice(0),

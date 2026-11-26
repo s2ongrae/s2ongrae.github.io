@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-26.brief4';
+const SERVER_VERSION = '2026-11-26.brief5';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -2286,6 +2286,15 @@ function queueList(body) {
       if (!it.replied_by) { it.replied_by = rp.by; it.replied_at = rp.at; }
     }
     items.push(it);
+  }
+  // 2026-11-26 — 비서가 `target=내id` 로 자기 앞 목록을 읽으면 가져간 PENDING 말에 「전달됨 ✓」을 자동으로 남긴다
+  //   (지금 비서들이 쓰는 읽기 방식 그대로 효과가 난다 — 비서 수정 없음). 내 앞(target=나)인 말만, 한 비서·한 말에 한 번.
+  //   포털·폰 앱은 target 을 쓰지 않으므로 사람이 화면을 연다고 '전달됨'이 찍히지 않는다. 이 한 줄 말고는 아무것도 쓰지 않는다.
+  if (targetFilter && qqIsAiId_(wantTarget)) {
+    const mineIds = items.filter(function (x) { return x.status === 'PENDING' && x.target === wantTarget; })
+      .map(function (x) { return x.id; });
+    qqDeliverMark_(ctx, wantTarget, mineIds, rmap);
+    items.forEach(function (x) { if (mineIds.indexOf(x.id) >= 0) x.reactions = rmap[x.id] || []; });
   }
   // 2026-11-25(v27): 큐에 한 번이라도 말을 건 비서는 화면이 자동으로 참여자 명부에 합류시킨다.
   //   서버는 읽기만 하고(명부 쓰기는 agent_save), 여기서는 "누가 말했는지"만 알려 준다.
