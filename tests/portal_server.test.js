@@ -1264,6 +1264,12 @@ console.log('18) 🤝 협업 필요 줄 자동 멘션 · 발신자 source 보정
   // ④ 확정 호칭(키투)·조사(에게)도 같은 비서로
   const c4 = enqP(Object.assign({ source: 'vooy' }, chatP('4) 협업 필요: 키투에게 넘김')));
   ok((c4.item.mentions || []).indexOf('keyring2') >= 0, "'4) 협업 필요: 키투에게' → keyring2");
+  // ④-2 마크다운 별표·대괄호 번호도 같은 줄로 읽는다(비서 보고서는 **4. 협업 필요:** 처럼도 쓴다)
+  const c4b = enqP(Object.assign({ source: 'pi1' }, chatP('**4. 협업 필요:** 노트북(모달), 피투(PR)')));
+  ok((c4b.item.mentions || []).indexOf('notebook') >= 0 && (c4b.item.mentions || []).indexOf('pi2') >= 0, '**4. 협업 필요:** 굵은 글씨 줄도 읽는다');
+  const c4c = enqP(Object.assign({ source: 'pi1' }, chatP('[4] 협업 필요: 큐투에게 넘김')));
+  ok((c4c.item.mentions || []).indexOf('cue2') >= 0, '[4] 협업 필요: 도 읽는다');
+
   // ⑤ 낱말 속 글자는 이름으로 오해하지 않는다
   const c5 = enqP(Object.assign({ source: 'pi2' }, chatP('4. 협업 필요: 큐레이션 담당 확인')));
   ok((c5.item.mentions || []).length === 0, "'큐레이션' 의 '큐' 를 멘션으로 오해하지 않는다");
