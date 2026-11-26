@@ -25,12 +25,20 @@ const ROOM_AGENTS = [
 ];
 /** 입력바 빠른 멘션 칩 — 사용자 확정 순서 그대로 */
 const ROOM_CHIPS = ['@전체', '@피원', '@피투', '@노트북', '@큐', '@큐투', '@부이', '@뷔투', '@키링', '@키투'];
-/** 옛 부름·영문 id 도 같은 사람으로 (명부 이름이 먼저 이깁니다) */
+/* 옛 부름·영문 id·줄인 이름도 같은 사람으로 (2026-11-26 사용자 확정 — 한 비서를 여러 이름으로 부른다)
+ *  · 포털 화면(index.html)의 AGENT_ALIASES 와 같은 목록을 유지합니다. 다른 쪽만 고치면 이름이 갈라집니다.
+ *  · '레이'·'포털'처럼 나를 부르는 이름은 'portal' — 대상으로는 잡지 않습니다(roomTargetFromText). */
 const ROOM_ALIASES = {
-  '큐2': 'cue2', '큐투': 'cue2', 'cue2': 'cue2',
-  '부이2': 'vooy2', '부이투': 'vooy2', '뷔투': 'vooy2', 'vooy2': 'vooy2',
-  '키링2': 'keyring2', '키링투': 'keyring2', '키투': 'keyring2', 'keyring2': 'keyring2',
-  '집노트북': 'notebook', '노트북': 'notebook', 'notebook': 'notebook', 'hub-agent': 'notebook'
+  '피원': 'pi1', '피클1': 'pi1', '레이의피클': 'pi1', 'pickle1': 'pi1', 'pickle-pi1': 'pi1', 'pickle': 'pi1', 'pk': 'pi1', 'pi1': 'pi1',
+  '피투': 'pi2', '피클2': 'pi2', 'pickle2': 'pi2', 'pickle-pi2': 'pi2', 'pi2': 'pi2',
+  '큐': 'cue', 'cue': 'cue',
+  '큐투': 'cue2', '큐2': 'cue2', 'cue2': 'cue2',
+  '부이': 'vooy', 'vooy': 'vooy',
+  '뷔투': 'vooy2', '부이2': 'vooy2', '부이투': 'vooy2', 'vooy2': 'vooy2',
+  '키링': 'keyring', 'keyring': 'keyring',
+  '키투': 'keyring2', '키링2': 'keyring2', '키링투': 'keyring2', 'keyring2': 'keyring2',
+  '레이': 'portal', '포털': 'portal', 'portal': 'portal', 'me': 'portal',
+  '집노트북': 'notebook', '노트북': 'notebook', 'notebook': 'notebook', 'hub-agent': 'notebook', 'nb': 'notebook'
 };
 const ROOM_STATUS = {
   PENDING:           {t: '대기',      c: ''},
@@ -123,6 +131,7 @@ function roomAgentById(id){
   if(k === 'portal' || k === 'me' || k === 'phone' || k === 'telegram') return ROOM_ME;
   for(let i = 0; i < ROOM_AGENTS.length; i++) if(ROOM_AGENTS[i].id === k) return ROOM_AGENTS[i];
   const al = ROOM_ALIASES[k];
+  if(al === 'portal') return ROOM_ME;
   if(al) for(let i = 0; i < ROOM_AGENTS.length; i++) if(ROOM_AGENTS[i].id === al) return ROOM_AGENTS[i];
   return null;
 }
@@ -152,7 +161,8 @@ function roomTargetFromText(text){
       const l = labels[j];
       if(s.substr(i, l.length) !== l) continue;
       if(!roomMentionBoundary(s, i + l.length)) continue;
-      return map[l];
+      // 나를 부르는 말(@레이)은 '나'로 읽고 대상은 그대로 둡니다 — 비서 앞으로 보내지 않습니다
+      return map[l] === 'portal' ? '' : map[l];
     }
   }
   return '';
@@ -177,7 +187,7 @@ function roomTargetKey(it){
   if(t === 'all') return 'all';
   if(t === 'portal' || t === 'phone' || t === 'telegram') return 'portal';
   const a = t ? roomAgentById(t) : null;
-  if(a && a.id !== 'portal') return a.id;
+  if(a) return a.id;
   return 'notebook';
 }
 function roomTargetLabel(k){

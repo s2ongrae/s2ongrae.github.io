@@ -1728,5 +1728,63 @@ console.log('AD) 🎨 마크를 쓰는 화면들 — 칩·관제·사용량·역
   ok(/data-mark="cue2"/.test(c2) && /mk-cue2 v2/.test(c2), '큐투 말풍선은 테두리 마크(cue2)로 갈린다');
 }
 
+console.log('AE) 🏷️ 명부에 남은 옛 이름(큐2·부이2·키링2) → 화면·멘션은 큐투·뷔투·키투 + 여러 이름으로 부르기');
+{
+  // ① 서버 명부에 auto:true 로 옛 이름이 저장돼 있어도 표시 이름은 확정 호칭
+  const Z = makeDevice(S);
+  Z.run("agentMerge([{id:'cue2',name:'큐2',icon:'🌀',auto:true,at:'2026-11-25T01:00:00Z'}," +
+    "{id:'vooy2',name:'부이2',icon:'🫛',auto:true,at:'2026-11-25T01:00:00Z'}," +
+    "{id:'keyring2',name:'키링2',icon:'🔑',auto:true,at:'2026-11-25T01:00:00Z'}], [])");
+  ok(Z.run("agentById('cue2').name") === '큐투' && Z.run("agentById('vooy2').name") === '뷔투' && Z.run("agentById('keyring2').name") === '키투',
+    '서버 명부의 큐2·부이2·키링2 가 큐투·뷔투·키투로 보인다');
+  const saved = JSON.parse(Z.store.get('portal_agents_v1') || '[]');
+  ok(['cue2', 'vooy2', 'keyring2'].every(id => (saved.find(a => a.id === id) || {}).name !== undefined) &&
+    saved.every(a => !['큐2', '부이2', '키링2'].includes(a.name)), '이 기기 명부에도 옛 이름을 남기지 않는다');
+  ok(saved.every(a => (a.id !== 'cue2' || a.name === '큐투') && (a.id !== 'vooy2' || a.name === '뷔투') && (a.id !== 'keyring2' || a.name === '키투')),
+    '저장된 이름도 큐투·뷔투·키투');
+
+  // ② 이미 이 기기에 남아 있던 옛 이름(localStorage)도 화면에서는 확정 호칭
+  const Y = makeDevice(S, {portal_agents_v1: JSON.stringify([
+    {id: 'cue2', name: '큐2', icon: '🌀', auto: true, at: '2026-11-24T01:00:00Z'},
+    {id: 'vooy2', name: '부이2', icon: '🫛', auto: true, at: '2026-11-24T01:00:00Z'},
+    {id: 'keyring2', name: '키링2', icon: '🔑', auto: true, at: '2026-11-24T01:00:00Z'}
+  ])});
+  ok(Y.run("agentById('cue2').name") === '큐투' && Y.run("agentById('keyring2').name") === '키투', '예전에 저장된 큐2·키링2 도 큐투·키투로 보인다');
+  Y.run('renderRoom()');
+  const mentZ = Y.el('ord-mentions').innerHTML, filtZ = Y.el('ord-filters').innerHTML, roleZ = Y.el('role-table').innerHTML;
+  ok(/@큐투/.test(mentZ) && /@뷔투/.test(mentZ) && /@키투/.test(mentZ), '대상 칩이 @큐투·@뷔투·@키투');
+  ok(!/@큐2<|@큐2\b/.test(mentZ.replace(/@큐투/g, '')) && mentZ.indexOf('@큐2') < 0, '대상 칩에 옛 이름(@큐2)이 남지 않는다');
+  ok(/큐투/.test(filtZ) && filtZ.indexOf('큐2') < 0, '발신 필터도 큐투(옛 큐2 없음)');
+  ok(/<b>큐투<\/b>/.test(roleZ) && /class="role-id">cue2</.test(roleZ) && roleZ.indexOf('큐2') < 0, '역할표도 큐투 · cue2(옛 큐2 없음)');
+  ok(Y.run("ordSenderLabel('cue2').name") === '큐투' && Y.run("ordLiveWho('keyring2').name") === '키투', '말풍선·지금 작업 중 이름도 확정 호칭');
+
+  // ③ 사람이 일부러 다른 이름을 붙인 부계정은 건드리지 않는다
+  ok(Y.run("agentLabelName('cue2','큐2',false)") === '큐투', '옛 부름(큐2)은 확정 호칭으로');
+  ok(Y.run("agentLabelName('cue2','리서치봇',false)") === '리서치봇', '사람이 붙인 다른 이름은 그대로');
+  ok(Y.run("agentLabelName('cue','큐',true)") === '큐', '부계정이 아닌 비서는 영향 없음');
+
+  // ④ 여러 이름 — 어느 쪽으로 적어도 그 비서 앞으로
+  const route = [['@큐투', 'cue2'], ['@큐2', 'cue2'], ['@cue2', 'cue2'],
+    ['@뷔투', 'vooy2'], ['@부이2', 'vooy2'], ['@부이투', 'vooy2'], ['@vooy2', 'vooy2'],
+    ['@키투', 'keyring2'], ['@키링2', 'keyring2'], ['@키링투', 'keyring2'], ['@keyring2', 'keyring2'],
+    ['@피원', 'pi1'], ['@피클1', 'pi1'], ['@pi1', 'pi1'], ['@레이의피클', 'pi1'],
+    ['@피투', 'pi2'], ['@피클2', 'pi2'], ['@pi2', 'pi2'],
+    ['@큐', 'cue'], ['@부이', 'vooy'], ['@키링', 'keyring'], ['@노트북', 'notebook']];
+  const missed = route.filter(([t, id]) => Y.run('ordTargetFromText(' + JSON.stringify(t + ' 이거 봐줘') + ')') !== id);
+  ok(missed.length === 0, '모든 별칭이 제 비서 앞으로 (틀린 것: ' + missed.map(x => x[0]).join(' ') + ')');
+  ok(Y.run("ordTargetFromText('@레이의피클 확인')") === 'pi1', '@레이의피클 은 @레이 보다 긴 이름으로 먼저 잡힌다');
+
+  // ⑤ 나를 부르는 이름은 비서에게 가지 않는다
+  ok(Y.run("agentAliasId('레이')") === 'portal' && Y.run("agentAliasId('성래')") === 'portal', '레이·성래 는 나(portal)');
+  ok(Y.run("ordTargetFromText('@레이 확인')") === '' && Y.run("ordTargetFromText('@성래 확인')") === '', '나를 부른 말은 대상을 바꾸지 않는다');
+  ok(Y.run("ordMentionHtml('@레이 확인')").indexOf('mt-me') >= 0, '본문의 @레이 는 내 색 멘션 칩');
+
+  // ⑥ 발신자·대상 매칭도 같은 별칭표 — 옛/영문 이름으로 남은 줄도 제자리
+  ok(Y.run("ordSenderKey({source:'피클1'})") === 'pi1' && Y.run("ordSenderKey({source:'pickle-pi1'})") === 'pi1', '피클1·pickle-pi1 발신 → pi1');
+  ok(Y.run("ordSenderKey({source:'레이'})") === 'portal', '레이 발신 → 나(portal)');
+  ok(Y.run("ordTargetKey({target:'큐2'})") === 'cue2' && Y.run("ordTargetKey({target:'키링2'})") === 'keyring2', 'target 에 옛 이름이 남은 줄도 제 비서');
+  ok(Y.run("ordTargetKey({target:'부이2'})") === 'vooy2' && Y.run("ordTargetKey({target:'all'})") === 'all' && Y.run("ordTargetKey({target:'없는이름'})") === 'notebook', '그 밖의 대상은 그대로');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();

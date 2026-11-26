@@ -171,6 +171,36 @@ function coreTests() {
   ok(C.roomTargetFromText('@cue 한 줄만') === 'cue', '@cue(영문 id) → cue');
   ok(C.roomTargetFromText('멘션 없이 그냥 말') === '', '멘션 없으면 빈 값(기본 @노트북)');
 
+  console.log('G2) 여러 이름 — 어느 쪽으로 적어도 그 비서 (2026-11-26)');
+  const route = [['@큐투', 'cue2'], ['@큐2', 'cue2'], ['@cue2', 'cue2'],
+    ['@뷔투', 'vooy2'], ['@부이2', 'vooy2'], ['@부이투', 'vooy2'], ['@vooy2', 'vooy2'],
+    ['@키투', 'keyring2'], ['@키링2', 'keyring2'], ['@키링투', 'keyring2'], ['@keyring2', 'keyring2'],
+    ['@피원', 'pi1'], ['@피클1', 'pi1'], ['@pi1', 'pi1'], ['@레이의피클', 'pi1'],
+    ['@피투', 'pi2'], ['@피클2', 'pi2'], ['@pi2', 'pi2'],
+    ['@큐', 'cue'], ['@부이', 'vooy'], ['@키링', 'keyring'], ['@노트북', 'notebook']];
+  const missed = route.filter(([t, id]) => C.roomTargetFromText(t + ' 이거 봐줘') !== id);
+  ok(missed.length === 0, '모든 별칭이 제 비서 앞으로 (틀린 것: ' + missed.map(x => x[0]).join(' ') + ')');
+  ok(C.roomTargetFromText('@레이의피클 확인') === 'pi1', '@레이의피클 이 @레이 보다 먼저 잡힌다');
+  ok(C.roomTargetFromText('@레이 확인') === '' && C.roomTargetFromText('@포털 확인') === '', '나를 부른 말은 대상을 바꾸지 않는다');
+  ok(C.roomMentionMap()['@레이'] === 'portal' && C.roomMentionMap()['@피클1'] === 'pi1', '멘션표에 @레이·@피클1 도 있다');
+  ok(C.roomAgentById('레이') === null || C.roomAgentById('레이').id === 'portal', '레이 는 나(portal)로 읽힌다');
+  ok(C.roomSenderKey({source: '피클1'}) === 'pi1' && C.roomSenderKey({source: 'pickle-pi1'}) === 'pi1', '피클1 발신 → pi1');
+  ok(C.roomSenderKey({source: '레이'}) === 'portal', '레이 발신 → 나');
+  ok(C.roomTargetKey({target: '큐2'}) === 'cue2' && C.roomTargetKey({target: '키링2'}) === 'keyring2' && C.roomTargetKey({target: '부이2'}) === 'vooy2',
+    'target 에 남은 옛 이름도 제 비서');
+  // 포털(index.html)의 AGENT_ALIASES 와 같은 목록을 쓰는지 — 한쪽만 고치면 이름이 갈라진다
+  const idx = read(path.join(ROOT, 'index.html'));
+  const block = (idx.match(/const AGENT_ALIASES = \{([\s\S]*?)\n\};/) || [])[1] || '';
+  const pairs = [...block.matchAll(/^\s*([a-z0-9_]+):\s*\[([^\]]*)\]/gm)].map(m => [m[1], [...m[2].matchAll(/'([^']+)'/g)].map(x => x[1])]);
+  ok(pairs.length >= 9, '포털의 AGENT_ALIASES 를 읽었다(' + pairs.length + '줄)');
+  const drift = [];
+  pairs.forEach(([id, names]) => names.forEach(nm => { if (C.roomMentionMap()['@' + nm] !== id) drift.push(nm); }));
+  ok(drift.length === 0, '포털 별칭이 회의실에도 모두 있다 (빠진 것: ' + drift.join(' ') + ')');
+  // 회의실 편대 이름은 모두 확정 호칭 — 옛 이름(큐2·부이2·키링2)으로 보이지 않는다
+  const old = ['큐2', '부이2', '키링2'];
+  ok(old.every(nm => !C.ROOM_AGENTS.some(a => a.name === nm)), '편대 호칭에 옛 이름이 없다(큐투·뷔투·키투)');
+  ok(C.roomTargetLabel('cue2').label === '@큐투' && C.roomTargetLabel('vooy2').label === '@뷔투' && C.roomTargetLabel('keyring2').label === '@키투', '대상 라벨도 큐투·뷔투·키투');
+
   console.log('H) 발신자·대상·답장 주체');
   ok(C.roomSenderKey({source: 'pi1'}) === 'pi1', 'pi1');
   ok(C.roomSenderKey({source: 'pickle'}) === 'pi1', 'pickle(옛 이름) → pi1');

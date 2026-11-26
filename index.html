@@ -1795,7 +1795,7 @@ function agents(){
 function agentReload(){
   const clean = agentCustom();
   AGENTS = AGENT_SEED.concat(clean.slice(0, AGENT_MAX_CUSTOM).map(a => ({
-    id: String(a.id), name: String(a.name).slice(0, 16), icon: String(a.icon || '🤖').slice(0, 2),
+    id: String(a.id), name: agentLabelName(String(a.id), String(a.name).slice(0, 16), !!a.auto), icon: String(a.icon || '🤖').slice(0, 2),
     role: '비서', color: 'new', quota: true, mention: true, auto: !!a.auto,
     group: a.group === '주간' ? '주간' : '일일', reset: a.group === '주간' ? 'weekly' : 'daily04',
     sub: String(a.sub || '내가 추가한 비서').slice(0, 40), duty: String(a.duty || '').slice(0, 60), custom: true
@@ -1854,7 +1854,8 @@ function agentMerge(list, removed){
     const id = String((x && x.id) || '').toLowerCase();
     if(!/^[a-z0-9][a-z0-9_-]{0,11}$/.test(id)) return;
     if(agentByIdSeed(id)) return;                       // 기본 참여자는 화면이 갖고 있다
-    const name = String((x && x.name) || id).trim().slice(0, 16) || id;
+    // 부계정 비서의 표시 이름은 언제나 확정 호칭 — 서버 명부에 옛 이름(큐2)이 남아 있어도 큐투로 저장·표시
+    const name = agentLabelName(id, (String((x && x.name) || id).trim().slice(0, 16) || id), !!(x && x.auto));
     const at = String((x && x.at) || '');
     const old = by[id];
     if(old){
@@ -1910,17 +1911,56 @@ const AGENT_SECONDARY = {
 };
 /** id → 부계정 정보(명부에 없을 때 화면·멘션이 쓰는 기본값) */
 function agentSecondaryById(id){ return AGENT_SECONDARY[String(id || '').toLowerCase()] || null; }
-/** @이름 → id 표 — 명부 + 부계정 호칭. **명부가 먼저**라 등록된 이름이 이긴다. */
+// 2026-11-26 사용자 확정 — **한 비서를 여러 이름으로 부른다**. 어느 쪽으로 적어도 같은 비서 앞으로 간다.
+//  · 보이는 이름은 하나(큐투·뷔투·키투)지만, 입력·멘션은 옛 부름(@큐2·@부이2·@키링2)·영문 id(@cue2)도 받는다.
+//  · 명부(portal_agents_v1·서버 명부)에 같은 이름이 있으면 그쪽이 이긴다(agentMentionMap).
+const AGENT_ALIASES = {
+  pi1:      ['피원', '피클1', 'pi1', 'pickle1', 'pickle-pi1', '레이의피클', 'pickle', 'pk'],
+  pi2:      ['피투', '피클2', 'pi2', 'pickle2', 'pickle-pi2'],
+  cue:      ['큐', 'cue'],
+  cue2:     ['큐투', '큐2', 'cue2'],
+  vooy:     ['부이', 'vooy'],
+  vooy2:    ['뷔투', '부이2', '부이투', 'vooy2'],
+  keyring:  ['키링', 'keyring'],
+  keyring2: ['키투', '키링2', '키링투', 'keyring2'],
+  notebook: ['노트북', '집노트북', 'notebook', 'hub-agent', 'nb']
+};
+// 나(레이 님)를 가리키는 이름 — 비서에게 가지 않도록 대상으로는 잡지 않는다(ordTargetFromText).
+const AGENT_SELF_ALIASES = ['레이', '성래', '김성래', '레이님', '포털', 'portal', 'me'];
+let AGENT_ALIAS_ID = null;
+/** 이름 하나(한글 호칭·영문 id·옛 부름) → 비서 id. 모르는 이름은 '' */
+function agentAliasId(v){
+  if(!AGENT_ALIAS_ID){
+    const m = {};
+    Object.keys(AGENT_ALIASES).forEach(id => (AGENT_ALIASES[id] || []).forEach(nm => { if(!m[nm]) m[nm] = id; }));
+    AGENT_SELF_ALIASES.forEach(nm => { if(!m[nm]) m[nm] = 'portal'; });
+    AGENT_ALIAS_ID = m;
+  }
+  return AGENT_ALIAS_ID[String(v == null ? '' : v).trim().toLowerCase()] || '';
+}
+/**
+ * 명부에 남은 이름을 화면에 쓸 이름으로 고친다 — 부계정은 **확정 호칭이 옛 이름보다 우선**(2026-11-26).
+ *  · 서버 명부에 auto:true 로 '큐2'·'부이2'·'키링2' 가 저장돼 있어도 화면은 큐투·뷔투·키투다.
+ *  · 사람이 직접 붙인 다른 이름(auto 아님·별칭 아님)은 건드리지 않는다.
+ */
+function agentLabelName(id, name, auto){
+  const sec = agentSecondaryById(id);
+  if(!sec) return name;
+  const nm = String(name == null ? '' : name).trim();
+  if(!nm || auto || (sec.aliases || []).indexOf(nm) >= 0) return sec.name;
+  return name;
+}
+/** @이름 → id 표 — 명부 + 여러 별칭. **명부가 먼저**라 등록된 이름이 이긴다. */
 function agentMentionMap(){
   const map = {};
   map['@전체'] = 'all';
   agentMentions().forEach(a => { map['@' + (a.mentionAs || a.name)] = a.id; map['@' + a.id] = a.id; });
-  Object.keys(AGENT_SECONDARY).forEach(id => {
-    const s = AGENT_SECONDARY[id];
+  Object.keys(AGENT_ALIASES).forEach(id => {
     if(!map['@' + id]) map['@' + id] = id;
     // 명부에 같은 이름이 있으면 그쪽이 이긴다 — 비어 있는 부름말만 채운다
-    (s.aliases || []).forEach(al => { if(!map['@' + al]) map['@' + al] = id; });
+    (AGENT_ALIASES[id] || []).forEach(al => { if(!map['@' + al]) map['@' + al] = id; });
   });
+  AGENT_SELF_ALIASES.forEach(nm => { if(!map['@' + nm]) map['@' + nm] = 'portal'; });
   return map;
 }
 // 2026-11-25(v28): 부계정 비서(cue2·vooy2·keyring2·pi3·*_2)도 **코드 수정 없이**
@@ -2386,6 +2426,10 @@ function ordSenderKey(it){
   if(s === 'phone' || s === 'mobile') return 'phone';
   // 2026-11-25(v27): 큐·부이·키링처럼 자기 ID 로 말하는 비서도 '나'로 보이지 않게
   if(s && s !== 'portal' && agentById(s)) return s;
+  // 2026-11-26 — 피클1·큐2·키링2 같은 다른 이름으로 적어도 같은 비서(나를 부르는 이름은 포털)
+  const al = agentAliasId(s);
+  if(al === 'portal') return 'portal';
+  if(al && agentById(al)) return al;
   return 'portal';
 }
 function ordSenderLabel(k){
@@ -2399,6 +2443,8 @@ function ordTargetKey(it){
   const t = String((it && it.target) || '').toLowerCase();
   if(t === 'all') return 'all';
   if(agentById(t)) return t;
+  const al = agentAliasId(t);                 // 예전 화면·다른 기기가 이름(@큐2·@키링2)을 그대로 보낸 줄도 제자리로
+  if(al && agentById(al)) return al;
   return 'notebook';       // 예전 배포·git_pull·toss_sync 는 노트북이 한다
 }
 function ordTargetLabel(k){
@@ -2472,10 +2518,11 @@ function ordTargetFromText(text){
       const next = s.charAt(i + l.length);
       if(/[A-Za-z0-9_-]/.test(next)){
         // @큐2·@cue2 — 명부에 등록되기 전의 부계정도 그 비서 앞으로 본다(2026-11-25)
-        if(/^\d{1,2}(?![A-Za-z0-9_-])/.test(s.substr(i + l.length, 3))) return map[l];
+        if(/^\d{1,2}(?![A-Za-z0-9_-])/.test(s.substr(i + l.length, 3))) return map[l] === 'portal' ? '' : map[l];
         continue;
       }
-      return map[l];
+      // @레이·@레이의피클 — 나를 부를 말은 비서 앞으로 보내지 않는다(대상은 그대로, 2026-11-26)
+      return map[l] === 'portal' ? '' : map[l];
     }
   }
   return '';

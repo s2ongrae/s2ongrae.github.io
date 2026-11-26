@@ -95,6 +95,11 @@
   기본 참여자(예약 id)는 서버 파일에 쌓지 않는다(화면 `AGENT_SEED`·서버 `AG_BUILTINS` 가 진짜). 예전 배포면 `AG_SRV=false` 로 조용히 이 기기 명부만 쓴다.
 - **@멘션 → 대상**: 칩을 누르지 않고 본문에 `@큐`·`@키링`·`@부이2` 라고 써도 그 비서 앞으로 간다(`ordTargetFromText`, 서버도 `qqMentionOf_` 로 한 번 더).
   명시한 `payload.target` 이 있으면 그게 우선이고, `@전체` 는 `all` 이다. 이메일 속 `@` 는 멘션으로 보지 않는다.
+- **한 비서를 여러 이름으로 (2026-11-26, 사용자 "여러개 쓸 수 있게 하면 되잖아")**: `AGENT_ALIASES`(index.html) · `ROOM_ALIASES`(room/app.js) 표 하나가 이름 → id 를 정한다.
+  `@큐투`·`@큐2`·`@cue2` / `@뷔투`·`@부이2`·`@vooy2` / `@키투`·`@키링2`·`@keyring2` / `@피원`·`@피클1`·`@레이의피클` / `@피투`·`@피클2` 처럼 어느 쪽으로 적어도 같은 비서로 간다.
+  **명부가 먼저**라 등록된 이름이 이기고, 비어 있는 부름말만 별칭으로 채운다. `@레이`·`@성래` 같은 **나를 부르는 이름은 `portal`** 로 읽되 대상은 바꾸지 않는다(`ordTargetFromText` 가 `''`). 회의실 화면에는 옛 호칭(성래)을 넣지 않는다(테스트가 지킨다 — 자기 표시는 레이 님).
+  **표시 이름은 하나**: 서버 명부에 `auto:true` 로 옛 이름(`큐2`·`부이2`·`키링2`)이 저장돼 있어도 화면·저장값은 `agentLabelName` 이 **확정 호칭(큐투·뷔투·키투)** 으로 고친다(사람이 직접 붙인 다른 이름은 건드리지 않는다). `agentMerge`·`agentReload` 가 같은 함수를 쓴다.
+  두 화면의 별칭 목록이 갈라지지 않게 `tests/room.test.js` 가 index.html 의 `AGENT_ALIASES` 를 읽어 회의실 표와 대조한다.
 - **노트북은 남의 오더를 집지 않는다(2026-11-25)**: 같은 시트를 쓰므로 노트북 워커(CommandQueue `poll_commands`)가
   `payload.target` 이 cue·vooy·keyring·pi1·portal 같은 오더까지 집어 가 엉뚱한 답을 달았다(부이 제보).
   이제 `cqForNotebook_()` 이 **비었거나 notebook·all** 인 PENDING 만 집고, 워커(`lib/targets.js`)도 한 번 더 본다.
