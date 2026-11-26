@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-26.brief2';
+const SERVER_VERSION = '2026-11-26.brief3';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -2512,8 +2512,14 @@ function qqCheckMark_(id) {
 function queueInbox(body) {
   const me = qqLow_(body && (body.as || body.target));
   if (!qqIsAiId_(me)) throw qqErr_('bad_request', 'as 에 내 비서 id 를 넣어주세요(영소문자·숫자·_·- 12자, portal 제외).');
+  //  전달 규칙(2026-11-26): 내 앞(target=나)·내가 집은 말은 **답하거나 닫힐 때까지** 계속 보이고,
+  //  @전체·본문 @멘션으로만 부른 말은 **내가 마지막으로 확인한 뒤 온 것만 한 번** 보인다.
+  //  (안 그러면 @전체 공지가 영원히 받은편지함에 남아 "count 0 이면 침묵" 규칙이 깨진다 / 멘션만 된 말은 아예 안 보였다)
+  const checks = qqCheckLogAll_();
+  const prevMs = Date.parse(String(checks[me] || '')) || 0;     // 마크하기 **전에** 읽는다
   qqCheckMark_(me);
   const sinceMs = Date.parse(String((body && body.since) || '')) || 0;
+  const castFrom = prevMs || (Date.now() - 6 * 3600000);        // 확인 기록이 없으면 최근 6시간(경계는 '<' — 같은 초에 온 말을 놓치지 않는다)
   const ctx = qqOpen_();
   const rows = qqRows_(ctx, QQ_SCAN_ROWS);
   const answered = {};                                  // 내가 이미 답장한 원글
@@ -2523,25 +2529,41 @@ function queueInbox(body) {
     if (m) answered[m[1]] = true;
   });
   const items = [];
-  let count = 0, repliedOpen = 0, running = 0;
+  let count = 0, repliedOpen = 0, running = 0, cast = 0;
   for (let i = rows.length - 1; i >= 0; i--) {
     const r = rows[i];
     const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
     const by = qqLow_(r.claimed_by);
     const mineRunning = st === 'RUNNING' && by === me;
     if (st !== 'PENDING' && !mineRunning) continue;
-    const t = qqRowTarget_(r);
-    if (!mineRunning && t !== me && t !== 'all') continue;
     if (qqLow_(r.source) === me) continue;               // 내가 보낸 말은 내 일이 아니다
+    const t = qqRowTarget_(r);
+    const createdMs = Date.parse(String(r.created_at || '')) || 0;
+    let isCast = false;
+    if (!mineRunning && t !== me) {
+      if (t === 'all') isCast = true;
+      else {
+        // 본문 @멘션·'협업 필요' 줄로만 부른 말 — PENDING 줄만, 문자열에 @·협업이 있을 때만 무겁게 본다
+        const raw = String(r.payload == null ? '' : r.payload);
+        if (raw.indexOf('@') < 0 && raw.indexOf('협업') < 0) continue;
+        let hit = false;
+        try { hit = qqMentionIds_(qqParse_(r.payload).prompt, r.source, false).indexOf(me) >= 0; } catch (e) { hit = false; }
+        if (!hit) continue;
+        isCast = true;
+      }
+    }
     if (answered[String(r.id)]) { repliedOpen++; continue; }
-    if (sinceMs && (Date.parse(String(r.created_at || '')) || 0) <= sinceMs && !mineRunning) continue;
+    if (isCast && (createdMs < castFrom || (sinceMs && createdMs <= sinceMs))) continue;   // 이미 한 번 전달한 말
+    if (!isCast && sinceMs && createdMs <= sinceMs && !mineRunning) continue;
     count++;
     if (mineRunning) running++;
+    if (isCast) cast++;
     if (items.length < QQ_INBOX_MAX) items.push(qqItem_(r));
   }
-  return { ok: true, at: qqNow_(), as: me, count: count, running: running, replied_open: repliedOpen,
+  return { ok: true, at: qqNow_(), as: me, count: count, running: running, replied_open: repliedOpen, cast: cast,
     items: items, report_rule: QQ_REPORT_RULE,
-    how: '답할 때 payload.reply_to 에 그 말의 id 를 넣으면 원글이 자동으로 닫혀요(@전체 말은 제외). 확인만 하는 답장("확인했어요")은 보내지 마세요.' };
+    how: '내 앞으로 온 말은 답하거나 닫힐 때까지 계속 보이고, @전체·@멘션으로 부른 말은 한 번만 전달돼요(items[].target 이 me 가 아니면 참고용 — 내 할 일이 없으면 침묵). ' +
+      '답할 때 payload.reply_to 에 그 말의 id 를 넣으면 원글이 자동으로 닫혀요(@전체 말은 제외). 확인만 하는 답장("확인했어요")은 보내지 마세요.' };
 }
 
 function queueWebhookLast() {

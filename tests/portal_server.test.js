@@ -1543,10 +1543,19 @@ console.log('20) ↩ 답장하면 원글을 닫는다 · 📋 오늘 브리핑(q
   ok(/reply_to/.test(ib.how || '') && /보고/.test(ib.report_rule || ''), '답하는 법·보고 규칙을 같이 준다');
   enq('vooy2', chat('portal', '태그 규칙 지킬게요 — 다음 보고부터 협업 줄에 이름 넣습니다', { reply_to: 'Q-b8' }));
   ib = post({ action: 'queue_inbox', key: KB, as: 'vooy2' });
-  ok(ib.count === 2 && ib.items.every(x => x.id !== 'Q-b8'), '답한 말은 받은편지함에서 빠진다(내 앞 말은 닫히고)');
+  ok(ib.count === 1 && ib.items.every(x => x.id !== 'Q-b8' && x.id !== 'Q-b6'), '답한 말은 빠지고, @전체 말은 첫 전달 뒤 다시 보이지 않는다(한 번만) — 내 앞 재질문만 남는다');
+  ok(ib.cast === 0 && ib.items[0].target === 'vooy2', '남은 건 내 앞으로 온 말(답하거나 닫힐 때까지 계속 보인다)');
   enq('vooy2', chat('portal', '뷔투 상태 정상', { reply_to: 'Q-b6' }));
   ib = post({ action: 'queue_inbox', key: KB, as: 'vooy2' });
-  ok(ib.count === 1 && ib.replied_open === 1 && ib.items.every(x => x.id !== 'Q-b6'), '@전체 말은 닫히지 않지만 내 받은편지함에서는 빠진다(답함으로 셈)');
+  ok(ib.count === 1 && ib.items.every(x => x.id !== 'Q-b6'), '@전체 말은 닫히지 않지만 내 받은편지함에서는 빠진다');
+  // 본문 @멘션으로만 부른 말 — target 이 다른 비서여도 부른 비서의 받은편지함에 '한 번' 들어온다(웹훅 없는 비서용)
+  post({ action: 'queue_inbox', key: KB, as: 'keyring2' });     // 먼저 한 번 확인(앞서 온 @전체 말은 여기서 전달됨)
+  enq('pi1', chat('cue', '@큐 일정 정리해줘\n4. 협업 필요: 키투(예약 확인)'));
+  let ik = post({ action: 'queue_inbox', key: KB, as: 'keyring2' });
+  ok(ik.cast === 1 && ik.count === 1 && ik.items[0].target === 'cue', '협업 줄·@멘션으로만 부른 말도 폴링 비서 받은편지함에 한 번 전달된다');
+  ik = post({ action: 'queue_inbox', key: KB, as: 'keyring2', since: ik.items[0].created_at });
+  ok(ik.cast === 0 && ik.count === 0, '같은 멘션 말은 두 번째 확인(since=받은 시각)에는 다시 오지 않는다');
+  ok(post({ action: 'queue_inbox', key: KB, as: 'pi2' }).items.every(x => x.target !== 'cue' || !/키투/.test(x.summary)), '멘션되지 않은 비서(피투)에게는 가지 않는다');
   ok(post({ action: 'queue_inbox', key: KB, as: 'vooy2', since: new Date(now + 60000).toISOString() }).count === 0, 'since 이후 새 말만');
   ok(post({ action: 'queue_inbox', key: KB }).ok === false && post({ action: 'queue_inbox', key: KB, as: 'portal' }).ok === false, 'as 가 없거나 portal 이면 거절');
   const gi = JSON.parse(S.sb.doGet({ parameter: { action: 'queue_inbox', key: KB, as: 'keyring' } }).getContent());
