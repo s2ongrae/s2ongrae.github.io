@@ -183,9 +183,37 @@ input,textarea{font:inherit;color:inherit}
 .msg.me{flex-direction:row-reverse; padding-left:min(14%,64px)}
 .av{
   flex:0 0 auto; margin-top:1px; width:34px; height:34px; border-radius:12px; display:grid; place-items:center;
-  font-size:17px; background:var(--card); box-shadow:0 1px 2px rgba(16,24,42,.12);
-  border:1px solid var(--line); position:relative;
+  position:relative;
 }
+.av .mk{width:100%; height:100%; border-radius:12px}
+.av .mk svg{width:74%; height:74%}
+
+/* ── 🎨 비서 마크 (2026-11-26) — 계열 = 글리프·색, 호기 = 채움/테두리 + 숫자 배지
+ *  포털 index.html 과 같은 규칙·같은 글리프. 작은 폰 화면에서 9명이 한눈에 갈린다. */
+.mk{display:inline-flex; align-items:center; justify-content:center; position:relative; flex:0 0 auto;
+  width:22px; height:22px; border-radius:8px; background:var(--mk); color:#fff; border:1px solid var(--mk-d);
+  box-shadow:0 1px 2px rgba(16,24,42,.18); vertical-align:-.3em; line-height:0}
+.mk svg{width:66%; height:66%; display:block; overflow:visible}
+.mk.v2{background:var(--mk-t); color:var(--mk-s); border:2px solid var(--mk); box-shadow:none}
+.mk.mini{width:15px; height:15px; border-radius:5px; border-width:1px}
+.mk.mini.v2{border-width:2px}
+.mk-b{position:absolute; right:-4px; bottom:-4px; min-width:11px; height:11px; padding:0 2px; border-radius:999px;
+  background:var(--mk-d); color:#fff; font-size:8px; font-weight:900; line-height:11px; text-align:center;
+  border:1.5px solid var(--card); font-family:inherit; letter-spacing:0}
+.mk.v2 .mk-b{background:var(--mk)}
+.mk-pi1{--mk:#10B981; --mk-d:#047857; --mk-t:#ECFDF5; --mk-s:#047857}
+.mk-pi2{--mk:#0D9488; --mk-d:#0F766E; --mk-t:#F0FDFA; --mk-s:#0F766E}
+.mk-cue{--mk:#1E293B; --mk-d:#0F172A; --mk-t:#F1F5F9; --mk-s:#1E293B}
+.mk-cue2{--mk:#475569; --mk-d:#334155; --mk-t:#F1F5F9; --mk-s:#334155}
+.mk-vooy{--mk:#7C3AED; --mk-d:#5B21B6; --mk-t:#F5F3FF; --mk-s:#6D28D9}
+.mk-vooy2{--mk:#8B5CF6; --mk-d:#6D28D9; --mk-t:#F5F3FF; --mk-s:#6D28D9}
+.mk-key{--mk:#D97706; --mk-d:#B45309; --mk-t:#FFFBEB; --mk-s:#B45309}
+.mk-key2{--mk:#F59E0B; --mk-d:#B45309; --mk-t:#FFFBEB; --mk-s:#B45309}
+.mk-nb{--mk:#2563EB; --mk-d:#1D4ED8; --mk-t:#EFF6FF; --mk-s:#1D4ED8}
+.mk-me{--mk:#3B4FC4; --mk-d:#2F3FA8; --mk-t:#EEF2FF; --mk-s:#3B4FC4}
+.mk-all{--mk:#475569; --mk-d:#334155; --mk-t:#F1F5F9; --mk-s:#475569}
+.meta .nm .mk, .lw-who .mk, .la-n .mk, .mchip .mk, .to .mk{vertical-align:-.32em; margin-right:4px}
+.mchip .mk{vertical-align:-.3em}
 .av .pin{position:absolute; right:-2px; bottom:-2px; width:9px; height:9px; border-radius:50%; background:var(--ok); border:2px solid var(--bg)}
 .bwrap{min-width:0; max-width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:3px}
 .msg.me .bwrap{align-items:flex-end}
@@ -227,8 +255,8 @@ input,textarea{font:inherit;color:inherit}
 @media (prefers-color-scheme: dark){ .code{background:rgba(0,0,0,.28)} }
 
 /* 참여자 색 — 명부(ROOM_AGENTS)의 color 와 이름이 같아요 */
-.w-pi1{--ac:#2F9E6A} .w-pi2{--ac:#7A5AF8} .w-nb{--ac:#D9761E}
-.w-cue{--ac:#2F80ED} .w-vooy{--ac:#0F9B8E} .w-key{--ac:#B58500} .w-me{--ac:#8A6A00} .w-all{--ac:#5A6472}
+.w-pi1{--ac:#047857} .w-pi2{--ac:#0F766E} .w-nb{--ac:#1D4ED8}
+.w-cue{--ac:#1E293B} .w-vooy{--ac:#6D28D9} .w-key{--ac:#B45309} .w-me{--ac:#3B4FC4} .w-all{--ac:#5A6472}
 .txt .mt{display:inline; padding:0 4px; border-radius:6px; font-weight:800;
   background:rgba(242,193,74,.22); color:#7A5A00; white-space:nowrap}
 .msg.me .txt .mt{background:rgba(42,33,0,.12); color:#4A3A00}
@@ -356,7 +384,7 @@ input,textarea{font:inherit;color:inherit}
 .dlist{flex:1; overflow-y:auto; padding:0 10px 10px}
 .ag{display:flex; gap:10px; padding:10px; border-radius:12px}
 .ag+.ag{border-top:1px solid var(--line)}
-.ag .av{width:36px; height:36px; background:var(--card2)}
+.ag .av{width:36px; height:36px}
 .ag-b{flex:1; min-width:0}
 .ag-n{display:flex; align-items:center; gap:6px; font-size:13.5px; font-weight:800}
 .ag-n .id{font-size:10.5px; font-weight:700; color:var(--hint); background:var(--card2); padding:1px 5px; border-radius:5px}

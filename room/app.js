@@ -51,6 +51,69 @@ function roomNum(v){ return (typeof v === 'number' && isFinite(v)) ? v : null; }
 function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
 }
+/* ── 🎨 비서 마크 (2026-11-26) — 아이콘만으로 9명이 안 구분돼서 (포털 index.html 과 같은 규칙)
+ *  계열 = 글리프 + 색(피클 ㄹ·초록 / 큐 손·슬레이트 / 부이 V·보라 / 키링 열쇠·앰버 / 노트북 모니터·블루)
+ *   호기 = 1호기 채움 / 2호기 밝은 바탕 + 계열 테두리 + 숫자 배지 — 작은 폰 화면에서도 모양으로 읽힌다. */
+const ROOM_MARKS = {
+  pi1:      {c: 'mk-pi1',   g: 'pi',   n: 1},
+  pi2:      {c: 'mk-pi2',   g: 'pi',   n: 2},
+  cue:      {c: 'mk-cue',   g: 'cue',  n: 1},
+  cue2:     {c: 'mk-cue2',  g: 'cue',  n: 2},
+  vooy:     {c: 'mk-vooy',  g: 'vooy', n: 1},
+  vooy2:    {c: 'mk-vooy2', g: 'vooy', n: 2},
+  keyring:  {c: 'mk-key',   g: 'key',  n: 1},
+  keyring2: {c: 'mk-key2',  g: 'key',  n: 2},
+  notebook: {c: 'mk-nb',    g: 'nb',   n: 0},
+  portal:   {c: 'mk-me',    g: 'me',   n: 0},
+  all:      {c: 'mk-all',   g: 'all',  n: 0}
+};
+const ROOM_MARK_BASE = {pi: 'pi', cue: 'cue', vooy: 'vooy', buy: 'vooy', key: 'key', keyring: 'key', nb: 'nb', notebook: 'nb', portal: 'me'};
+const ROOM_GLYPH = {
+  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5.8H18V10H8.4V14H18V18.4H6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  cue: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
+    '<rect x="7.4" y="10.2" width="9.4" height="9" rx="3.4"/>' +
+    '<rect x="8.2" y="5.8" width="2.4" height="6.6" rx="1.2"/>' +
+    '<rect x="10.9" y="4.2" width="2.4" height="8.2" rx="1.2"/>' +
+    '<rect x="13.6" y="6.2" width="2.4" height="6.2" rx="1.2"/>' +
+    '<rect x="4.6" y="11.8" width="2.4" height="5.4" rx="1.2" transform="rotate(-20 5.8 14.5)"/>' +
+    '</g></svg>',
+  vooy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 8.2 12 17.6l5.6-9.4" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="5.2" r="1.7" fill="currentColor"/></svg>',
+  key: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' +
+    '<circle cx="8.2" cy="8.8" r="3.7" stroke-width="2.5"/>' +
+    '<path d="M10.9 11.5 19.2 19.8M16.1 16.7l2.1-2.1M18.4 19l2-2" stroke-width="2.4"/>' +
+    '</g></svg>',
+  nb: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="4.6" y="5.8" width="14.8" height="9.4" rx="1.8" stroke-width="2.3"/>' +
+    '<path d="M2.8 18.6h18.4" stroke-width="2.3"/></g></svg>',
+  me: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.8" fill="currentColor"/></svg>',
+  all: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
+    '<circle cx="12" cy="8.6" r="2.6"/><circle cx="6.2" cy="13.4" r="2"/><circle cx="17.8" cy="13.4" r="2"/>' +
+    '<path d="M7.6 20c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4z"/></g></svg>'
+};
+/** id → {c: 색 클래스, g: 글리프, n: 호기} — 모르는 id 는 별명표를 거쳐 같은 계열로 */
+function roomMarkInfo(id){
+  const k = String(id == null ? '' : id).toLowerCase().trim();
+  const al = ROOM_ALIASES[k];
+  const key = al || k;
+  if(ROOM_MARKS[key]) return ROOM_MARKS[key];
+  const m = /^([a-z][a-z_]*?)_?(\d{1,2})$/.exec(key);
+  const base = m ? m[1] : key;
+  const no = m ? Number(m[2]) : 0;
+  const fam = ROOM_MARK_BASE[base];
+  if(!fam) return {c: 'mk-me', g: 'me', n: 0};
+  const unit = ROOM_MARKS[fam + (no === 2 ? '2' : '')] || ROOM_MARKS[fam + '1'] || ROOM_MARKS.portal;
+  return {c: unit.c, g: unit.g, n: no};
+}
+/** 비서 마크 HTML — 타임라인 아바타·이름·빠른 멘션 칩·지금 작업 중·편대 서람이 같이 쓴다 */
+function roomMark(id, opt){
+  const o = opt || {};
+  const k = String(id == null ? '' : id).toLowerCase().trim();
+  const info = roomMarkInfo(k);
+  const badge = (!o.mini && info.n) ? '<span class="mk-b">' + info.n + '</span>' : '';
+  return '<span class="mk ' + info.c + (info.n >= 2 ? ' v2' : '') + (o.mini ? ' mini' : '') + '"' +
+    ' data-mark="' + esc(k) + '"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + ' aria-hidden="true">' +
+    (ROOM_GLYPH[info.g] || ROOM_GLYPH.me) + badge + '</span>';
+}
 function roomAgentById(id){
   const k = String(id == null ? '' : id).toLowerCase().trim();
   if(!k) return null;
@@ -709,13 +772,13 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     const body = roomMsgText(it) || (mine ? '' : String((it && (it.result || it.error)) || '').trim()) || '(내용 없음)';
     const plain = roomIsPlainReply(it);
     const meta = [
-      '<span class="nm">' + esc(who.icon + ' ' + (mine ? '레이 님' : who.name)) + '</span>',
+      '<span class="nm">' + (mine ? '레이 님' : roomMark(key, {mini: true}) + esc(who.name)) + '</span>',
       (mine && tg.id === 'portal') ? '' : '<span class="to">→ ' + esc(tg.label) + '</span>',
       plain ? '' : '<span class="chip ' + st.c + '">' + esc(st.t) + '</span>',
       it.auto_approved ? '<span class="chip">자동(위임)</span>' : '',
       '<span class="tm">' + esc(roomWhen(it.created_at)) + '</span>'
     ].join('');
-    const av = mine ? '' : '<div class="av" aria-hidden="true">' + esc(who.icon || '🤖') + '</div>';
+    const av = mine ? '' : '<div class="av" role="img" aria-label="' + esc(who.name) + '">' + roomMark(key, {title: who.name}) + '</div>';
     const aid = String((it && it.id) || '');
     return '<div class="msg ' + (mine ? 'me' : 'them') + '"' + (aid ? ' id="m-' + esc(aid) + '"' : '') + '>' + av +
       '<div class="bwrap ' + agentCls(key) + '"><div class="meta">' + meta + '</div>' +
@@ -759,11 +822,11 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     }
     const badge = (st !== 'RUNNING' && st !== 'PENDING') &&
       ''.concat('<span class="chip rep">답장</span><span class="chip ' + s.c + '">' + esc(s.t) + '</span>');
-    const av = '<div class="av" aria-hidden="true">' + esc((who && who.icon) || '🖥️') + '</div>';
+    const av = '<div class="av" role="img" aria-label="' + esc((who && who.name) || '노트북') + '">' + roomMark(key, {title: (who && who.name) || '노트북'}) + '</div>';
     const aid = String((it && it.id) || '');
     return '<div class="msg them"' + (aid ? ' id="r-' + esc(aid) + '"' : '') + '>' + av +
       '<div class="bwrap ' + agentCls(key) + '">' +
-      '<div class="meta"><span class="nm">' + esc((who && who.icon) + ' ' + ((who && who.name) || '노트북')) + '</span>' +
+      '<div class="meta"><span class="nm">' + roomMark(key, {mini: true}) + esc((who && who.name) || '노트북') + '</span>' +
       (badge || '') + '<span class="tm">' + esc(roomWhen(bot)) + '</span></div>' +
       '<div class="bub ' + cls + '"><div class="txt">' + inner + '</div></div></div></div>';
   }
@@ -821,7 +884,7 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     const id = String((x.it && x.it.id) || '');
     return '<button type="button" class="live-w ' + (ROOM_LIVE_CLS[x.state] || '') + '" data-go="' + esc(id) + '"' +
       ' title="' + esc(roomMsgText(x.it)) + '">' +
-      '<span class="lw-who">' + esc(who.icon + ' ' + who.name) + '</span>' +
+      '<span class="lw-who">' + roomMark(x.owner || 'all', {mini: true}) + esc(who.name) + '</span>' +
       '<span class="lw-what">' + esc(roomLiveWhat(x.it)) + '</span>' +
       '<span class="lw-tail"><span class="lw-chip ' + (ROOM_LIVE_CLS[x.state] || '') + '">' + esc(ROOM_LIVE_ST[x.state]) + '</span>' +
         '<span class="lw-el">' + tail + '</span></span></button>';
@@ -830,7 +893,7 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     const when = act.state === 'work' ? '실행 ' + act.n + '건'
       : (act.min === null ? (act.state === 'unknown' ? '신호 없음' : '기록 없음') : roomAgo(act.min));
     return '<span class="live-a ' + act.state + '" title="' + esc(a.name + ' — ' + ROOM_ACT_TXT[act.state] + ' · ' + when) + '">' +
-      '<span class="la-n">' + esc(a.icon + ' ' + a.name) + '</span>' +
+      '<span class="la-n">' + roomMark(a.id, {mini: true}) + esc(a.name) + '</span>' +
       '<span class="la-s">' + esc(ROOM_ACT_TXT[act.state]) + '</span>' +
       (act.state === 'work' ? '' : '<span class="la-w">' + esc(when) + '</span>') + '</span>';
   }
@@ -904,7 +967,7 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     } else if(v){
       bar = '<div class="bar"><span class="pct solo ' + (v.stale ? 'stale' : 'none') + '">' + esc(v.label) + '</span></div>';
     }
-    return '<div class="ag"><div class="av" aria-hidden="true">' + esc(a.icon) + '</div>' +
+    return '<div class="ag"><div class="av" role="img" aria-label="' + esc(a.name) + '">' + roomMark(a.id, {title: a.name}) + '</div>' +
       '<div class="ag-b"><div class="ag-n">' + esc(a.name) + '<span class="id">' + esc(a.id) + '</span>' +
       '<span class="st ' + cls + '">' + esc(when) + '</span></div>' +
       '<div class="ag-d">' + esc(a.duty) + '</div>' + bar +
@@ -962,9 +1025,12 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
 
   /* ── 입력바 ── */
   function renderChips(){
-    $('chips').innerHTML = ROOM_CHIPS.map(l =>
-      '<button type="button" class="mchip' + (l === '@전체' ? ' all' : '') + '" data-m="' + esc(l) + '">' + esc(l) + '</button>'
-    ).join('');
+    const map = roomMentionMap();
+    $('chips').innerHTML = ROOM_CHIPS.map(l => {
+      const id = map[l] || (l === '@전체' ? 'all' : '');
+      return '<button type="button" class="mchip' + (l === '@전체' ? ' all' : '') + '" data-m="' + esc(l) + '">' +
+        roomMark(id || 'all', {mini: true}) + esc(l) + '</button>';
+    }).join('');
     $('chips').querySelectorAll('button').forEach(b => { b.onclick = () => insertMention(b.dataset.m); });
   }
   function insertMention(label){
@@ -992,7 +1058,7 @@ function roomActCounts(ids, items, sigs, usage, hb, now){
     autoGrow();
     const text = $('inp').value;
     const t = roomTargetLabel(currentTarget());
-    $('to').innerHTML = '→ <b>' + esc(t.label) + '</b>';
+    $('to').innerHTML = '→ ' + roomMark(t.id, {mini: true}) + '<b>' + esc(t.label) + '</b>';
     $('to').querySelector('b').className = '';
     const n = text.length;
     $('cnt').textContent = n + '/2000';

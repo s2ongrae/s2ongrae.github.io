@@ -25,6 +25,14 @@ function makeDevice(server, seedLS){
   return dev;
 }
 let pass=0,fail=0; const ok=(c,m)=>{ if(c)pass++; else {fail++;console.log('  ❌',m);} };
+/** 말풍선 머리 `<b>` 안에 그 비서의 **마크(data-mark)** 와 이름이 함께 있는가 — 2026-11-26 이모지 → 마크 */
+const whoIn=(html,id,name)=>new RegExp('<b>(?:(?!</b>)[\\s\\S])*data-mark="'+id+'"(?:(?!</b>)[\\s\\S])*'+name+'</b>').test(html);
+/** 아바타 칸이 그 비서의 마크로 그려졌는가 */
+const avMark=(html,id)=>new RegExp('class="chat-av" role="img" aria-label="[^"]*"><span class="mk mk-[a-z0-9]+[^"]*" data-mark="'+id+'"').test(html);
+/** 인라인 SVG 본문을 떼어낸 HTML — 마크와 이름이 붙어 있는지만 볼 때 */
+const noSvg=h=>String(h||'').replace(/<svg[\s\S]*?<\/svg>/g,'');
+/** 마크 자리를 [id] 로 바꿔 "[cue]큐" 처럼 마크 바로 뒤에 이름이 오는지 본다 */
+const markThen=(html,id,name)=>noSvg(html).replace(/<span class="mk[^>]*data-mark="([a-z0-9_-]+)"[^>]*><\/span>/g,'[$1]').indexOf('['+id+']'+name)>=0;
 const memo=(id,x={})=>Object.assign({id,title:'제목'+id,body:'내용'+id,color:'mc-blue',pinned:false,updatedAt:'2026-10-01T00:00:00Z'},x);
 
 (async()=>{
@@ -1186,16 +1194,16 @@ console.log('X) 🏷️ 말풍선 닉네임·이모지 · 부계정(*2·_2·pi3)
   const feed17 = () => D17.el('ord-list').innerHTML;
 
   // ① 왼쪽 말풍선 — 각 비서의 진짜 닉네임·이모지
-  ok(/<b>🌀 큐<\/b>/.test(feed17()) && /<b>🔑 키링<\/b>/.test(feed17()), '큐는 🌀 큐 · 키링은 🔑 키링');
-  ok(/<b>🖥️ 노트북<\/b>/.test(feed17()) && /<b>🍋 피원<\/b>/.test(feed17()) && /<b>🫛 부이<\/b>/.test(feed17()), '노트북·피원·부이도 전용 이모지');
+  ok(whoIn(feed17(),'cue','큐') && whoIn(feed17(),'keyring','키링'), '큐는 큐 마크 + 이름 · 키링은 키링 마크 + 이름');
+  ok(whoIn(feed17(),'notebook','노트북') && whoIn(feed17(),'pi1','피원') && whoIn(feed17(),'vooy','부이'), '노트북·피원·부이도 제 마크');
   ok(!/🏠/.test(feed17()), '예전 고정 아바타(🏠)·“집 노트북” 만능 헤더가 사라졌다');
   ok((feed17().match(/chat-av/g) || []).length >= 5, '말풍선마다 아바타가 있다');
   ok(D17.run("ordSenderLabel('cue').name") === '큐' && D17.run("ordSenderLabel('cue').icon") === '🌀', '발신 라벨 = 닉네임·이모지');
   ok(D17.run("ordSenderLabel('portal').name") === '포털', '내 말(portal)은 포털 그대로');
   // 비서가 낸 말은 오른쪽(내 말)이 아니라 **왼쪽**에 그린다(2026-11-25 v28)
   ok(D17.run("ordIsMine({source:'cue'})") === false, '큐가 낸 말은 내 말이 아니다');
-  ok(/class="chat-row in"[^>]*><div class="chat-av">🌀<\/div><div class="chat-bubble side-in">/.test(feed17()), '큐가 낸 말도 왼쪽 말풍선(🌀 아바타)');
-  ok(/class="chat-row in"[^>]*><div class="chat-av">🔑<\/div><div class="chat-bubble side-in">/.test(feed17()), '키링이 낸 말도 왼쪽 말풍선(🔑)');
+  ok(avMark(feed17(),'cue'), '큐가 낸 말도 왼쪽 말풍선(큐 마크 아바타)');
+  ok(avMark(feed17(),'keyring'), '키링이 낸 말도 왼쪽 말풍선(키링 마크)');
 
   // ② 부계정 비서 자동 합류 — 코드 수정 없이 베이스 닉네임·이모지를 따라간다
   const added = D17.run("agentAutoJoin(['cue2','vooy2','keyring2','pi3','keyring_2'])");
@@ -1284,7 +1292,7 @@ console.log('X) 💬 회의실 말풍선 — 답장 주체·대기 말풍선 정
 
   // ② 답장 말풍선의 주체 = 실제 답한 비서(노트북), 포털이 아니다
   const inb2 = DX.run("chatIn(ordById('Q-b2'))");
-  ok(/🖥️ 노트북/.test(inb2) && !/🌐 포털/.test(inb2), '노트북 답장은 노트북 이름·이모지로 보인다');
+  ok(whoIn(inb2,'notebook','노트북') && !/data-mark="portal"/.test(inb2), '노트북 답장은 노트북 마크·이름으로 보인다');
   ok(DX.run("ordReplyKey({status:'DONE', source:'portal', claimed_by:'notebook'})") === 'notebook', '답장 주체는 claimed_by');
   ok(DX.run("ordReplyKey({status:'DONE', source:'portal', replied_by:'cue', claimed_by:'notebook'})") === 'cue', 'replied_by 가 있으면 그쪽을 쓴다');
   ok(DX.run("ordReplyWhoKey({status:'PENDING', source:'portal', target:'cue'})") === 'cue', '아직 앞이면 받을 비서가 왼쪽에 선다');
@@ -1628,7 +1636,7 @@ console.log('AB) 🔴 지금 작업 중 — 작업중 리스트 · 누가 일하
   const box = DAB.el('room-live').innerHTML;
   ok(/지금 작업 중/.test(box) && /<b>4<\/b>/.test(box), '머리말에 작업중 건수');
   ok(/rl-work run/.test(box) && /rl-work wait/.test(box) && /rl-work pend/.test(box), '실행·승인·대기 줄이 상태별로');
-  ok(/🖥️ 노트북/.test(box) && /🌀 큐/.test(box), '줄마다 담당 비서(이모지·이름)');
+  ok(markThen(box,'notebook','노트북') && markThen(box,'cue','큐'), '줄마다 담당 비서(마크·이름)');
   ok(/4주차 카드 문구/.test(box) && !/워커 규칙/.test(box), '요약은 보이되 [워커 규칙] 문구는 뗀다');
   ok(/class="ord-elapsed" data-since="\d+"/.test(box), '경과 시간이 1초마다 갱신되는 자리');
   ok(/rl-chip run/.test(box) && /실행 중/.test(box), '상태 알약(실행 중)');
@@ -1662,6 +1670,62 @@ console.log('AB) 🔴 지금 작업 중 — 작업중 리스트 · 누가 일하
   ok(DAB.run('ORD_WHO') === 'cue', '비서 칩 → 발신 필터가 그 비서로');
   DAB.run("ordFilterSet({dataset: {k: 'who', v: 'all'}, className: 'rl-ag work'})");
   ok(/class="order-card room-card"/.test(html) && /<details class="room-use" id="room-use"/.test(html), '기존 회의실 계약 유지');
+}
+
+console.log('AC) 🎨 비서 마크 — 계열로 묶고 호기로 가른다 (2026-11-26)');
+{
+  const P = makeDevice(S);
+  const mark = id => P.run(`agentMark('${id}')`);
+  const IDS = ['pi1', 'pi2', 'notebook', 'cue', 'cue2', 'vooy', 'vooy2', 'keyring', 'keyring2'];
+  // ① 9명이 서로 다른 마크(색 클래스 + 글리프) — 같은 그림이 둘 있으면 실패
+  const sigs = IDS.map(id => mark(id).replace(/ title="[^"]*"/g, ''));
+  ok(new Set(sigs).size === 9, '편대 9명의 마크가 모두 다르다');
+  // ② 계열 = 색, 호기 = 채움(1) vs 테두리(2)
+  ok(/class="mk mk-pi1"/.test(mark('pi1')) && /class="mk mk-pi2 v2"/.test(mark('pi2')), '피클 계열 pi1은 에메랄드 · pi2는 청록 테두리');
+  ok(/class="mk mk-cue"/.test(mark('cue')) && /class="mk mk-cue2 v2"/.test(mark('cue2')), '큐 계열 cue는 다크 슬레이트 · cue2는 밝은 테두리');
+  ok(/class="mk mk-vooy"/.test(mark('vooy')) && /class="mk mk-vooy2 v2"/.test(mark('vooy2')), '부이 계열 vooy는 바이올렛 · vooy2는 밝은 테두리');
+  ok(/class="mk mk-key"/.test(mark('keyring')) && /class="mk mk-key2 v2"/.test(mark('keyring2')), '키링 계열 keyring은 앰버 · keyring2는 밝은 테두리');
+  ok(/class="mk mk-nb"/.test(mark('notebook')), '집 노트북은 블루 모니터 마크');
+  // ③ 숫자 배지 — 2호기는 2, 1호기도 1 (작은 글씨·색 구분이 어려운 눈에도 읽힌다)
+  ok(/<span class="mk-b">1<\/span>/.test(mark('pi1')) && /<span class="mk-b">2<\/span>/.test(mark('pi2')), '1호기 1 · 2호기 2 배지');
+  ok(/<span class="mk-b">2<\/span>/.test(mark('cue2')) && /<span class="mk-b">2<\/span>/.test(mark('vooy2')) && /<span class="mk-b">2<\/span>/.test(mark('keyring2')), '큐투·뷔투·키투 모두 2 배지');
+  ok(!/mk-b/.test(mark('notebook')), '하나뿐인 노트북에는 숫자 배지 없음');
+  ok(!/mk-b/.test(P.run("agentMark('cue2', {mini: true})")), '작은 칩(mini)은 이름이 옆에 있어 배지를 뺀다');
+  // ④ 외부 이미지 없이 인라인 SVG — CDN·깨진 아이콘 걱정 없음
+  ok(/<svg/.test(mark('pi2')) && !/<img|https?:\/\//.test(IDS.map(mark).join('')), '모든 마크가 인라인 SVG(외부 주소·<img> 없음)');
+  // ⑤ 모르는 id·새 부계정도 같은 규칙 — 큐3은 큐 계열
+  ok(P.run("markInfo('cue3').c") === 'mk-cue' && P.run("markInfo('cue3').n") === 3, '새 부계정 cue3 도 큐 계열·3호기');
+  ok(P.run("markInfo('pi4').c") === 'mk-pi1', 'pi4 도 피클 계열');
+  ok(P.run("markInfo('portal').c") === 'mk-me', '나(포털)는 내 마크');
+  // ⑥ 이름에 HTML이 섞여도 글자로만(data-mark·title 모두 esc)
+  const evil = P.run(`agentMark('x"><img src=x onerror=alert(1)>')`);
+  ok(evil.indexOf('<img') < 0 && /&quot;&gt;&lt;img/.test(evil), '마크 id/이름은 글자로만 들어간다');
+}
+
+console.log('AD) 🎨 마크를 쓰는 화면들 — 칩·관제·사용량·역할표·말풍선');
+{
+  const Q = makeDevice(S);
+  Q.config();
+  await Q.run('loadOrders()');
+  Q.run("agentAutoJoin(['cue2','vooy2','keyring2'])");
+  Q.run('renderRoom()');
+  const ment = Q.el('ord-mentions').innerHTML;
+  const chips = Q.el('ord-filters').innerHTML;
+  const use = Q.el('use-grid').innerHTML;
+  const roles = Q.el('role-table').innerHTML;
+  ok(['all', 'pi1', 'pi2', 'notebook', 'cue', 'cue2', 'vooy', 'vooy2', 'keyring', 'keyring2']
+    .every(id => ment.indexOf('data-mark="' + id + '"') >= 0), '대상 칩(@전체~@키투)마다 마크가 붙는다');
+  ok(['pi1', 'pi2', 'notebook', 'cue', 'cue2', 'vooy', 'vooy2', 'keyring', 'keyring2']
+    .every(id => chips.indexOf('data-mark="' + id + '"') >= 0), '발신 필터 칩마다 마크가 붙는다');
+  ok(['pi1', 'pi2', 'cue', 'vooy', 'keyring'].every(id => use.indexOf('data-mark="' + id + '"') >= 0),
+    '사용량 카드마다 마크가 붙는다');
+  ok(['pi1', 'pi2', 'cue', 'cue2', 'vooy2', 'keyring2'].every(id => roles.indexOf('data-mark="' + id + '"') >= 0),
+    '역할표에도 같은 마크');
+  const b = Q.run(`chatOut({id: 'X1', source: 'cue', target: 'portal', kind: 'chat', status: 'DONE', prompt: '@큐 확인', result: 'ok'}, true)`);
+  ok(/class="chat-av" role="img" aria-label="큐"><span class="mk mk-cue"/.test(b) && /<span class="who w-cue"><span class="mk mk-cue mini"/.test(b),
+    '큐 말풍선 = 큐 마크 아바타 + 큐 색 이름 배지');
+  const c2 = Q.run(`chatOut({id: 'X2', source: 'cue2', target: 'portal', kind: 'chat', status: 'DONE', prompt: '@큐투 확인', result: 'ok'}, true)`);
+  ok(/data-mark="cue2"/.test(c2) && /mk-cue2 v2/.test(c2), '큐투 말풍선은 테두리 마크(cue2)로 갈린다');
 }
 
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);

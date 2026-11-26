@@ -143,7 +143,8 @@ function coreTests() {
     'ROOM_USE_TXT', 'ROOM_USE_ALIVE_MIN', 'roomResetOf', 'roomCycleStart', 'roomUseFresh', 'roomResetAt', 'roomResetText',
     'roomSignalOf', 'roomSignalsFrom', 'roomSignalMin', 'roomSignalLive', 'roomStateOf', 'roomUseView', 'roomUseSummary',
     'ROOM_LIVE_ST', 'ROOM_LIVE_CLS', 'ROOM_LIVE_RANK', 'ROOM_ACT_TXT', 'ROOM_ACT_WAIT_MIN',
-    'roomLiveOwner', 'roomLiveItems', 'roomLiveSince', 'roomLiveWhat', 'roomDur', 'roomAgentAct', 'roomActCounts'];
+    'roomLiveOwner', 'roomLiveItems', 'roomLiveSince', 'roomLiveWhat', 'roomDur', 'roomAgentAct', 'roomActCounts',
+    'ROOM_MARKS', 'roomMarkInfo', 'roomMark'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -412,7 +413,32 @@ function coreTests() {
     ok(/ROOM_LIVE_MAX/.test(js) && /live-more/.test(js) && /\.live-more/.test(css), '줄은 3개까지 — 나머지는 "+N건 더"');
   }
 
-  console.log('N) 비밀값 하드코딩 없음 (공개 저장소)');
+  console.log('N) 🎨 비서 마크 — 계열·호기 구분 (2026-11-26)');
+  {
+    const mark = id => C.roomMark(id);
+    const IDS = C.ROOM_AGENTS.map(a => a.id);
+    const sigs = IDS.map(id => mark(id).replace(/ title="[^"]*"/g, ''));
+    ok(new Set(sigs).size === 9, '편대 9명의 마크가 모두 다르다');
+    ok(/class="mk mk-pi1"/.test(mark('pi1')) && /class="mk mk-pi2 v2"/.test(mark('pi2')), '피원은 초록 채움 · 피투는 청록 테두리');
+    ok(/class="mk mk-cue"/.test(mark('cue')) && /class="mk mk-cue2 v2"/.test(mark('cue2')), '큐는 다크 채움 · 큐투는 밝은 테두리');
+    ok(/class="mk mk-vooy"/.test(mark('vooy')) && /class="mk mk-vooy2 v2"/.test(mark('vooy2')), '부이는 보라 채움 · 뷔투는 테두리');
+    ok(/class="mk mk-key"/.test(mark('keyring')) && /class="mk mk-key2 v2"/.test(mark('keyring2')), '키링은 앰버 채움 · 키투는 테두리');
+    ok(/class="mk mk-nb"/.test(mark('notebook')) && !/mk-b/.test(mark('notebook')), '노트북은 블루 모니터 마크·배지 없음');
+    ok(/<span class="mk-b">1<\/span>/.test(mark('pi1')) && /<span class="mk-b">2<\/span>/.test(mark('cue2')), '1·2 숫자 배지로 호기를 가른다');
+    ok(!/mk-b/.test(C.roomMark('cue2', {mini: true})), '작은 칩(mini)은 배지를 뻐다');
+    ok(/<svg/.test(mark('keyring')) && !/<img|https?:\/\//.test(IDS.map(mark).join('')), '외부 이미지 없이 인라인 SVG');
+    // 옛 부름·영문 id 도 같은 마크
+    ok(C.roomMarkInfo('큐투').c === C.roomMarkInfo('cue2').c && C.roomMarkInfo('cue2').n === 2, '옛 부름(큐투)도 같은 마크');
+    ok(C.roomMarkInfo('keyring2').c === 'mk-key2' && C.roomMarkInfo('keyring2').n === 2, '키투는 키링 계열 2호기');
+    ok(C.roomMarkInfo('cue3').c === 'mk-cue' && C.roomMarkInfo('cue3').n === 3, '새 부계정 cue3 도 큐 계열·3호기');
+    ok(C.roomMarkInfo('모르는이름').g === 'me' && C.roomMarkInfo('portal').c === 'mk-me', '모르는 id 는 내 마크로 안전하게');
+    // 화면 곳곳이 같은 마크를 쓴다
+    ok(/roomMark\(/.test(js) && (js.match(/roomMark\(/g) || []).length >= 8, '아바타·이름·칩·관제·서람이 모두 roomMark 를 쓴다');
+    ok(/\.mk\{/.test(css) && /\.mk\.v2\{/.test(css) && /\.mk-pi2\{/.test(css) && /\.mk-key2\{/.test(css), '마크·테두리·계열 색 스타일');
+    ok(!/<img/.test(js) && !/cdn\.[a-z]/i.test(css), 'CDN 이미지에 기대지 않는다');
+  }
+
+  console.log('O) 비밀값 하드코딩 없음 (공개 저장소)');
   const all = html + js + css + sw;
   ok(!/AKfycb[0-9A-Za-z_-]{20,}/.test(all), 'Apps Script 주소 없음');
   ok(!/AIza[0-9A-Za-z_-]{20,}/.test(all), '구글 API 키 없음');
