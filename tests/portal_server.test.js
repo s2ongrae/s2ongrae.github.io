@@ -1271,6 +1271,17 @@ console.log('18) 🤝 협업 필요 줄 자동 멘션 · 발신자 source 보정
   const c6 = enqP(Object.assign({ source: 'pi1' }, chatP('4. 협업 필요:\n   - 노트북(웹앱 모달)\n   - 부이(체크리스트)\n5. 다음: 피투가 확인')));
   ok((c6.item.mentions || []).indexOf('notebook') >= 0 && (c6.item.mentions || []).indexOf('vooy') >= 0, '줄바꿈 목록의 이름도 읽는다(노트북·부이)');
   ok((c6.item.mentions || []).indexOf('pi2') < 0, '다음 번호 항목(5.)의 이름은 이 협업 줄이 아니다');
+  // ⑥-2 사용자가 준 이름·ID 전부가 같은 비서로 읽힌다(별칭 표)
+  const alias = [['pi1','pi1'],['피원','pi1'],['pi2','pi2'],['피투','pi2'],['notebook','notebook'],['노트북','notebook'],
+    ['cue','cue'],['큐','cue'],['cue2','cue2'],['큐투','cue2'],['큐2','cue2'],['vooy','vooy'],['부이','vooy'],
+    ['vooy2','vooy2'],['뷔투','vooy2'],['부이2','vooy2'],['keyring','keyring'],['키링','keyring'],
+    ['keyring2','keyring2'],['키투','keyring2'],['키링2','keyring2']];
+  const missed = alias.filter(p => {
+    const r = enqP(Object.assign({ source: 'portal' }, chatP('4. 협업 필요: ' + p[0] + ' 진행')));
+    return (r.item.mentions || []).indexOf(p[1]) < 0;
+  });
+  ok(missed.length === 0, '협업 줄의 이름·ID 21종이 모두 제 id 로 읽힌다(놓치면: ' + missed.map(x => x[0]).join(',') + ')');
+
   // ⑦ @멘션 규칙은 그대로(중복 없이 하나로)
   const c7 = enqP(Object.assign({ source: 'portal' }, chatP('@노트북 봐줘\n4. 협업 필요: 노트북, 큐')));
   ok((c7.item.mentions || []).filter(x => x === 'notebook').length === 1 && (c7.item.mentions || []).indexOf('cue') >= 0, '@멘션과 협업 줄이 겹쳐도 하나로 합친다');
