@@ -467,34 +467,80 @@ function roomUseSummary(ids, usage, sigs, now){
   return c;
 }
 
+/** 보고서 '협업 필요' 줄 — @ 없이 적은 이름도 칩으로(2026-11-26, 포털·서버와 같은 규칙) */
+const ROOM_COLLAB_HEAD_RE = /^[ \t]*(?:[-*•·][ \t]*)?(?:\d{1,2}[.)][ \t]*)?협업[ \t]*필요[ \t]*[:：][ \t]*/;
+const ROOM_COLLAB_STOP_RE = /^[ \t]*(?:\d{1,2}[.)][ \t]*\S|#{1,6}[ \t]*\S)/;
+const ROOM_COLLAB_NONE_RE = /^(?:[-–—·]|없음|없슴|없어|없어요|없다|없습니다|해당\s*없음|none|n\/a|n\.a\.?)$/i;
+const ROOM_JOSA = ['에서','에게','한테','으로','부터','까지','처럼','보다','만큼','조차','마저','님','이','가','은','는','을','를','의','에','께','도','만','과','와','랑','로'];
+function roomCollabHit(s, i, len){
+  if(i > 0 && /[가-힣A-Za-z0-9_@-]/.test(s.charAt(i - 1))) return false;
+  const j = i + len;
+  if(j >= s.length) return true;
+  const c = s.charAt(j);
+  if(/[A-Za-z0-9_-]/.test(c)) return false;
+  if(!/[가-힣]/.test(c)) return true;
+  for(let k = 0; k < ROOM_JOSA.length; k++){
+    const jo = ROOM_JOSA[k];
+    if(s.substr(j, jo.length) !== jo) continue;
+    const n = j + jo.length;
+    if(n >= s.length) return true;
+    if(!/[가-힣A-Za-z0-9_-]/.test(s.charAt(n))) return true;
+  }
+  return false;
+}
 /** 본문 속 @이름 → 칩 (이미 esc() 한 문자열에만 적용) */
 function roomMentionHtml(s){
   const txt = String(s == null ? '' : s);
   const map = roomMentionMap();
   const labels = Object.keys(map).sort((a, b) => b.length - a.length);
   if(!labels.length) return txt;
-  let out = '', i = 0;
-  while(i < txt.length){
-    if(txt.charAt(i) === '@'){
-      let hit = '';
-      for(let j = 0; j < labels.length; j++){
-        const l = labels[j];
-        if(txt.substr(i, l.length) !== l) continue;
-        if(!roomMentionBoundary(txt, i + l.length)) continue;
-        hit = l; break;
+  const bare = {};
+  const bareLabels = [];
+  labels.forEach(l => { if(l.charAt(0) !== '@') return; const nm = l.slice(1); if(!nm || map[l] === 'all') return; bare[nm] = map[l]; bareLabels.push(nm); });
+  bareLabels.sort((a, b) => b.length - a.length);
+  const chip = (hit, id) => {
+    const a = id === 'all' ? null : roomAgentById(id);
+    return '<b class="mt w-' + esc(a ? a.color : 'all') + '" title="협업 줄에서 알아본 이름">' + hit + '</b>';
+  };
+  const lines = txt.split('\n');
+  let collab = false;
+  return lines.map(line => {
+    const head = ROOM_COLLAB_HEAD_RE.exec(line);
+    if(head) collab = true;
+    else if(!line.trim()) collab = false;
+    else if(collab && ROOM_COLLAB_STOP_RE.test(line)) collab = false;
+    const skipBare = !collab || (head && ROOM_COLLAB_NONE_RE.test(line.slice(head[0].length).trim()));
+    let out = '', i = 0;
+    while(i < line.length){
+      if(line.charAt(i) === '@'){
+        let hit = '';
+        for(let j = 0; j < labels.length; j++){
+          const l = labels[j];
+          if(line.substr(i, l.length) !== l) continue;
+          if(!roomMentionBoundary(line, i + l.length)) continue;
+          hit = l; break;
+        }
+        if(hit){
+          const id = map[hit];
+          const a = id === 'all' ? null : roomAgentById(id);
+          out += '<b class="mt w-' + esc(a ? a.color : 'all') + '">' + hit + '</b>';
+          i += hit.length;
+          continue;
+        }
       }
-      if(hit){
-        const id = map[hit];
-        const a = id === 'all' ? null : roomAgentById(id);
-        out += `<b class="mt w-${esc(a ? a.color : 'all')}">${hit}</b>`;
-        i += hit.length;
-        continue;
+      if(!skipBare && bareLabels.length){
+        const b = bareLabels.filter(l => line.substr(i, l.length) === l)[0];
+        if(b && roomCollabHit(line, i, b.length)){
+          out += chip(b, bare[b]);
+          i += b.length;
+          continue;
+        }
       }
+      out += line.charAt(i);
+      i++;
     }
-    out += txt.charAt(i);
-    i++;
-  }
-  return out;
+    return out;
+  }).join('\n');
 }
 /** 링크 — [이름](주소) 과 맨 주소를 둘 다 <a> 로. 두 번 감싸지 않게 자리표시자를 거친다 */
 function roomLinks(s){

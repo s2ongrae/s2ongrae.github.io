@@ -1156,6 +1156,118 @@ function qqMentionOf_(text) {
   const all = qqMentionAll_(text, 1, true);
   return all.length ? all[0] : '';
 }
+// ── 보고서 '협업 필요' 줄의 이름도 멘션으로 (2026-11-26, 사용자 지시) ──────────
+//  "협업 필요한데 그 애들 태그를 해야지 그냥 pi2 노트북 이러고만 해두잖아"
+//  · 4항목 보고서는 `4. 협업 필요: 노트북(구현), pi2(PR 머지)` 처럼 @ 없이 이름만 적는 일이 많다.
+//    그러면 mentions 에 빠져 그 비서의 웹훅도 안 깨어나고, 아무도 이어받지 않는다.
+//  · 그래서 **협업 필요 줄 안에서만** @ 없는 이름을 비서 id 로 읽는다(@멘션 규칙은 그대로).
+//  · 자기 자신(source)은 빼고, "없음" 같은 부정 표현은 무시하고, 중복은 하나로.
+const QQ_MENTION_MAX = 9;                      // @멘션 6 + 협업 줄에서 더 붙는 이름
+const QQ_COLLAB_HEAD_RE = /^[ \t]*(?:[-*•·][ \t]*)?(?:\d{1,2}[.)][ \t]*)?협업[ \t]*필요[ \t]*[:：][ \t]*/;
+// 다음 항목(번호·제목)이 시작하면 협업 줄은 끝난다 — 빈 줄도 끝.
+const QQ_COLLAB_STOP_RE = /^[ \t]*(?:\d{1,2}[.)][ \t]*\S|#{1,6}[ \t]*\S)/;
+// '없음'만 적힌 줄은 멘션이 아니다.
+const QQ_COLLAB_NONE_RE = /^(?:[-–—·]|없음|없슴|없어|없어요|없다|없습니다|해당\s*없음|none|n\/a|n\.a\.?)$/i;
+// 이름 뒤에 붙어도 되는 한글 조사(노트북이·피투에게) — 긴 것부터 본다.
+const QQ_COLLAB_JOSA = ['에서', '에게', '한테', '으로', '부터', '까지', '처럼', '보다', '만큼', '조차', '마저',
+  '님', '이', '가', '은', '는', '을', '를', '의', '에', '께', '도', '만', '과', '와', '랑', '로'];
+/**
+ * 본문에서 '협업 필요:' 줄의 내용만 모은다(줄 머리부터 빈 줄·다음 번호 항목 전까지).
+ *  · 줄바꿈 뒤에 이어 쓴 목록(`- 노트북(구현)`)은 같은 줄 내용으로 본다.
+ */
+function qqCollabSegments_(text) {
+  const s = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+  const out = [];
+  if (s.indexOf('협업') < 0) return out;
+  const lines = s.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const head = QQ_COLLAB_HEAD_RE.exec(lines[i]);
+    if (!head) continue;
+    const buf = [lines[i].slice(head[0].length)];
+    for (let j = i + 1; j < lines.length; j++) {
+      const ln = lines[j];
+      if (!String(ln).trim()) break;
+      if (QQ_COLLAB_STOP_RE.test(ln)) break;
+      buf.push(String(ln).replace(/^[ \t]*[-*•·][ \t]*/, ''));
+    }
+    out.push(buf.join(' '));
+  }
+  return out;
+}
+/** @을 뗀 이름 표 — 멘션 표(기본+명부)에서 '@'만 뗀다. 'all' 은 사람이 아니다. */
+function qqBareNameMap_(fresh) {
+  const m = qqMentionMap_(fresh);
+  const out = {};
+  Object.keys(m).forEach(function (k) {
+    if (k.charAt(0) !== '@') return;
+    const nm = k.slice(1);
+    if (!nm || m[k] === 'all') return;
+    out[nm] = m[k];
+  });
+  return out;
+}
+/** 협업 줄에서 이름 앞뒤 경계 — '큐레이션' 의 '큐', 'pi2x' 를 이름으로 오해하지 않게. */
+function qqCollabHit_(s, i, len) {
+  if (i > 0 && /[가-힣A-Za-z0-9_@-]/.test(s.charAt(i - 1))) return false;
+  const j = i + len;
+  if (j >= s.length) return true;
+  const c = s.charAt(j);
+  if (/[A-Za-z0-9_-]/.test(c)) return false;
+  if (!/[가-힣]/.test(c)) return true;                     // 공백·괄호·쉼표·콜론
+  for (let k = 0; k < QQ_COLLAB_JOSA.length; k++) {
+    const jo = QQ_COLLAB_JOSA[k];
+    if (s.substr(j, jo.length) !== jo) continue;
+    const n = j + jo.length;
+    if (n >= s.length) return true;
+    if (!/[가-힣A-Za-z0-9_-]/.test(s.charAt(n))) return true;
+  }
+  return false;
+}
+/** '협업 필요' 줄에서 @ 없이 적힌 비서 이름을 ids 로 (나온 순서·중복 제거). */
+function qqCollabMentions_(text, fresh) {
+  const segs = qqCollabSegments_(text);
+  const out = [];
+  if (!segs.length) return out;
+  const map = qqBareNameMap_(fresh);
+  const labels = Object.keys(map).sort(function (a, b) { return b.length - a.length; });
+  if (!labels.length) return out;
+  segs.forEach(function (seg) {
+    const s = String(seg);
+    if (!s.trim() || QQ_COLLAB_NONE_RE.test(s.trim())) return;
+    for (let i = 0; i < s.length; i++) {
+      let hit = '';
+      for (let j = 0; j < labels.length; j++) {
+        const l = labels[j];
+        if (s.substr(i, l.length) !== l) continue;
+        if (!qqCollabHit_(s, i, l.length)) continue;
+        hit = l; break;
+      }
+      if (!hit) continue;
+      const id = map[hit];
+      if (out.indexOf(id) < 0) out.push(id);
+      i += hit.length - 1;
+    }
+  });
+  return out;
+}
+/**
+ * 이 오더의 멘션 id 목록 — ①본문 @이름 ②'협업 필요' 줄의 @ 없는 이름.
+ *  · source(낸 사람)는 자기 자신을 멘션하지 않는다 — 자기 웹훅이 자기 글에 깨어나지 않게.
+ */
+function qqMentionIds_(text, source, fresh) {
+  const out = qqMentionAll_(text, QQ_MENTION_MAX, fresh);
+  qqCollabMentions_(text, fresh).forEach(function (id) { if (out.indexOf(id) < 0) out.push(id); });
+  const self = String(source == null ? '' : source).trim().toLowerCase();
+  if (self && self !== 'portal' && self !== 'all') {
+    for (let i = out.length - 1; i >= 0; i--) if (out[i] === self) out.splice(i, 1);
+  }
+  return out.slice(0, QQ_MENTION_MAX);
+}
+/** 비서 id 인가(portal·all 은 사람/전체라 뺀다). */
+function qqIsAiId_(v) {
+  const t = String(v == null ? '' : v).trim().toLowerCase();
+  return !!t && t !== 'portal' && t !== 'all' && QQ_AGENT_ID_RE.test(t);
+}
 const QQ_LIST_DEFAULT = 15;
 const QQ_LIST_MAX = 20;
 const QQ_SCAN_ROWS = 400;                          // 목록·중복 확인용으로 아래에서 읽는 줄 수
@@ -1393,14 +1505,17 @@ function qqSummary_(type, p) {
       // 대화는 '클로드: ' 접두사도, 160자 컷도, 공백 뭉개기도 없다. 원문 그대로(줄바꿈 보존).
       return qqMask_(raw.replace(/\r\n?/g, '\n'), QQ_CELL_MAX);
     }
+    // 2026-11-26 — '클로드: ' 접두사와 160자 컷을 없앴다. kind 가 한 번이라도 빠지면
+    //  (다른 창구가 바깥에 kind 를 적어 보낸 경우) 대화가 잘린 '오더 요약'으로 저장돼 보였다.
+    //  이제 오더 요약도 본문 그대로다(줄바꿈만 한 줄로). 자르는 기준은 시트 셀 한도 하나뿐.
     const body = raw.replace(/\s+/g, ' ');
-    s = '클로드: ' + body.slice(0, 160) +
+    s = body +
       (String(p.mode || '').toLowerCase() === 'edit' ? ' (파일 수정)' : '') +
       (eng && eng !== 'auto' ? ' · 엔진 ' + eng : '');
   } else if (type === 'git_push') s = '깃 푸시 → ' + String(p.branch || '(브랜치 없음)');
   else if (type === 'smartstore_api_relay') s = '스마트스토어 API ' + String(p.op || '');
   else s = Object.keys(p).length ? Object.keys(p).join(', ') : '(내용 없음)';
-  return qqMask_(s, 200);
+  return qqMask_(s, QQ_CELL_MAX);
 }
 
 /** 시트 한 줄 → 화면용 항목 */
@@ -1448,7 +1563,8 @@ function qqItem_(r) {
     // 본문에서 알아본 멘션 id 배열(2026-11-25 v27) — 비서가 이름 문자열 검색으로 놓치지 않게.
     //  target 도 함께 넣는다(누구 앞으로 왔는지 배열 하나로 보이게). 'all' 은 사람이 아니라 뺀다.
     mentions: (function () {
-      const list = qqMentionAll_(p.prompt, 6, false);
+      // 2026-11-26 — '협업 필요' 줄에 @ 없이 적은 이름도 여기 들어온다(자기 자신은 뺀다).
+      const list = qqMentionIds_(p.prompt, r.source, false);
       const tgt = String(p.target == null ? '' : p.target).trim().toLowerCase();
       if (tgt && tgt !== 'all' && tgt !== 'portal' && QQ_AGENT_ID_RE.test(tgt) && list.indexOf(tgt) < 0) list.push(tgt);
       return list;
@@ -1969,8 +2085,10 @@ function queueList(body) {
     review: c.review, done: c.done, failed: c.failed,
     workspaces: qqWorkspaces_(), types: Object.keys(QQ_TYPES), engines: QQ_ENGINES.slice(),
     chat: true, targets: qqWithRoster_(QQ_TARGETS), sources: qqWithRoster_(QQ_SOURCES), sources_seen: srcSeen,
-    // 2026-11-26 — 이 배포가 발신자를 payload.source 에서도 읽는다는 표시(배포 확인용).
+    // 2026-11-26 — 이 배포가 발신자를 payload.source·replied_by 에서도 읽는다는 표시(배포 확인용).
     source_fallback: true,
+    // 2026-11-26 — 이 배포가 '협업 필요' 줄의 @ 없는 이름도 mentions 로 읽는다는 표시.
+    mention_auto: true,
     duties: agentDuties_(),
     approval_ttl_min: Math.round(QQ_APPROVAL_TTL_MS / 60000)
   };
@@ -2081,7 +2199,7 @@ function qqWebhookMap_() {
  */
 function qqWebhookBody_(row, p, agentId) {
   const target = String((p && p.target) == null ? '' : p.target).trim().toLowerCase();
-  const mentions = qqMentionAll_(p && p.prompt, QQ_WEBHOOK_MENTION_MAX, false);
+  const mentions = qqMentionIds_(p && p.prompt, row && row.source, false);
   if (target && target !== 'all' && QQ_AGENT_ID_RE.test(target) && mentions.indexOf(target) < 0) mentions.push(target);
   const list = mentions.slice();
   if (list.indexOf(agentId) < 0) list.push(agentId);
@@ -2146,7 +2264,7 @@ function qqFireWebhooks_(row, p) {
     if (!ids.length) return [];
     const source = String((row && row.source) == null ? '' : row.source).trim().toLowerCase();
     const target = String((p && p.target) == null ? '' : p.target).trim().toLowerCase();
-    const mentioned = qqMentionAll_(p && p.prompt, QQ_WEBHOOK_MENTION_MAX, false);
+    const mentioned = qqMentionIds_(p && p.prompt, source, false);
     const fired = [];
     ids.forEach(function (agentId) {
       if (source === agentId) return;
@@ -2194,6 +2312,62 @@ function queueWebhookSet(body) {
     note: '웹훅 주소는 ScriptProperties 에만 저장했어요(응답에는 돌려주지 않아요).' };
 }
 
+/**
+ * 오더 본문 → worker 가 읽는 payload 객체.
+ *  2026-11-26 — 비서(pi1·큐투…)는 `{type, kind:'chat', target:'portal', payload:{prompt}}` 처럼
+ *  **봉투 바깥**에 kind·target 을 적어 보낸다. 예전엔 payload 안만 읽어서 kind·target 이 조용히 사라졌고,
+ *  그 결과 대화가 '오더 요약(클로드: …160자)'으로 저장되고 target 이 본문 @멘션으로 덮였다.
+ *  이제 바깥 값을 payload 로 옮긴다(payload 안에 있으면 그게 우선).
+ */
+function qqEnvelopeOf_(body) {
+  const b = isObj(body) ? body : {};
+  let p = b.payload;
+  //  · 예전 창구는 payload 를 JSON 문자열이나 **글 자체**로도 보냈다 — 둘 다 받아 준다.
+  if (typeof p === 'string') {
+    const raw = p.trim();
+    if (!raw) p = {};
+    else { try { p = JSON.parse(raw); } catch (err) { p = { prompt: raw }; } }
+    if (!isObj(p)) p = { prompt: raw };
+  }
+  p = isObj(p) ? Object.assign({}, p) : {};
+  ['prompt', 'mode', 'engine', 'kind', 'target', 'reply_to', 'replied_by', 'risk'].forEach(function (k) {
+    const v = b[k];
+    if (v === undefined || v === null || v === '') return;
+    if (p[k] === undefined || p[k] === null || p[k] === '') p[k] = v;   // payload 안 값이 우선
+  });
+  // 본문 없이 summary 만 보낸 창구도 있다 — 오더 내용이 비어 거절되느니 그걸 쓴다.
+  if (!p.prompt && b.summary) p.prompt = String(b.summary);
+  return p;
+}
+/** AI 가 쓴 4항목 보고서 모양인가(`1. 프로젝트:` … ) — 답장 주인을 가릴 때 쓴다. */
+const QQ_AI_REPORT_RE = /(?:^|\n)[ \t]*(?:1[.)][ \t]*)?프로젝트[ \t]*[:：]|(?:^|\n)[ \t]*(?:2[.)][ \t]*)?완료[ \t]*작업[ \t]*[:：]/;
+/**
+ * 누가 낸 오더인가(source) — 비서가 source 를 빼먹어 '내 말(portal)'이 되는 일을 막는다(2026-11-26).
+ *  ① 답장에 replied_by(비서 id)가 있으면 **무조건** 그 비서 — source:'portal' 이 명시돼 있어도.
+ *  ② source/client_id/payload.source 를 명시했으면 그대로(포털 UI 는 항상 source:'portal').
+ *  ③ source 가 없고 reply_to 가 있으면 원글의 target 이 비서일 때 그 비서의 답장으로 본다
+ *     (AI 보고 모양의 글이거나, 원글이 비서 앞으로 온 것이면).
+ *  ④ 그래도 모르면 portal(사용자).
+ */
+function qqSourceFor_(body, ctx) {
+  const b = isObj(body) ? body : {};
+  const rb = String(b.replied_by || (isObj(b.payload) && b.payload.replied_by) || '').trim().toLowerCase();
+  if (qqIsAiId_(rb)) return rb;
+  const explicit = String(b.source || b.client_id || (isObj(b.payload) && b.payload.source) || '').trim();
+  if (explicit) return qqSourceOf_(explicit);
+  const replyTo = String(b.reply_to || (isObj(b.payload) && b.payload.reply_to) || '').trim();
+  if (replyTo && ctx) {
+    let row = null;
+    try { row = qqFindRow_(ctx, replyTo); } catch (err) { row = null; }
+    const t = row ? qqRowTarget_(row) : '';
+    if (qqIsAiId_(t)) {
+      const rep = String(b.summary || (isObj(b.payload) && b.payload.prompt) || '');
+      if (!rep.trim() || QQ_AI_REPORT_RE.test(rep)) return t;
+    }
+  }
+  return 'portal';
+}
+
 function queueEnqueue(body) {
   const type = String((body && body.type) || '').trim();
   const spec = QQ_TYPES[type];
@@ -2202,7 +2376,8 @@ function queueEnqueue(body) {
   if (spec.needsWorkspace && !workspace) throw qqErr_('workspace', '작업 위치를 골라주세요.');
   if (workspace) qqCheckWorkspace_(workspace);
   else workspace = '';
-  const payload = qqWithWorkerNote_(type, qqPayloadOf_(type, body && body.payload));
+  const envelope = qqEnvelopeOf_(body);
+  const payload = qqWithWorkerNote_(type, qqPayloadOf_(type, envelope));
   if (payload.length > QQ_MAX_PAYLOAD) throw qqErr_('too_long', '오더 내용이 너무 길어요.');
 
   const risk = (type === 'content_render' || (type === 'claude_prompt' && qqModeOf_(payload) === 'edit')) ? 'HIGH' : 'LOW';
@@ -2230,7 +2405,7 @@ function queueEnqueue(body) {
       // source = 누가 낸 오더인가(portal·pi1·pi2·vooy·cue …). 모르는 모양이면 portal.
       // 2026-11-26 — 어떤 비서는 최상위 source 대신 payload.source 에만 발신자를 넣는다(그러면 남의 말이
       //  '내 말(portal)'로 찍혀 오른쪽 파란 말풍선이 됐다). 세 자리를 이 순서로 본다: source → client_id → payload.source.
-      id: qqMakeId_(nowMs), created_at: qqIso_(nowMs), source: qqSourceOf_(body && (body.source || body.client_id || (body.payload && body.payload.source))), type: type, workspace: workspace,
+      id: qqMakeId_(nowMs), created_at: qqIso_(nowMs), source: qqSourceFor_(body, ctx), type: type, workspace: workspace,
       payload: payload, status: delivered ? 'DONE' : (needsApproval ? 'WAITING_APPROVAL' : 'PENDING'), attempts: 0,
       claimed_at: '', claimed_by: '', finished_at: delivered ? qqIso_(nowMs) : '', duration_ms: delivered ? 0 : '', exit_code: '', result: '', error: '', detail: '',
       risk_level: risk, approval_expires_at: needsApproval ? qqIso_(nowMs + QQ_APPROVAL_TTL_MS) : '',

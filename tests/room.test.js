@@ -144,7 +144,7 @@ function coreTests() {
     'roomSignalOf', 'roomSignalsFrom', 'roomSignalMin', 'roomSignalLive', 'roomStateOf', 'roomUseView', 'roomUseSummary',
     'ROOM_LIVE_ST', 'ROOM_LIVE_CLS', 'ROOM_LIVE_RANK', 'ROOM_ACT_TXT', 'ROOM_ACT_WAIT_MIN',
     'roomLiveOwner', 'roomLiveItems', 'roomLiveSince', 'roomLiveWhat', 'roomDur', 'roomAgentAct', 'roomActCounts',
-    'ROOM_MARKS', 'roomMarkInfo', 'roomMark'];
+    'ROOM_MARKS', 'roomMarkInfo', 'roomMark', 'roomMentionHtml', 'roomCollabHit'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -170,6 +170,16 @@ function coreTests() {
   ok(C.roomTargetFromText('@노트북 이거 봐') === 'notebook', '@노트북 → notebook');
   ok(C.roomTargetFromText('@cue 한 줄만') === 'cue', '@cue(영문 id) → cue');
   ok(C.roomTargetFromText('멘션 없이 그냥 말') === '', '멘션 없으면 빈 값(기본 @노트북)');
+
+  console.log('G-1) 협업 필요 줄 — @ 없이 적은 이름도 칩 (2026-11-26)');
+  const cm = C.roomMentionHtml('4. 협업 필요: 노트북(빌드), 키투(예약)');
+  ok(/w-nb[^>]*>노트북<\/b>/.test(cm), '협업 줄의 노트북이 칩이 된다');
+  ok(/w-key[^>]*>키투<\/b>/.test(cm), '협업 줄의 키투도 칩이 된다(계열 색)');
+  ok(C.roomMentionHtml('4. 협업 필요: 없음').indexOf('<b') < 0, "'없음' 은 칩 없음");
+  ok(C.roomMentionHtml('4. 협업 필요: 큐레이션').indexOf('<b') < 0, "'큐레이션' 의 '큐' 는 칩이 아니다");
+  ok(C.roomMentionHtml('4. 협업 필요: 피투에게').indexOf('w-pi2') >= 0, '조사(에게)가 붙어도 칩');
+  ok(C.roomMentionHtml('협업 필요 없이 진행').indexOf('<b') < 0, '콜론이 없으면 협업 줄이 아니다');
+  ok(C.roomCollabHit('큐레이션', 0, 1) === false && C.roomCollabHit('노트북(빌드)', 0, 3) === true, '앞뒤 경계 판정');
 
   console.log('G2) 여러 이름 — 어느 쪽으로 적어도 그 비서 (2026-11-26)');
   const route = [['@큐투', 'cue2'], ['@큐2', 'cue2'], ['@cue2', 'cue2'],

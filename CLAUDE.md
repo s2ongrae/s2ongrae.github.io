@@ -162,6 +162,14 @@
 - **긴 말도 자르지 않는다(2026-11-26, v38)**: 대화(`kind='chat'`)는 예전 `qqSummary_` 가 160자에서, `qqItem_.result`·`queue_done` 이 500자에서
   문장 중간을 끊었다. 이제 **대화 본문·답장은 자르지 않고**(`QQ_CELL_MAX` 50,000자 — 구글 시트 셀 한도만 방어선) **줄바꿈도 보존**한다.
   `qqMask_` 는 `max` 를 주지 않으면 셀 한도만 적용한다. 웹훅 본문은 기존 `{id,target,mentions,summary,created_at}` 에 **`prompt`(원문 전체)** 를 더한다(기존 키 그대로 — 호환).
+- **'협업 필요' 줄의 이름도 자동 멘션(2026-11-26, 사용자 지시)** — 4항목 보고서의 `4. 협업 필요: 노트북(구현), pi2(PR 머지)` 처럼 **@ 없이** 적은 비서 이름도 `mentions` 에 들어간다.
+  `qqCollabMentions_` 가 **협업 줄 안에서만**(줄 머리부터 빈 줄·다음 번호 항목 전까지, 줄바꿈 목록 포함) 이름을 알아보고, `qqMentionIds_` 가 본문 @멘션과 합쳐 **최대 9개**로 준다(자기 자신 `source` 제외 · `협업 필요: 없음` 무시 · 중복 하나로).
+  이름 앞뒤 경계를 보므로 `큐레이션` 의 `큐` 나 `pi2x` 는 멘션이 아니고, 한글 조사(`노트북이`·`피투에게`)는 붙어도 된다. 명부(`포털_비서목록.json`)에 새로 붙은 비서 이름도 그대로 알아본다.
+  `queue_list.mentions`·웹훅 본문 `mentions`·웹훅 발사 조건이 모두 같은 목록을 쓴다 — 협업 줄 이름만으로도 그 비서가 깨어난다. 화면은 `ordMentionHtml`(포털)·`roomMentionHtml`(회의실)이 그 줄의 이름을 `mt-*` 칩으로 그린다. `queue_list.mention_auto:true` = 이 배포가 그 규칙을 안다는 표시.
+- **봉투(bare) 필드 승계 · 발신자 보정 · 요약 자르기 제거(2026-11-26)** — 비서가 `{type, kind:'chat', target:'portal', summary, payload:{prompt}}` 처럼 **payload 바깥**에 적어 보내도 `kind`·`target`·`mode`·`engine`·`reply_to`·`replied_by` 를 payload 로 옮긴다(`qqEnvelopeOf_`, payload 안 값이 우선).
+  예전엔 바깥 `kind` 가 조용히 사라져 대화가 **`클로드: …` 160자 오더 요약**으로 저장되고 `target` 이 본문 @멘션으로 덮였다(2026-11-26 실측 `Q-20261126-133851-0rgv`). `qqSummary_` 의 `클로드: ` 접두사·160자 컷은 없앴다 — 자르는 기준은 시트 셀 한도(`QQ_CELL_MAX`) 하나다.
+  `source` 를 빼먹은 답장은 `qqSourceFor_` 가 ①`replied_by`(비서 id) ②명시한 `source`(포털 UI 는 늘 `portal`) ③`reply_to` 원글의 `target`(비서일 때) 순으로 채운다 — 비서 답장이 노란 '내 말(portal)' 말풍선이 되지 않는다.
+  같은 규칙이 `hub-agent` 의 `gas/CommandQueue.gs`(`cqEnvelopeOf_`·`cqSourceOf_`·`cqCollabMentions_`)·`notebook-agent/lib/approval.js` 에도 있다 — **양쪽 재배포가 있어야 완전**하다.
 - **대화는 @노트북을 직접 부를 때만 노트북이 읽는다(2026-11-26)**: 토큰을 아끼기 위해 `kind='chat'` 은 `target==='notebook'` 일 때만 노트북 워커가 집는다.
   `target='all'`·빈 대상·본문 멘션만 있는 대화는 노트북 몫이 아니다(다른 비서가 웹훅·자기 창구로 읽는다). 실행 오더(`git_pull`·`toss_sync`·`content_render`·일반 `claude_prompt`)는 예전대로 빈 대상·notebook·all 이면 노트북이 집는다.
   같은 규칙이 `hub-agent` 의 `lib/targets.js`(`forNotebook`)·`gas/CommandQueue.gs`(`cqForNotebook_`)에 있다. 회의실 **기본 대상은 `all`**(저장 키 `portal_ord_target_v2`) — 노트북을 부르려면 `@노트북` 칩을 직접 고른다.
@@ -186,7 +194,7 @@
   · 테스트: `portal_integration` **AB)절**(정렬·담당·6상태·줄 내용·정체·이스케이프·빈 판·배지·칩 필터) · `room` **N-1)절**(같은 규칙 + `#live` 계약).
 - **죽은 CSS 정리(2026-11-26)**: 카톡 타임라인으로 바뀌며 쓰이지 않게 된 옛 오더 카드 스타일(`.ord-compose`·`.ord-item`/`.st-*`·`.ord-ic`·`.ord-main`·`.ord-line`·`.ord-type`·`.ord-text`)을 지웠다.
   `.mt-*`·`.w-*` 는 클래스 이름을 코드가 조합해 만들므로(`mt-${cls}`) 지금도 살아 있다.
-- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · **17)절(GET 읽기·claim/done·mentions·reply_to·duty)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)** · **X)절(닉네임·이모지 머리·부계정 자동 이름·담당 표시)** · **10)절(외부 비서 웹훅 — 발사 조건·무한루프·본문 규격·실패 격리)**.
+- 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · **17)절(GET 읽기·claim/done·mentions·reply_to·duty)** · **18)절(협업 필요 자동 멘션·source 보정·봉투 필드 승계·긴 글 자르기 없음)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)** · **X)절(닉네임·이모지 머리·부계정 자동 이름·담당 표시)** · **10)절(외부 비서 웹훅 — 발사 조건·무한루프·본문 규격·실패 격리)**.
 
 ## 🤖 노트북 오더함 (2026-11-15)
 

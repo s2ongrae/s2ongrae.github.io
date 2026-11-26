@@ -1106,6 +1106,14 @@ console.log('W) 👥 큐·부이·키링 기본 탑재 · 서버 명부 공유 �
   ok(/class="mt mt-cue"/.test(D14.run("ordMentionHtml('@큐 리서치 대기 중')")), '본문의 @큐 도 큐 색 멘션 칩');
   ok(/class="mt mt-key"/.test(D14.run("ordMentionHtml('@키링 예약 확인')")), '본문의 @키링 도 키링 색 멘션 칩');
 
+  // ②-1 '협업 필요' 줄에 @ 없이 적은 이름도 칩으로 보인다(2026-11-26)
+  const collabHtml = D14.run("ordMentionHtml('1. 프로젝트: 포털\\n4. 협업 필요: 노트북(구현), 피투(PR 머지)')");
+  ok(/mt-nb[^>]*>노트북<\/span>/.test(collabHtml), '협업 줄의 노트북(괄호 앞)이 칩으로 보인다');
+  ok(/mt-pi2[^>]*>피투<\/span>/.test(collabHtml), '협업 줄의 피투도 칩으로 보인다');
+  ok(D14.run("ordMentionHtml('4. 협업 필요: 없음')").indexOf('<span') < 0, "'협업 필요: 없음' 은 칩을 만들지 않는다");
+  ok(D14.run("ordMentionHtml('4. 협업 필요: 큐레이션 담당')").indexOf('<span') < 0, "'큐레이션' 의 '큐' 는 칩이 아니다");
+  ok(D14.run("ordMentionHtml('협업 필요 없이 진행')").indexOf('<span') < 0, '협업이라는 낱말만으로는 칩을 만들지 않는다(콜론 필요)');
+
   // ③ 본문에 적은 @이름으로 대상이 정해진다(칩을 안 눌러도)
   ok(D14.run("ordTargetFromText('@큐 이거 봐줘')") === 'cue', '@큐 → cue');
   ok(D14.run("ordTargetFromText('@키링 3시 예약')") === 'keyring', '@키링 → keyring');

@@ -2537,30 +2537,78 @@ function ordTargetTip(t){
   return who + (duty ? '\n담당: ' + duty : '');
 }
 /** 본문 속 @피원 · @피투 · @큐 · @노트북 · @전체 → 하이라이트 칩 (이미 esc() 한 글자열에만 적용) */
+/** 보고서 '협업 필요' 줄 — @ 없이 적은 이름도 칩으로 보이게(2026-11-26, 서버 규칙과 같다) */
+const ORD_COLLAB_HEAD_RE = /^[ \t]*(?:[-*•·][ \t]*)?(?:\d{1,2}[.)][ \t]*)?협업[ \t]*필요[ \t]*[:：][ \t]*/;
+const ORD_COLLAB_STOP_RE = /^[ \t]*(?:\d{1,2}[.)][ \t]*\S|#{1,6}[ \t]*\S)/;
+const ORD_COLLAB_NONE_RE = /^(?:[-–—·]|없음|없슴|없어|없어요|없다|없습니다|해당\s*없음|none|n\/a|n\.a\.?)$/i;
+const ORD_JOSA = ['에서','에게','한테','으로','부터','까지','처럼','보다','만큼','조차','마저','님','이','가','은','는','을','를','의','에','께','도','만','과','와','랑','로'];
+function ordCollabHit(s, i, len){
+  if(i > 0 && /[가-힣A-Za-z0-9_@-]/.test(s.charAt(i - 1))) return false;
+  const j = i + len;
+  if(j >= s.length) return true;
+  const c = s.charAt(j);
+  if(/[A-Za-z0-9_-]/.test(c)) return false;
+  if(!/[가-힣]/.test(c)) return true;
+  for(let k = 0; k < ORD_JOSA.length; k++){
+    const jo = ORD_JOSA[k];
+    if(s.substr(j, jo.length) !== jo) continue;
+    const n = j + jo.length;
+    if(n >= s.length) return true;
+    if(!/[가-힣A-Za-z0-9_-]/.test(s.charAt(n))) return true;
+  }
+  return false;
+}
 function ordMentionHtml(s){
   const txt = String(s == null ? '' : s);
   const map = agentMentionMap();
   const labels = Object.keys(map).sort((a, b) => b.length - a.length);
   if(!labels.length) return txt;
-  let out = '', i = 0;
-  while(i < txt.length){
-    const hit = labels.filter(l => txt.substr(i, l.length) === l).sort((a, b) => b.length - a.length)[0];
-    if(hit){
-      const next = txt.charAt(i + hit.length);
-      // 이름 뒤에 글자가 붙으면(예: @피원님) 멘션이 아니다 — 다만 한글 조사는 붙는 게 자연스러워 허용
-      if(!/[A-Za-z0-9_-]/.test(next)){
-        const id = map[hit];
-        const a = agentById(id) || agentSecondaryById(id);
-        const cls = id === 'all' ? 'all' : (a ? (a.color || 'new') : 'nb');
-        out += `<span class="mt mt-${cls}">${hit}</span>`;
-        i += hit.length;
-        continue;
+  // @을 뗀 이름 표 — '협업 필요' 줄에서만 쓴다(본문 아무 데나 이름을 칩으로 만들면 글이 시끄럽다)
+  const bare = {};
+  const bareLabels = [];
+  labels.forEach(l => { if(l.charAt(0) !== '@') return; const nm = l.slice(1); if(!nm || map[l] === 'all') return; bare[nm] = map[l]; bareLabels.push(nm); });
+  bareLabels.sort((a, b) => b.length - a.length);
+  const chip = (hit, id) => {
+    const a = agentById(id) || agentSecondaryById(id);
+    const cls = id === 'all' ? 'all' : (a ? (a.color || 'new') : 'nb');
+    return `<span class="mt mt-${cls}" title="협업 줄에서 알아본 이름 — @ 없이 적어도 이 비서에게 전달돼요">${hit}</span>`;
+  };
+  const lines = txt.split('\n');
+  let collab = false;
+  return lines.map(line => {
+    const head = ORD_COLLAB_HEAD_RE.exec(line);
+    if(head) collab = true;
+    else if(!line.trim()) collab = false;
+    else if(collab && ORD_COLLAB_STOP_RE.test(line)) collab = false;
+    const skipBare = !collab || (head && ORD_COLLAB_NONE_RE.test(line.slice(head[0].length).trim()));
+    let out = '', i = 0;
+    while(i < line.length){
+      const at = line.charAt(i) === '@' ? labels.filter(l => line.substr(i, l.length) === l).sort((a, b) => b.length - a.length)[0] : '';
+      if(at){
+        const next = line.charAt(i + at.length);
+        // 이름 뒤에 글자가 붙으면(예: @피원님) 멘션이 아니다 — 다만 한글 조사는 붙는 게 자연스러워 허용
+        if(!/[A-Za-z0-9_-]/.test(next)){
+          const id = map[at];
+          const a = agentById(id) || agentSecondaryById(id);
+          const cls = id === 'all' ? 'all' : (a ? (a.color || 'new') : 'nb');
+          out += `<span class="mt mt-${cls}">${at}</span>`;
+          i += at.length;
+          continue;
+        }
       }
+      if(!skipBare && bareLabels.length){
+        const b = bareLabels.filter(l => line.substr(i, l.length) === l)[0];
+        if(b && ordCollabHit(line, i, b.length)){
+          out += chip(b, bare[b]);
+          i += b.length;
+          continue;
+        }
+      }
+      out += line.charAt(i);
+      i++;
     }
-    out += txt.charAt(i);
-    i++;
-  }
-  return out;
+    return out;
+  }).join('\n');
 }
 /** 큐가 붙인 [워커 규칙] 문구 — 화면에 보이지 않게 뗀다(2026-11-25). 이미 저장된 옛 메시지에도 같이 먹는다. */
 const ORD_NOTE_RE = /\s*\[워커 규칙\][\s\S]*$/;

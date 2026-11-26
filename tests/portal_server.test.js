@@ -466,9 +466,10 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   const listText = JSON.stringify(q);
   ok(listText.indexOf('010-1234-5678') < 0 && listText.indexOf('900101-1234567') < 0 && listText.indexOf('[REDACTED]') >= 0, '목록에는 주민·전화번호가 [REDACTED]');
   ok(listText.indexOf('"payload"') < 0, '목록에 payload 원문이 없고 한 줄 요약만 나간다');
-  ok(q.items[0].summary.indexOf('클로드: ') === 0 && q.items[0].summary.length < 200, '요약은 짧게 줄인다');
+  // 2026-11-26 — '클로드: ' 접두사·160자 컷을 없앴다(대화가 잘려 저장되던 원인). 요약은 본문 그대로.
+  ok(q.items[0].summary.indexOf('클로드: ') !== 0 && q.items[0].summary.indexOf('[REDACTED]') >= 0, '요약에 클로드: 접두사를 붙이지 않는다(가림은 그대로)');
   const longSummary = q.items.filter(i => i.id === longOk.item.id)[0];
-  ok(longSummary && longSummary.summary.length <= 201, '긴 오더 요약도 길이를 자른다');
+  ok(longSummary && longSummary.summary.length === 2000 && !/…$/.test(longSummary.summary), '긴 오더 요약도 자르지 않는다(2,000자 그대로)');
   ok(q.pending >= 2 && q.waiting >= 1, '건수(PENDING·승인 대기)를 같이 준다');
 
   // ⑧ 승인 → PENDING + Audit_Log
@@ -1235,6 +1236,91 @@ console.log('17) 🔓 GET 읽기 · queue_claim/done · mentions·reply_to · �
   ok(plain.item.status === 'PENDING', '보통 오더는 그대로 PENDING');
 }
 
+console.log('18) 🤝 협업 필요 줄 자동 멘션 · 발신자 source 보정 · 봉투 필드 승계 (2026-11-26)');
+{
+  const KP = S.props.SECRET_KEY;
+  const SHEETP = 'SHEETidCollab1801';
+  const HEADP = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  S.addSheet(SHEETP, { 'Command_Queue': [HEADP.slice(0)] });
+  S.props.QUEUE_SHEET_ID = SHEETP;
+  const prows = () => S.books[SHEETP]['Command_Queue'];
+  const prow = id => prows().filter(x => x[0] === id)[0] || [];
+  const enqP = (extra) => post(Object.assign({ action: 'queue_enqueue', key: KP, type: 'claude_prompt', workspace: 'gaegyebu' }, extra));
+  const chatP = (prompt, extra) => Object.assign({ payload: { prompt: prompt, mode: 'ask', kind: 'chat', target: 'portal' } }, extra || {});
+  const payloadOf = id => JSON.parse(prow(id)[5] || '{}');
+
+  // ① '4. 협업 필요:' 줄에 @ 없이 적은 이름도 mentions 에 들어간다
+  let c1 = enqP(Object.assign({ source: 'keyring' }, chatP('조사 마쳤습니다.\n\n4. 협업 필요: 노트북(구현), pi2(PR 머지)')));
+  ok(c1.ok === true, '협업 줄이 든 보고도 접수된다');
+  ok((c1.item.mentions || []).indexOf('notebook') >= 0 && (c1.item.mentions || []).indexOf('pi2') >= 0, "'협업 필요: 노트북(구현), pi2(PR 머지)' → mentions 에 notebook·pi2");
+  // ② 자기 자신(source)은 멘션에서 빠진다
+  const c2 = enqP(Object.assign({ source: 'pi2' }, chatP('4. 협업 필요: 피투 확인, 노트북 빌드')));
+  ok((c2.item.mentions || []).indexOf('notebook') >= 0 && (c2.item.mentions || []).indexOf('pi2') < 0, 'source=pi2 면 자기(pi2)는 멘션에서 뺀다');
+  // ③ '없음' 은 무반응
+  const c3 = enqP(Object.assign({ source: 'keyring' }, chatP('1. 프로젝트: 포털\n2. 완료 작업: 정리\n3. 앞으로 할 작업: 없음\n4. 협업 필요: 없음')));
+  ok((c3.item.mentions || []).length === 0, "'협업 필요: 없음' 은 멘션이 없다");
+  // ④ 확정 호칭(키투)·조사(에게)도 같은 비서로
+  const c4 = enqP(Object.assign({ source: 'vooy' }, chatP('4) 협업 필요: 키투에게 넘김')));
+  ok((c4.item.mentions || []).indexOf('keyring2') >= 0, "'4) 협업 필요: 키투에게' → keyring2");
+  // ⑤ 낱말 속 글자는 이름으로 오해하지 않는다
+  const c5 = enqP(Object.assign({ source: 'pi2' }, chatP('4. 협업 필요: 큐레이션 담당 확인')));
+  ok((c5.item.mentions || []).length === 0, "'큐레이션' 의 '큐' 를 멘션으로 오해하지 않는다");
+  // ⑥ 줄바꿈 목록은 같은 협업 줄 — 다음 번호 항목은 다른 줄
+  const c6 = enqP(Object.assign({ source: 'pi1' }, chatP('4. 협업 필요:\n   - 노트북(웹앱 모달)\n   - 부이(체크리스트)\n5. 다음: 피투가 확인')));
+  ok((c6.item.mentions || []).indexOf('notebook') >= 0 && (c6.item.mentions || []).indexOf('vooy') >= 0, '줄바꿈 목록의 이름도 읽는다(노트북·부이)');
+  ok((c6.item.mentions || []).indexOf('pi2') < 0, '다음 번호 항목(5.)의 이름은 이 협업 줄이 아니다');
+  // ⑦ @멘션 규칙은 그대로(중복 없이 하나로)
+  const c7 = enqP(Object.assign({ source: 'portal' }, chatP('@노트북 봐줘\n4. 협업 필요: 노트북, 큐')));
+  ok((c7.item.mentions || []).filter(x => x === 'notebook').length === 1 && (c7.item.mentions || []).indexOf('cue') >= 0, '@멘션과 협업 줄이 겹쳐도 하나로 합친다');
+
+  // ⑧ source 를 빼먹은 답장 — replied_by 가 있으면 그 비서의 말
+  const b1 = enqP(Object.assign({}, chatP('예약 완료했습니다.', { replied_by: 'keyring2' })));
+  ok(b1.ok === true && b1.item.source === 'keyring2', 'source 생략 + replied_by:keyring2 → source=keyring2');
+  ok(prow(b1.item.id)[2] === 'keyring2', '시트 source 칸에도 keyring2 가 남는다(portal 아님)');
+  // ⑨ source:'portal' 이 명시돼 있어도 replied_by(비서)면 그 비서
+  const b2 = enqP(Object.assign({ source: 'portal' }, chatP('확인했습니다.', { replied_by: 'keyring2' })));
+  ok(b2.item.source === 'keyring2', 'replied_by 가 있으면 명시적 source:portal 보다 우선');
+  // ⑩ source 생략 + reply_to — 원글이 비서 앞이고 AI 보고 모양이면 원글 target
+  const orig = enqP(Object.assign({ source: 'pi1' }, { payload: { prompt: '@피투 이거 PR 로 올려줘', mode: 'ask', kind: 'chat', target: 'pi2' } }));
+  const b3 = enqP(Object.assign({}, chatP('1. 프로젝트: 포털\n2. 완료 작업: PR 올림\n3. 앞으로 할 작업: 머지', { reply_to: orig.item.id })));
+  ok(b3.item.source === 'pi2', 'source 생략 + reply_to(원글 target=pi2) + AI 보고 모양 → source=pi2');
+  // ⑪ 원글이 포털(사람) 앞이면 source 는 portal 그대로
+  const origP = enqP(Object.assign({ source: 'cue' }, chatP('들었어요')));
+  const b4 = enqP(Object.assign({}, chatP('1. 프로젝트: 포털 확인', { reply_to: origP.item.id })));
+  ok(b4.item.source === 'portal', '원글 target=portal 이면 source 는 portal(사람)로 남는다');
+  // ⑫ 포털 UI 처럼 source:'portal' 을 명시하면 reply_to 추측을 하지 않는다
+  const b5 = enqP(Object.assign({ source: 'portal' }, chatP('1. 프로젝트: 사용자가 보낸 글', { reply_to: orig.item.id })));
+  ok(b5.item.source === 'portal', '명시된 source:portal 은 그대로 존중한다');
+
+  // ⑬ 봉투(바깥)에 적은 kind·target 도 payload 로 승계 — 대화가 '오더 요약'으로 저장되지 않는다
+  const TOP = '레이 님, 3건 보고합니다.\n\n1. 프로젝트: 포털\n2. 완료 작업: ' + '가'.repeat(300) + '\n3. 앞으로 할 작업: 점검\n4. 협업 필요: 없음';
+  const e1 = enqP({ source: 'pi1', kind: 'chat', target: 'portal', summary: TOP, payload: { prompt: TOP } });
+  ok(e1.ok === true && e1.item.kind === 'chat', '바깥 kind:"chat" 이 payload 로 승계된다');
+  ok(e1.item.target === 'portal', '바깥 target:"portal" 이 본문 @멘션에 덮이지 않는다');
+  const p1 = payloadOf(e1.item.id);
+  ok(p1.prompt === TOP, '시트 payload.prompt 에 원문이 그대로 있다(줄바꿈 포함)');
+  ok(p1.kind === 'chat', '시트 payload 에도 kind 가 남는다');
+  ok(e1.item.summary === TOP.replace(/\r\n?/g, '\n'), '300자 넘는 대화도 자르지 않고 그대로 돌려준다');
+  // ⑭ 오더(대화 아님)도 160자에서 자르지 않는다 — '클로드: ' 접두사도 없다
+  const longOrder = '오더 내용 ' + '나'.repeat(400);
+  const e2 = enqP({ source: 'portal', payload: { prompt: longOrder, mode: 'ask' } });
+  ok(e2.item.summary === longOrder && e2.item.summary.indexOf('클로드: ') !== 0, '긴 오더 요약도 접두사·160자 컷 없이 본문 그대로');
+  // ⑮ payload 없이 바깥 prompt/kind/target 만 적어도 접수된다
+  const e3 = enqP({ source: 'pi1', kind: 'chat', target: 'portal', prompt: '바깥에만 적은 글' });
+  ok(e3.ok === true && e3.item.kind === 'chat' && e3.item.target === 'portal', '바깥 prompt 만으로도 대화가 접수된다');
+  // ⑯ payload 가 JSON 문자열이어도 같은 규칙
+  const e4 = enqP({ source: 'pi1', kind: 'chat', target: 'portal', payload: JSON.stringify({ prompt: '문자열 payload 대화' }) });
+  ok(e4.ok === true && e4.item.kind === 'chat' && e4.item.target === 'portal' && payloadOf(e4.item.id).prompt === '문자열 payload 대화', 'payload 가 JSON 문자열이어도 kind·target 이 붙고 글이 그대로 남는다');
+  // ⑰ 예전처럼 payload 가 글 자체인 창구도 그대로
+  const e5 = enqP({ source: 'portal', payload: '글 자체로 보낸 오더' });
+  ok(e5.ok === true && e5.item.summary === '글 자체로 보낸 오더', 'payload 가 글 자체여도 그 글이 오더 내용이 된다');
+  // ⑱ 이 배포 표시
+  const mark = post({ action: 'queue_list', key: KP, limit: 1 });
+  ok(mark.source_fallback === true && mark.mention_auto === true, 'queue_list 가 source_fallback·mention_auto 표식을 준다(배포 확인용)');
+}
+
 console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');
 {
   const K4 = S.props.SECRET_KEY;
@@ -1288,6 +1374,18 @@ console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한�
   S.fetchCalls.length = 0;
   post(enq({payload:{prompt:'@큐투 확인 부탁', mode:'ask'}, source:'pi1'}));
   ok(S.fetchCalls.length === 1 && S.fetchCalls[0].url === CUE2, '본문 @큐투 만으로도 큐투를 깨운다');
+
+  // ④-2 '협업 필요' 줄에 @ 없이 적은 이름도 그 비서를 깨운다(2026-11-26)
+  S.fetchCalls.length = 0;
+  const collab = post(enq(Object.assign(chat('portal', '조사 마쳤습니다.\n\n1. 프로젝트: 포털\n4. 협업 필요: 큐투(팩트체크), 노트북(빌드)'), { source: 'pi1' })));
+  ok(collab.ok === true, '협업 줄이 든 보고 접수');
+  const hit = S.fetchCalls.filter(c => c.url === CUE2);
+  ok(hit.length === 1, '@ 없는 협업 줄 이름(큐투)으로 큐투 웹훅이 깨어난다');
+  const cb = hit[0] ? JSON.parse(hit[0].opts.payload) : {};
+  ok((cb.mentions || []).indexOf('cue2') >= 0 && (cb.mentions || []).indexOf('notebook') >= 0, '웹훅 mentions 에도 협업 줄 id 가 들어 있다');
+  S.fetchCalls.length = 0;
+  post(enq(Object.assign(chat('portal', '4. 협업 필요: 큐투 확인'), { source: 'cue2' })));
+  ok(S.fetchCalls.length === 0, '협업 줄에 적힌 자기 자신(source)은 깨우지 않는다');
 
   // ⑤ 상관없는 오더·포털 앞 대화는 아무도 깨우지 않는다
   S.fetchCalls.length = 0;
