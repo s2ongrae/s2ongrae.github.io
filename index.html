@@ -361,11 +361,12 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .mk{display:inline-flex;align-items:center;justify-content:center;position:relative;flex:0 0 auto;
   width:22px;height:22px;border-radius:8px;background:var(--mk);color:#fff;border:1px solid var(--mk-d);
   box-shadow:0 1px 2px rgba(16,24,40,.16);vertical-align:-.3em;line-height:0}
-.mk svg{width:66%;height:66%;display:block;overflow:visible}
+.mk svg{width:72%;height:72%;display:block;overflow:visible}
 .mk svg *{vector-effect:non-scaling-stroke}
 .mk.v2{background:var(--mk-t);color:var(--mk-s);border:2px solid var(--mk);box-shadow:none}
-.mk.mini{width:15px;height:15px;border-radius:5px;border-width:1px}
+.mk.mini{width:17px;height:17px;border-radius:6px;border-width:1px}
 .mk.mini.v2{border-width:2px}
+.mk.mini svg{width:80%;height:80%}
 .mk-b{position:absolute;right:-4px;bottom:-4px;min-width:11px;height:11px;padding:0 2px;border-radius:999px;
   background:var(--mk-d);color:#fff;font-size:8px;font-weight:900;line-height:11px;text-align:center;
   border:1.5px solid #fff;font-family:inherit;letter-spacing:0;box-shadow:0 1px 2px rgba(16,24,40,.2)}
@@ -1971,7 +1972,7 @@ const MARK_SEED = {
 const MARK_BASE = {pi: 'pi', cue: 'cue', vooy: 'vooy', buy: 'vooy', key: 'key', keyring: 'key', nb: 'nb', notebook: 'nb', portal: 'me'};
 const MARK_GLYPH = {
   // 피클 — 내 캐릭터 자음 ㄹ
-  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5.8H18V10H8.4V14H18V18.4H6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 5.6H18.8V11.4H6.9V17.2H18.8" fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   // 큐(Manus) — 손바닥과 세 손가락(마누스의 손 마크 감각)
   cue: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
     '<rect x="7.4" y="10.2" width="9.4" height="9" rx="3.4"/>' +
@@ -1981,16 +1982,16 @@ const MARK_GLYPH = {
     '<rect x="4.6" y="11.8" width="2.4" height="5.4" rx="1.2" transform="rotate(-20 5.8 14.5)"/>' +
     '</g></svg>',
   // 부이(Vooy) — V 모노그램 + 위 점
-  vooy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 8.2 12 17.6l5.6-9.4" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="5.2" r="1.7" fill="currentColor"/></svg>',
+  vooy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.2 8 12 17.8l5.8-9.8" fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="5.2" r="1.7" fill="currentColor"/></svg>',
   // 키링(Keyring) — 열쇠
   key: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' +
-    '<circle cx="8.2" cy="8.8" r="3.7" stroke-width="2.5"/>' +
-    '<path d="M10.9 11.5 19.2 19.8M16.1 16.7l2.1-2.1M18.4 19l2-2" stroke-width="2.4"/>' +
+    '<circle cx="8.2" cy="8.8" r="3.9" stroke-width="2.9"/>' +
+    '<path d="M10.9 11.6 19.4 20.1M16.2 16.9l2.2-2.2M18.6 19.3l2-2" stroke-width="2.7"/>' +
     '</g></svg>',
   // 집 노트북 — 모니터(노트북)
   nb: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4.6" y="5.8" width="14.8" height="9.4" rx="1.8" stroke-width="2.3"/>' +
-    '<path d="M2.8 18.6h18.4" stroke-width="2.3"/></g></svg>',
+    '<rect x="4.4" y="5.4" width="15.2" height="9.8" rx="1.9" stroke-width="2.6"/>' +
+    '<path d="M2.6 18.8h18.8" stroke-width="2.6"/></g></svg>',
   // 나(포털·폰) — 점
   me: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.8" fill="currentColor"/></svg>',
   // @전체 — 사람 셋

@@ -69,7 +69,7 @@ const ROOM_MARKS = {
 };
 const ROOM_MARK_BASE = {pi: 'pi', cue: 'cue', vooy: 'vooy', buy: 'vooy', key: 'key', keyring: 'key', nb: 'nb', notebook: 'nb', portal: 'me'};
 const ROOM_GLYPH = {
-  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5.8H18V10H8.4V14H18V18.4H6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  pi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.2 5.6H18.8V11.4H6.9V17.2H18.8" fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   cue: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
     '<rect x="7.4" y="10.2" width="9.4" height="9" rx="3.4"/>' +
     '<rect x="8.2" y="5.8" width="2.4" height="6.6" rx="1.2"/>' +
@@ -77,14 +77,14 @@ const ROOM_GLYPH = {
     '<rect x="13.6" y="6.2" width="2.4" height="6.2" rx="1.2"/>' +
     '<rect x="4.6" y="11.8" width="2.4" height="5.4" rx="1.2" transform="rotate(-20 5.8 14.5)"/>' +
     '</g></svg>',
-  vooy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 8.2 12 17.6l5.6-9.4" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="5.2" r="1.7" fill="currentColor"/></svg>',
+  vooy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.2 8 12 17.8l5.8-9.8" fill="none" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="5.2" r="1.7" fill="currentColor"/></svg>',
   key: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' +
-    '<circle cx="8.2" cy="8.8" r="3.7" stroke-width="2.5"/>' +
-    '<path d="M10.9 11.5 19.2 19.8M16.1 16.7l2.1-2.1M18.4 19l2-2" stroke-width="2.4"/>' +
+    '<circle cx="8.2" cy="8.8" r="3.9" stroke-width="2.9"/>' +
+    '<path d="M10.9 11.6 19.4 20.1M16.2 16.9l2.2-2.2M18.6 19.3l2-2" stroke-width="2.7"/>' +
     '</g></svg>',
   nb: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' +
-    '<rect x="4.6" y="5.8" width="14.8" height="9.4" rx="1.8" stroke-width="2.3"/>' +
-    '<path d="M2.8 18.6h18.4" stroke-width="2.3"/></g></svg>',
+    '<rect x="4.4" y="5.4" width="15.2" height="9.8" rx="1.9" stroke-width="2.6"/>' +
+    '<path d="M2.6 18.8h18.8" stroke-width="2.6"/></g></svg>',
   me: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.8" fill="currentColor"/></svg>',
   all: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor">' +
     '<circle cx="12" cy="8.6" r="2.6"/><circle cx="6.2" cy="13.4" r="2"/><circle cx="17.8" cy="13.4" r="2"/>' +
