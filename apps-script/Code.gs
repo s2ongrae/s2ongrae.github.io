@@ -829,7 +829,7 @@ const AG_MAX = 24;
 const AG_NAME_MAX = 16;
 const AG_DUTY_MAX = 60;
 const AG_RESERVED = ['all', 'portal', 'phone', 'telegram', 'notebook', 'pi1', 'pi2', 'cue', 'vooy', 'keyring'];
-// 기본 참여자와 담당 한 줄(2026-11-25 v28, 성래 님 지시) — API(agents_get·usage_get·queue_list)로도 보인다.
+// 기본 참여자와 담당 한 줄(2026-11-25 v28, 레이 님 지시) — API(agents_get·usage_get·queue_list)로도 보인다.
 //  화면(AGENT_SEED.duty)과 같은 글이다. 바뀌면 양쪽을 같이 고친다.
 const AG_BUILTINS = [
   { id: 'pi1', name: '피원', icon: '🍋', group: '일일', duty: '총괄 조율·스케줄·블로그/콘텐츠/보험툴/포털 지휘' },
@@ -2226,7 +2226,9 @@ function queueEnqueue(body) {
     }
     const row = {
       // source = 누가 낸 오더인가(portal·pi1·pi2·vooy·cue …). 모르는 모양이면 portal.
-      id: qqMakeId_(nowMs), created_at: qqIso_(nowMs), source: qqSourceOf_(body && (body.source || body.client_id)), type: type, workspace: workspace,
+      // 2026-11-26 — 어떤 비서는 최상위 source 대신 payload.source 에만 발신자를 넣는다(그러면 남의 말이
+      //  '내 말(portal)'로 찍혀 오른쪽 파란 말풍선이 됐다). 세 자리를 이 순서로 본다: source → client_id → payload.source.
+      id: qqMakeId_(nowMs), created_at: qqIso_(nowMs), source: qqSourceOf_(body && (body.source || body.client_id || (body.payload && body.payload.source))), type: type, workspace: workspace,
       payload: payload, status: delivered ? 'DONE' : (needsApproval ? 'WAITING_APPROVAL' : 'PENDING'), attempts: 0,
       claimed_at: '', claimed_by: '', finished_at: delivered ? qqIso_(nowMs) : '', duration_ms: delivered ? 0 : '', exit_code: '', result: '', error: '', detail: '',
       risk_level: risk, approval_expires_at: needsApproval ? qqIso_(nowMs + QQ_APPROVAL_TTL_MS) : '',

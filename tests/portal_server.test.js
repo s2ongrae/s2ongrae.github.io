@@ -841,6 +841,16 @@ console.log('14) 💬 회의실 — 발신(source)·대상(target)·대화(kind)
   r = post({action: 'queue_enqueue', key: K9, type: 'git_pull', workspace: 'gaegyebu', payload: {}});
   ok(col(last(), 'source') === 'portal', 'source 가 없으면 portal');
 
+  // ①' 발신자를 최상위가 아니라 payload 안에만 넣는 비서도 있다(2026-11-26) — 그때 남의 말이 '내 말(portal)'로 찍혔다
+  r = post({action: 'queue_enqueue', key: K9, type: 'claude_prompt', workspace: 'gaegyebu',
+    payload: {prompt: '@피원 확인', mode: 'ask', kind: 'chat', target: 'pi1', source: 'cue'}});
+  ok(col(last(), 'source') === 'cue', 'payload.source 만 있어도 발신자(cue)로 남는다');
+  r = post({action: 'queue_enqueue', key: K9, type: 'claude_prompt', workspace: 'gaegyebu',
+    payload: {prompt: '안녕', mode: 'ask', kind: 'chat', source: 'BAD SPACE!'}});
+  ok(col(last(), 'source') === 'portal', 'payload.source 가 규칙에 안 맞으면 portal');
+  r = post({action: 'queue_enqueue', key: K9, type: 'git_pull', workspace: 'gaegyebu', source: 'pi1', payload: {source: 'cue'}});
+  ok(col(last(), 'source') === 'pi1', '최상위 source 가 있으면 그것이 먼저(payload.source 는 fallback)');
+
   // ② 대화(kind=chat) + 대상(target) — 같은 claude_prompt 큐에 실린다
   r = post({action: 'queue_enqueue', key: K9, type: 'claude_prompt', workspace: 'gaegyebu', source: 'pi1',
     payload: {prompt: '@피투 이번 주 블로그 소재 뽑아줘', mode: 'ask', kind: 'chat', target: 'pi2'}});

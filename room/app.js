@@ -44,7 +44,7 @@ const ROOM_STATUS = {
   TIMEOUT_REVIEW:    {t: '확인 필요',  c: 'bad'}
 };
 const ROOM_ANSWERED = {RUNNING: 1, DONE: 1, FAILED: 1, REVIEW_NEEDED: 1, TIMEOUT_REVIEW: 1};
-const ROOM_ME = {id: 'portal', name: '성래 님', icon: '🌐', color: 'me', duty: '나 (포털)'};
+const ROOM_ME = {id: 'portal', name: '레이 님', icon: '🌐', color: 'me', duty: '나 (포털)'};
 
 function roomPad(n){ return String(n).padStart(2, '0'); }
 function roomNum(v){ return (typeof v === 'number' && isFinite(v)) ? v : null; }
@@ -102,7 +102,7 @@ function roomSenderKey(it){
   if(s && s !== 'portal' && roomAgentById(s)) return roomAgentById(s).id;
   return 'portal';
 }
-/** 나(성래 님)가 보낸 말인가 — 포털·폰·텔레그램은 오른쪽 */
+/** 나(레이 님)가 보낸 말인가 — 포털·폰·텔레그램은 오른쪽 */
 function roomIsMine(it){ const k = roomSenderKey(it); return k === 'portal' || k === 'phone' || k === 'telegram'; }
 function roomIsChat(it){ return String((it && it.kind) || '').toLowerCase() === 'chat'; }
 /** 대상 — all · 비서 id · portal */
@@ -116,7 +116,7 @@ function roomTargetKey(it){
 }
 function roomTargetLabel(k){
   if(k === 'all') return {id: 'all', label: '@전체', name: '전체 비서', icon: '👥'};
-  if(k === 'portal') return {id: 'portal', label: '@성래', name: '성래 님', icon: '🌐'};
+  if(k === 'portal') return {id: 'portal', label: '@레이', name: '레이 님', icon: '🌐'};
   const a = roomAgentById(k) || roomAgentById('notebook');
   return {id: a.id, label: '@' + a.name, name: a.name, icon: a.icon};
 }
@@ -613,7 +613,7 @@ function roomOnlineCount(items, hb, now){
     const body = roomMsgText(it) || (mine ? '' : String((it && (it.result || it.error)) || '').trim()) || '(내용 없음)';
     const plain = roomIsPlainReply(it);
     const meta = [
-      '<span class="nm">' + esc(who.icon + ' ' + (mine ? '성래 님' : who.name)) + '</span>',
+      '<span class="nm">' + esc(who.icon + ' ' + (mine ? '레이 님' : who.name)) + '</span>',
       (mine && tg.id === 'portal') ? '' : '<span class="to">→ ' + esc(tg.label) + '</span>',
       plain ? '' : '<span class="chip ' + st.c + '">' + esc(st.t) + '</span>',
       it.auto_approved ? '<span class="chip">자동(위임)</span>' : '',

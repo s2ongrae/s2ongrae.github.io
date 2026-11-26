@@ -70,7 +70,7 @@
   `＋ 비서 추가`/🗑. 값은 이 기기 `localStorage.portal_use_v1` 이 기본이고, 서버가 알면 `usage_set`/`usage_report` 로 Drive
   `김성래포털/포털_비서사용량.json` 에도 남긴다(at 이 더 최근인 값이 이김). **사람이 안 넣어도 비서가 자기 줄을 보고한다**(v27 — 아래). **토큰 0원.**
 - **타임라인**: 오더 하나가 말풍선 두 개다 — 오른쪽(`chat-row out`) = 보낸 말, 왼쪽(`chat-row in`) = 비서의 진행·승인·답장·결과.
-  **비서가 낸 말은 오른쪽이 아니라 왼쪽에 그린다(2026-11-25 v28)** — `chatOut(it, !ordIsMine(it))` 로 `chat-row in`·`chat-bubble side-in`, 아바타는 그 비서 이모지. 오른쪽 파란 말풍선은 `source`가 portal·phone·telegram(성래 님)일 때만.
+  **비서가 낸 말은 오른쪽이 아니라 왼쪽에 그린다(2026-11-25 v28)** — `chatOut(it, !ordIsMine(it))` 로 `chat-row in`·`chat-bubble side-in`, 아바타는 그 비서 이모지. 오른쪽 파란 말풍선은 `source`가 portal·phone·telegram(레이 님)일 때만.
   `ordVisible()` 필터(상태: 전체/진행/승인/끝남 · 발신: 전체/피원/피투/포털)를 거쳐 **오래된 것 위 → 새 것 아래**로 그린다.
   **왼쪽 말풍선 머리(2026-11-25 v28)**: 그 말을 낸 비서의 **닉네임·전용 이모지**를 그린다 — 🍋 피원 · 🤖 피투 · 🌀 큐 · 🫛 부이 · 🔑 키링 · 🖥️ 노트북(`ordSenderLabel`, 아바타도 같은 이모지).
   예전처럼 모든 왼쪽 말풍선이 '🏠 집 노트북'으로 보이지 않는다(`ordSenderKey` 가 발신 id 를 명부에서 찾는다).

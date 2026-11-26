@@ -23,6 +23,9 @@ console.log('A) room/ 파일 구성');
 {
   ['index.html', 'app.js', 'app.css', 'manifest.webmanifest', 'sw.js', 'icons/icon-192.png', 'icons/icon-512.png']
     .forEach(f => ok(fs.existsSync(path.join(ROOM, f)), f + ' 가 있음'));
+  // 2026-11-26 사용자 지시 — 자기 호칭은 '레이 님'. 화면 소스에 옛 호칭이 다시 들어오면 여기서 잡는다.
+  ok(!/성래/.test(js) && !/성래/.test(html) && !/성래/.test(css),
+    'room/ 화면에 옛 호칭(성래)이 남아 있지 않다 — 자기 표시는 레이 님');
 }
 
 console.log('B) manifest.webmanifest — 홈 화면에서 단독 앱으로 열림');
@@ -178,12 +181,13 @@ function coreTests() {
   ok(C.roomTargetKey({target: 'all'}) === 'all', '대상 all');
   ok(C.roomTargetKey({target: 'cue2'}) === 'cue2', '대상 cue2');
   ok(C.roomTargetKey({}) === 'notebook', '대상 없음 → notebook(예전 배포)');
-  ok(C.roomTargetLabel('portal').label === '@성래', '나를 가리키면 @성래');
+  ok(C.roomTargetLabel('portal').label === '@레이', '나를 가리키면 @레이');
+  ok(C.roomTargetLabel('portal').name === '레이 님', '내 이름 표시는 레이 님');
   ok(C.roomTargetLabel('all').label === '@전체', '@전체 라벨');
   ok(C.roomTargetLabel('keyring2').label === '@키투', '부계정 라벨 @키투');
   ok(C.roomReplyKey({status: 'DONE', source: 'portal', replied_by: 'cue2'}) === 'cue2', '답장은 실제 답한 비서(cue2)');
   ok(C.roomReplyWhoKey({status: 'PENDING', target: 'cue', source: 'portal'}) === 'cue', '대기 중이면 받을 비서(cue) 앞에서 기다림');
-  ok(C.roomReplyWhoKey({status: 'DONE', source: 'portal', target: 'notebook'}) === 'notebook', '답한 사람 기록이 없으면 나(성래 님)가 아니라 시킨 상대가 답한 것으로');
+  ok(C.roomReplyWhoKey({status: 'DONE', source: 'portal', target: 'notebook'}) === 'notebook', '답한 사람 기록이 없으면 나(레이 님)가 아니라 시킨 상대가 답한 것으로');
   ok(C.roomReplyWhoKey({status: 'DONE', source: 'portal', target: 'all'}) === 'notebook', '@전체 오더는 노트북이 답함');
   ok(C.roomReplyWhoKey({status: 'PENDING', target: 'all', source: 'portal'}) === 'portal', '@전체 대기는 말한 사람 앞');
   ok(C.roomNeedsWorker({kind: 'chat', target: 'cue', source: 'portal'}) === true, '내가 @큐 앞에 남긴 말은 처리자가 있음');
