@@ -4,7 +4,7 @@
    · 화면·코드는 **네트워크 먼저(no-store)** — 캐시가 예전 화면을 붙잡지 않게(포털 방침과 같음)
    · Apps Script(다른 주소) 요청은 건드리지 않습니다
    ═══════════════════════════════════════════════════════════ */
-const ROOM_VER = 'room-v2';
+const ROOM_VER = 'room-v3';
 const ROOM_SHELL = [
   './', './index.html', './app.css', './app.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png'

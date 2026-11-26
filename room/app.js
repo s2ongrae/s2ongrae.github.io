@@ -497,6 +497,101 @@ function roomOnlineCount(items, hb, now){
   if(h && roomNum(h.min) !== null && h.min < 10 && h.state && h.state !== 'unknown') n++;
   return n;
 }
+
+/* ─────────────────────────────────────────────────────────
+   🔴 지금 작업 중 · 누가 일하는지 (2026-11-26)
+   · "작업중인 리스트" = 처리할 사람이 있는 오더(대기·실행·승인·검토).
+     순수 답장은 일이 아니므로 뺀다(포털 ordLiveList 와 같은 규칙).
+   · “누가 일하나” = ① 그 일을 잡고 있나 → ② 한도 0 인가 → ③ 최근 30분 신호/활동
+     → ④ 하루 안 신호(쉬는 중) → ⑤ 하루 넘음(응답 없음) → ⑥ 신호 없음(미확인)
+   · 숫자·상태를 지어내지 않는다. 근거가 없으면 '미확인'으로 남긴다.
+   ───────────────────────────────────────────────────────── */
+const ROOM_LIVE_ST = {RUNNING: '실행 중', WAITING_APPROVAL: '승인 대기', REVIEW_NEEDED: '검토 필요', PENDING: '차례 대기'};
+const ROOM_LIVE_CLS = {RUNNING: 'run', WAITING_APPROVAL: 'wait', REVIEW_NEEDED: 'wait', PENDING: 'pend'};
+const ROOM_LIVE_RANK = {RUNNING: 0, WAITING_APPROVAL: 1, REVIEW_NEEDED: 2, PENDING: 3};
+const ROOM_ACT_TXT = {work: '작업 중', limit: '한도 소진', wait: '대기', idle: '쉬는 중', out: '응답 없음', unknown: '미확인'};
+const ROOM_ACT_WAIT_MIN = 30;      // 30분 안에 신호·말이 있으면 곁에 있는 것(=대기)
+const ROOM_LIVE_MAX = 3;           // 판에 보이는 작업 줄은 3개까지 — 나머지는 타임라인에서
+
+/** 이 오더를 지금 누가 하고 있나 — 실행 중이면 잡은 사람(claimed_by), 아니면 받을 사람. @전체는 주인 없음 */
+function roomLiveOwner(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(!ROOM_LIVE_ST[st]) return '';
+  if(st === 'RUNNING' && it.claimed_by) return roomSenderKey({source: it.claimed_by});
+  const k = roomTargetKey(it);
+  if(k === 'all') return '';
+  if(!String((it && it.target) || '').trim()){          // 대상 칸이 빈 옛 줄 — 본문 @이름으로 한 번 더
+    const m = roomTargetFromText(roomMsgText(it));
+    if(m && m !== 'all') return m;
+  }
+  return k;
+}
+/** 지금 도는 일 — 실행 중 → 승인·검토 → 차례 대기 순, 같은 상태면 먼저 접수된 것부터 */
+function roomLiveItems(items){
+  const out = [];
+  (Array.isArray(items) ? items : []).forEach(it => {
+    const st = String((it && it.status) || '').toUpperCase();
+    if(!it || !ROOM_LIVE_ST[st] || roomIsPlainReply(it)) return;
+    out.push({it: it, state: st, owner: roomLiveOwner(it)});
+  });
+  out.sort((a, b) => (ROOM_LIVE_RANK[a.state] - ROOM_LIVE_RANK[b.state]) ||
+    (String(a.it.created_at || '') < String(b.it.created_at || '') ? -1 : 1));
+  return out;
+}
+/** 실행은 시작 시각부터, 대기는 접수 시각부터 잰다 */
+function roomLiveSince(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(st === 'RUNNING'){
+    const t = Date.parse(String((it && (it.started_at || it.claimed_at)) || ''));
+    if(isFinite(t)) return t;
+  }
+  const c = Date.parse(String((it && it.created_at) || ''));
+  return isFinite(c) ? c : 0;
+}
+/** 카드에 쓸 한 줄 — 워커 규칙 문구·'클로드:' 머리말을 뗄 본문(포털과 같은 규칙) */
+function roomLiveWhat(it){
+  const s = String(roomMsgText(it) || '').replace(/\s+/g, ' ').trim();
+  return s.length > 70 ? s.slice(0, 70) + '…' : s;
+}
+/** 경과를 짧게 — 12초 · 3분 · 1시간 5분 */
+function roomDur(ms){
+  const n = roomNum(ms);
+  if(n === null || n < 0) return '';
+  const s = Math.max(0, Math.round(n / 1000));
+  if(s < 60) return s + '초';
+  const m = Math.floor(s / 60);
+  if(m < 60) return m + '분';
+  const h = Math.floor(m / 60);
+  return h + '시간' + (m % 60 ? ' ' + (m % 60) + '분' : '');
+}
+/** 비서 한 명의 지금 — 작업 중 → 한도 소진 → 대기 → 쉬는 중 → 응답 없음/미확인 */
+function roomAgentAct(id, items, sigs, usage, hb, now){
+  const k = String(id || '');
+  const t = roomNum(now) === null ? Date.now() : now;
+  if(!k) return {state: 'unknown', n: 0, min: null};
+  const live = roomLiveItems(items).filter(x => x.owner === k);
+  if(live.length) return {state: 'work', n: live.length, min: null};
+  let min = roomSignalMin(sigs && sigs[k], t);
+  const act = roomLastActivity(items, t)[k];
+  if(act !== undefined && (min === null || act < min)) min = act;
+  if(k === 'notebook'){                            // 노트북은 하트비트가 살아 있는 신호
+    const h = hb && hb.heartbeat;
+    const hm = (h && h.state && h.state !== 'unknown') ? roomNum(h.min) : null;
+    if(hm !== null && (min === null || hm < min)) min = hm;
+  }
+  const x = usage && usage[k];
+  if(roomUseFresh(k, x, t) && roomNum(x.pct) !== null && Number(x.pct) <= 0) return {state: 'limit', n: 0, min: min};
+  if(min === null) return {state: 'unknown', n: 0, min: null};
+  if(min <= ROOM_ACT_WAIT_MIN) return {state: 'wait', n: 0, min: min};
+  if(min <= ROOM_USE_ALIVE_MIN) return {state: 'idle', n: 0, min: min};
+  return {state: 'out', n: 0, min: min};
+}
+/** 작업 중/한도/대기/쉬는 중/응답 없음/미확인 몇 명인가 */
+function roomActCounts(ids, items, sigs, usage, hb, now){
+  const c = {work: 0, limit: 0, wait: 0, idle: 0, out: 0, unknown: 0};
+  (Array.isArray(ids) ? ids : []).forEach(id => { c[roomAgentAct(id, items, sigs, usage, hb, now).state]++; });
+  return c;
+}
 // </ROOM_CORE>
 
 /* ─────────────────────────────────────────────────────────
@@ -552,6 +647,7 @@ function roomOnlineCount(items, hb, now){
   /* ── 머리말 ── */
   function renderHead(){
     const sub = $('hd-s'), ppl = $('ppl'), pt = $('ppl-t');
+    renderLive();                                    // 🔴 지금 작업 중도 같이 산다(설정 전엔 스스로 숨김)
     const online = roomOnlineCount(S.items, S.hb, Date.now());
     pt.textContent = '👥 ' + ROOM_AGENTS.length + '명' + (online ? ' · 🟢 ' + online : '');
     ppl.dataset.on = online ? '1' : '0';
@@ -620,7 +716,8 @@ function roomOnlineCount(items, hb, now){
       '<span class="tm">' + esc(roomWhen(it.created_at)) + '</span>'
     ].join('');
     const av = mine ? '' : '<div class="av" aria-hidden="true">' + esc(who.icon || '🤖') + '</div>';
-    return '<div class="msg ' + (mine ? 'me' : 'them') + '">' + av +
+    const aid = String((it && it.id) || '');
+    return '<div class="msg ' + (mine ? 'me' : 'them') + '"' + (aid ? ' id="m-' + esc(aid) + '"' : '') + '>' + av +
       '<div class="bwrap ' + agentCls(key) + '"><div class="meta">' + meta + '</div>' +
       '<div class="bub"><div class="txt">' + roomMd(body) + '</div></div></div></div>';
   }
@@ -663,7 +760,8 @@ function roomOnlineCount(items, hb, now){
     const badge = (st !== 'RUNNING' && st !== 'PENDING') &&
       ''.concat('<span class="chip rep">답장</span><span class="chip ' + s.c + '">' + esc(s.t) + '</span>');
     const av = '<div class="av" aria-hidden="true">' + esc((who && who.icon) || '🖥️') + '</div>';
-    return '<div class="msg them">' + av +
+    const aid = String((it && it.id) || '');
+    return '<div class="msg them"' + (aid ? ' id="r-' + esc(aid) + '"' : '') + '>' + av +
       '<div class="bwrap ' + agentCls(key) + '">' +
       '<div class="meta"><span class="nm">' + esc((who && who.icon) + ' ' + ((who && who.name) || '노트북')) + '</span>' +
       (badge || '') + '<span class="tm">' + esc(roomWhen(bot)) + '</span></div>' +
@@ -702,6 +800,78 @@ function roomOnlineCount(items, hb, now){
     box.querySelectorAll('button[data-act="settings"]').forEach(b => { b.onclick = openSheet; });
     box.querySelectorAll('button[data-fill]').forEach(b => {
       b.onclick = () => { const i = $('inp'); i.value = b.dataset.fill || ''; i.focus(); onInput(); };
+    });
+  }
+
+  /* ── 🔴 지금 작업 중 — 누가 무슨 일을 하는지(작업 리스트 · 가동 상태) ── */
+  function liveWho(id){
+    const k = String(id || '');
+    if(!k) return {icon: '👥', name: '전체 (먼저 잡는 비서)'};
+    const a = roomAgentById(k);
+    return a ? {icon: a.icon || '🤖', name: a.name} : {icon: '🤖', name: k};
+  }
+  function liveWork(x){
+    const who = liveWho(x.owner);
+    const since = roomLiveSince(x.it);
+    const dur = since ? '<span class="li-el" data-since="' + since + '">' + esc(roomDur(Date.now() - since)) + '</span>' : '';
+    let tail = dur;
+    if(x.state === 'RUNNING') tail += '째';
+    else if(x.state === 'PENDING') tail += ' 기다리는 중';
+    else if(x.state === 'WAITING_APPROVAL') tail += ' · 포털에서 승인';
+    const id = String((x.it && x.it.id) || '');
+    return '<button type="button" class="live-w ' + (ROOM_LIVE_CLS[x.state] || '') + '" data-go="' + esc(id) + '"' +
+      ' title="' + esc(roomMsgText(x.it)) + '">' +
+      '<span class="lw-who">' + esc(who.icon + ' ' + who.name) + '</span>' +
+      '<span class="lw-what">' + esc(roomLiveWhat(x.it)) + '</span>' +
+      '<span class="lw-tail"><span class="lw-chip ' + (ROOM_LIVE_CLS[x.state] || '') + '">' + esc(ROOM_LIVE_ST[x.state]) + '</span>' +
+        '<span class="lw-el">' + tail + '</span></span></button>';
+  }
+  function liveAg(a, act){
+    const when = act.state === 'work' ? '실행 ' + act.n + '건'
+      : (act.min === null ? (act.state === 'unknown' ? '신호 없음' : '기록 없음') : roomAgo(act.min));
+    return '<span class="live-a ' + act.state + '" title="' + esc(a.name + ' — ' + ROOM_ACT_TXT[act.state] + ' · ' + when) + '">' +
+      '<span class="la-n">' + esc(a.icon + ' ' + a.name) + '</span>' +
+      '<span class="la-s">' + esc(ROOM_ACT_TXT[act.state]) + '</span>' +
+      (act.state === 'work' ? '' : '<span class="la-w">' + esc(when) + '</span>') + '</span>';
+  }
+  function renderLive(){
+    const box = $('live');
+    if(!box) return;
+    if(!configured()){ box.innerHTML = ''; box.hidden = true; return; }
+    const now = Date.now();
+    const live = roomLiveItems(S.items);
+    const ids = ROOM_AGENTS.map(a => a.id);
+    const c = roomActCounts(ids, S.items, S.sigs, S.usage, S.hb, now);
+    const sum = ['work', 'wait', 'idle', 'limit', 'out', 'unknown'].filter(k => c[k])
+      .map(k => '<span class="k ' + k + '"><b>' + c[k] + '</b>명 ' + esc(ROOM_ACT_TXT[k]) + '</span>').join('');
+    box.hidden = false;
+    box.className = 'live' + (live.length ? '' : ' quiet');
+    const known = c.work + c.limit + c.wait + c.idle + c.out;   // 신호가 없으면 칩 줄은 접는다
+    box.innerHTML =
+      '<div class="live-h"><span class="live-t"><i class="ldot' + (live.length ? ' on' : '') + '"></i>지금 작업 중 <b>' + live.length + '</b></span>' +
+        '<span class="live-s">' + (sum || '아직 가동 신호가 없어요') + '</span></div>' +
+      (live.length ? '<div class="live-ws">' + live.slice(0, ROOM_LIVE_MAX).map(liveWork).join('') +
+        (live.length > ROOM_LIVE_MAX ? '<div class="live-more">+ ' + (live.length - ROOM_LIVE_MAX) + '건 더 — 타임라인에서</div>' : '') + '</div>'
+        : '<div class="live-none">지금 도는 일은 없어요 — 말을 걸면 여기에 담당·경과가 떠요</div>') +
+      (known ? '<div class="live-as">' + ROOM_AGENTS.map(a => liveAg(a, roomAgentAct(a.id, S.items, S.sigs, S.usage, S.hb, now))).join('') + '</div>' : '');
+  }
+  /** 일 칩을 누르면 그 말로 이동 — 없으면(@전체 대기 등) 아무 일도 안 함 */
+  function jumpToMsg(id){
+    const rid = String(id || '');
+    if(!rid) return;
+    const el = $('m-' + rid) || $('r-' + rid);
+    if(!el || !el.scrollIntoView) return;
+    try { el.scrollIntoView({behavior: 'smooth', block: 'center'}); } catch(e) {}
+    if(el.classList){ el.classList.add('flash'); setTimeout(() => { try { el.classList.remove('flash'); } catch(e) {} }, 1500); }
+  }
+  /** 1초마다 경과 글자만 고친다(목록은 다시 안 그린다) */
+  function tickLive(){
+    const box = $('live');
+    if(!box || !box.querySelectorAll) return;
+    box.querySelectorAll('[data-since]').forEach(el => {
+      const since = Number(el.getAttribute('data-since'));
+      if(!since) return;
+      el.textContent = roomDur(Date.now() - since);
     });
   }
 
@@ -960,7 +1130,7 @@ function roomOnlineCount(items, hb, now){
         });
         S.usageAt = Date.now();
         lsSet('room_usage_cache', JSON.stringify({at: new Date().toISOString(), items: S.usage}));
-        renderDrawer();
+        renderDrawer(); renderLive();
       }
     } catch(e){ /* 사용량은 없어도 대화는 돼요 */ }
   }
@@ -1004,7 +1174,7 @@ function roomOnlineCount(items, hb, now){
     if(got){
       S.sigAt = Date.now();
       lsSet('room_sig_cache', JSON.stringify({at: new Date().toISOString(), items: S.sigs}));
-      renderDrawer();
+      renderDrawer(); renderLive();
     }
   }
   function loadLocalSignals(){
@@ -1043,6 +1213,14 @@ function roomOnlineCount(items, hb, now){
     $('d-settings').onclick = () => { drawerClose(); openSheet(); };
     $('strip-b').onclick = () => { if(!configured()) openSheet(); else load('full'); };
     $('send').onclick = send;
+    const liveBox = $('live');
+    if(liveBox && liveBox.addEventListener){
+      liveBox.addEventListener('click', e => {
+        const t = e && e.target;
+        const b = (t && t.closest) ? t.closest('[data-go]') : null;
+        if(b) jumpToMsg(b.getAttribute('data-go'));
+      });
+    }
     $('inp').addEventListener('input', onInput);
     $('inp').addEventListener('keydown', e => {
       if(e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
@@ -1070,6 +1248,7 @@ function roomOnlineCount(items, hb, now){
     window.addEventListener('focus', () => { if(Date.now() - S.lastFetch > 8000) load('quiet'); });
     window.addEventListener('online', () => { if(Date.now() - S.lastFetch > 3000) load('quiet'); });
     setInterval(() => { if(document.hidden) return; if(Date.now() - S.lastFetch < 12000) return; load('quiet'); }, POLL_MS);
+    setInterval(() => { if(document.hidden) return; tickLive(); }, 1000);   // 경과 글자만 1초마다
   }
 
   function init(){

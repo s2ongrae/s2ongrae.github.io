@@ -1567,5 +1567,102 @@ console.log('AA) 📊 사용량 자동 연동 — 리셋 경계 · 가동 신호
   ok(/비공개/.test(DAA.el('room-use-sum').innerHTML), '머리말 요약에도 비공개가 보인다');
 }
 
+console.log('AB) 🔴 지금 작업 중 — 작업중 리스트 · 누가 일하는지 (2026-11-26)');
+{
+  const SAB = mk();
+  const DAB = makeDevice(SAB);
+  DAB.config();
+  const now = Date.now();
+  const ago = m => new Date(now - m * 60000).toISOString();
+  DAB.run('AGENT_DATA = null; USE_DATA = {}; QSTAT_DATA = null; ORD_WHO = "all"');
+  DAB.run(`ORD_ITEMS = ${JSON.stringify([
+    {id: 'Q-ab1', type: 'claude_prompt', workspace: 'content-hub', status: 'PENDING', kind: 'ask', source: 'portal',
+     target: 'cue', created_at: ago(9), summary: '이번 주 대전 로컬 맛집 후보 3곳'},
+    {id: 'Q-ab2', type: 'claude_prompt', workspace: 'content-hub', status: 'RUNNING', kind: 'ask', source: 'portal',
+     target: 'notebook', claimed_by: 'notebook', created_at: ago(14), started_at: ago(13), beat_at: ago(0.2),
+     summary: '클로드: 콘텐츠 허브 4주차 카드 문구 [워커 규칙] 셸 규칙'},
+    {id: 'Q-ab3', type: 'toss_sync', workspace: '', status: 'DONE', kind: 'ask', source: 'portal',
+     created_at: ago(90), finished_at: ago(89), claimed_by: 'notebook', result: '동기화 완료'},
+    {id: 'Q-ab4', type: 'claude_prompt', workspace: 'insurance-manager', status: 'WAITING_APPROVAL', kind: 'ask',
+     source: 'portal', created_at: ago(3), expires_in_ms: 600000, summary: '보장분석 표 담보 이름 정리 (파일 수정)'},
+    {id: 'Q-ab5', type: 'claude_prompt', workspace: 'hub-agent', status: 'PENDING', kind: 'chat', source: 'portal',
+     target: 'all', created_at: ago(1), summary: '@전체 오늘 우선순위 정리'},
+    {id: 'Q-ab6', type: 'claude_prompt', workspace: 'hub-agent', status: 'PENDING', kind: 'chat', source: 'cue',
+     target: 'portal', created_at: ago(2), summary: '맛집 후보 정리해서 올렸어요'}
+  ])}`);
+
+  // ① 작업중인 리스트 — 실행 중 → 승인 → 차례 대기, 끝난 것·순수 답장은 제외
+  ok(DAB.get('ordLiveList().map(x=>x.st).join(",")') === 'RUNNING,WAITING_APPROVAL,PENDING,PENDING',
+    '실행 중 → 승인 대기 → 차례 대기 순으로 정렬');
+  ok(DAB.get('ordLiveList().map(x=>x.it.id).join(",")') === 'Q-ab2,Q-ab4,Q-ab1,Q-ab5',
+    '끝난 오더·순수 답장은 작업중 리스트에 없음');
+
+  // ② 담당 — 실행 중이면 잡은 비서, 대기는 받을 비서, @전체는 아직 주인 없음
+  ok(DAB.run("ordLiveOwner({status:'RUNNING', claimed_by:'notebook', target:'cue'})") === 'notebook', '실행 중이면 잡은 비서');
+  ok(DAB.run("ordLiveOwner({status:'PENDING', target:'cue'})") === 'cue', '대기는 받을 비서');
+  ok(DAB.run("ordLiveOwner({status:'PENDING'})") === 'notebook', '대상 없는 오더는 노트북 몫');
+  ok(DAB.run("ordLiveOwner({status:'PENDING', target:'all'})") === '', '@전체는 아직 주인 없음');
+  ok(DAB.run("ordLiveOwner({status:'DONE', target:'cue'})") === '', '끝난 오더는 주인 없음');
+  ok(DAB.run("ordLiveSince({status:'RUNNING', started_at:'" + ago(13) + "'})") > Date.now() - 14 * 60000, '실행 경과는 시작 시각부터');
+
+  // ③ 누가 일하나 — 작업 중 → 한도 소진 → 대기 → 쉬는 중 → 응답 없음/미확인
+  ok(DAB.run("ordAgentAct('notebook').st") === 'work', '노트북은 지금 작업 중');
+  ok(DAB.run("ordAgentAct('notebook').n") === 2, '노트북이 잡고 있는 일 2건(실행 + 승인 대기)');
+  ok(DAB.run("ordAgentAct('cue').st") === 'work', '큐도 내 앞 대기 오더를 받아 작업 중');
+  ok(DAB.run("ordAgentAct('vooy').st") === 'unknown', '신호도 기록도 없는 비서는 미확인(지어내지 않음)');
+  DAB.run(`AGENT_DATA = {pi2: {agent: {state: 'idle'}, updated_at: ${JSON.stringify(ago(5))}}}`);
+  ok(DAB.run("ordAgentAct('pi2').st") === 'wait', '5분 전 신호 = 대기');
+  DAB.run(`AGENT_DATA = {pi2: {agent: {state: 'idle'}, updated_at: ${JSON.stringify(ago(150))}}}`);
+  ok(DAB.run("ordAgentAct('pi2').st") === 'idle', '2시간 넘은 신호 = 쉬는 중');
+  DAB.run(`AGENT_DATA = {pi2: {agent: {state: 'working'}, updated_at: ${JSON.stringify(ago(30 * 60))}}}`);
+  ok(DAB.run("ordAgentAct('pi2').st") === 'out', '하루 넘은 신호 = 응답 없음');
+  DAB.run(`USE_DATA['keyring'] = {pct: 0, at: ${JSON.stringify(ago(20))}}`);
+  ok(DAB.run("ordAgentAct('keyring').st") === 'limit', '이번 주기 잔여 0% = 한도 소진');
+  DAB.run(`USE_DATA['cue'] = {pct: 0, at: ${JSON.stringify(ago(20))}}`);
+  ok(DAB.run("ordAgentAct('cue').st") === 'work', '한도 0 이어도 잡고 있는 일이 있으면 작업 중');
+  DAB.run("AGENT_DATA = null; USE_DATA = {}; QSTAT_DATA = {heartbeat: {state: 'ok', min: 2}}");
+  ok(DAB.run("ordAgentAct('notebook').st") === 'work', '노트북은 일이 먼저(하트비트보다)');
+
+  // ④ 화면 — 한눈에 보이는 작업 줄·가동 칩·경과
+  DAB.run('renderLive()');
+  const box = DAB.el('room-live').innerHTML;
+  ok(/지금 작업 중/.test(box) && /<b>4<\/b>/.test(box), '머리말에 작업중 건수');
+  ok(/rl-work run/.test(box) && /rl-work wait/.test(box) && /rl-work pend/.test(box), '실행·승인·대기 줄이 상태별로');
+  ok(/🖥️ 노트북/.test(box) && /🌀 큐/.test(box), '줄마다 담당 비서(이모지·이름)');
+  ok(/4주차 카드 문구/.test(box) && !/워커 규칙/.test(box), '요약은 보이되 [워커 규칙] 문구는 뗀다');
+  ok(/class="ord-elapsed" data-since="\d+"/.test(box), '경과 시간이 1초마다 갱신되는 자리');
+  ok(/rl-chip run/.test(box) && /실행 중/.test(box), '상태 알약(실행 중)');
+  ok(/data-k="who" data-v="cue"/.test(box) && /onclick="ordFilterSet\(this\)"/.test(box), '비서 칩을 누르면 그 비서 말만');
+  ok(/rl-ag work/.test(box) && /rl-ag unknown/.test(box), '비서별 가동 상태(작업 중·미확인)가 칩으로');
+  ok(/작업 중 <b>/.test(box) && /미확인 <b>/.test(box), '상태 요약(작업 중·미확인 몇 명)');
+  ok(/class="room-live"/.test(box) === false && /room-live/.test(DAB.run("document.getElementById('room-live').className")), '작업이 있으면 기본 모양');
+  ok(/＋ 1건 더/.test(box), '줄은 3개까지 — 나머지는 "＋N건 더"로 알린다');
+
+  // ⑤ 정체·이스케이프·빈 목록
+  DAB.run(`ORD_ITEMS = [{id: 'Q-st', type: 'claude_prompt', workspace: 'hub-agent', status: 'RUNNING', kind: 'ask',
+    source: 'portal', target: 'notebook', claimed_by: 'notebook', created_at: ${JSON.stringify(ago(120))},
+    started_at: ${JSON.stringify(ago(120))}, beat_at: ${JSON.stringify(ago(70))}, summary: '<img src=x onerror=alert(1)> 긴 작업'}]; renderLive()`);
+  const box2 = DAB.el('room-live').innerHTML;
+  ok(/정체 의심/.test(box2), '1시간 넘게 신호가 없으면 줄에 정체 의심');
+  ok(box2.indexOf('<img') < 0 && /&lt;img/.test(box2), '요약의 HTML 은 글자로만(esc)');
+  DAB.run('ORD_ITEMS = []; renderLive()');
+  const box3 = DAB.el('room-live').innerHTML;
+  ok(/지금 작업 중 <b>0<\/b>/.test(box3) && /지금 도는 일은 없어요/.test(box3), '일이 없으면 없다고 적는다');
+  ok(/no-work/.test(DAB.run("document.getElementById('room-live').className")), '빈 판은 다른 배경');
+
+  // ⑥ 머리말·필터·기존 계약
+  DAB.run(`ORD_ITEMS = [{id: 'Q-h1', status: 'RUNNING', kind: 'ask', source: 'portal', target: 'notebook', claimed_by: 'notebook', created_at: ${JSON.stringify(ago(3))}},
+    {id: 'Q-h2', status: 'WAITING_APPROVAL', kind: 'ask', source: 'portal', created_at: ${JSON.stringify(ago(2))}, expires_in_ms: 600000},
+    {id: 'Q-h3', status: 'PENDING', kind: 'ask', source: 'portal', target: 'cue', created_at: ${JSON.stringify(ago(1))}}];
+    renderOrderHead()`);
+  ok(/실행 1/.test(DAB.el('ord-count').textContent) && /승인 1/.test(DAB.el('ord-count').textContent) && /대기 1/.test(DAB.el('ord-count').textContent),
+    '머리말 배지에 실행·승인·대기 건수(실행과 대기를 따로)');
+  ok(/🔴 작업 \d/.test(DAB.el('room-people').textContent), '참여자 배지에도 작업 중 수');
+  DAB.run("ordFilterSet({dataset: {k: 'who', v: 'cue'}, className: 'rl-ag work'})");
+  ok(DAB.run('ORD_WHO') === 'cue', '비서 칩 → 발신 필터가 그 비서로');
+  DAB.run("ordFilterSet({dataset: {k: 'who', v: 'all'}, className: 'rl-ag work'})");
+  ok(/class="order-card room-card"/.test(html) && /<details class="room-use" id="room-use"/.test(html), '기존 회의실 계약 유지');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
