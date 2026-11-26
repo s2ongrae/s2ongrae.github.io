@@ -141,7 +141,9 @@ function coreTests() {
     'roomNeedsWorker', 'roomIsPlainReply', 'roomShowReply', 'roomMsgText', 'roomStatus', 'roomWhen', 'roomDay',
     'roomAgo', 'roomUseState', 'roomMd', 'roomLinks', 'roomWsPick', 'roomWsName', 'roomJosa', 'roomLastActivity', 'roomOnlineCount', 'esc',
     'ROOM_USE_TXT', 'ROOM_USE_ALIVE_MIN', 'roomResetOf', 'roomCycleStart', 'roomUseFresh', 'roomResetAt', 'roomResetText',
-    'roomSignalOf', 'roomSignalsFrom', 'roomSignalMin', 'roomSignalLive', 'roomStateOf', 'roomUseView', 'roomUseSummary'];
+    'roomSignalOf', 'roomSignalsFrom', 'roomSignalMin', 'roomSignalLive', 'roomStateOf', 'roomUseView', 'roomUseSummary',
+    'ROOM_LIVE_ST', 'ROOM_LIVE_CLS', 'ROOM_LIVE_RANK', 'ROOM_ACT_TXT', 'ROOM_ACT_WAIT_MIN',
+    'roomLiveOwner', 'roomLiveItems', 'roomLiveSince', 'roomLiveWhat', 'roomDur', 'roomAgentAct', 'roomActCounts'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -343,6 +345,71 @@ function coreTests() {
     ok(/\.pill\.na/.test(css) && /\.fill\.na/.test(css), '비공개 알약·막대 스타일이 있음');
     ok(/(새 보고 대기)/.test(js) && /(가동 중)/.test(js), '지난 값·가동 중 문구가 화면 코드에 있음');
     ok(/room_sig_cache/.test(js) && /status\/agent\.json/.test(js) && /status\/pi2\.json/.test(js), '가동 신호는 저장소 상태 파일에서도 읽음');
+  }
+
+  console.log('N-1) 🔴 지금 작업 중 — 작업중 리스트 · 누가 일하는지 (2026-11-26)');
+  {
+    const now = new Date(2026, 10, 26, 12, 0).getTime();          // 2026-11-26(목) 12:00
+    const at = (y, mo, d, h, mi) => new Date(y, mo, d, h, mi).toISOString();
+    const items = [
+      {id: 'L1', status: 'PENDING', kind: 'ask', source: 'portal', target: 'cue', created_at: at(2026, 10, 26, 11, 40)},
+      {id: 'L2', status: 'RUNNING', kind: 'ask', source: 'portal', target: 'notebook', claimed_by: 'notebook',
+        created_at: at(2026, 10, 26, 11, 30), started_at: at(2026, 10, 26, 11, 32)},
+      {id: 'L3', status: 'DONE', kind: 'ask', source: 'portal', target: 'notebook', created_at: at(2026, 10, 26, 10, 0)},
+      {id: 'L4', status: 'WAITING_APPROVAL', kind: 'ask', source: 'portal', created_at: at(2026, 10, 26, 11, 50),
+        expires_in_ms: 600000},
+      {id: 'L5', status: 'PENDING', kind: 'chat', source: 'portal', target: 'all', created_at: at(2026, 10, 26, 11, 55)},
+      {id: 'L6', status: 'PENDING', kind: 'chat', source: 'cue', target: 'portal', created_at: at(2026, 10, 26, 11, 58)}
+    ];
+    const live = C.roomLiveItems(items);
+    ok(live.map(x => x.state).join(',') === 'RUNNING,WAITING_APPROVAL,PENDING,PENDING',
+      '실행 중 → 승인 대기 → 차례 대기 순(같은 상태는 먼저 접수된 것부터)');
+    ok(live.map(x => x.it.id).join(',') === 'L2,L4,L1,L5', '끝난 오더(L3)·순수 답장(L6)은 작업중 리스트에 없음');
+    ok(C.roomLiveOwner({status: 'RUNNING', claimed_by: 'notebook', target: 'cue'}) === 'notebook', '실행 중이면 잡은 비서');
+    ok(C.roomLiveOwner({status: 'PENDING', target: 'cue'}) === 'cue', '대기는 받을 비서');
+    ok(C.roomLiveOwner({status: 'PENDING'}) === 'notebook', '대상 없는 오더는 노트북 몫');
+    ok(C.roomLiveOwner({status: 'PENDING', target: 'all'}) === '', '@전체는 아직 주인 없음');
+    ok(C.roomLiveOwner({status: 'DONE', target: 'cue'}) === '', '끝난 오더는 주인 없음');
+    ok(C.roomLiveSince({status: 'RUNNING', started_at: at(2026, 10, 26, 11, 32), created_at: at(2026, 10, 26, 11, 30)}) ===
+      new Date(2026, 10, 26, 11, 32).getTime(), '실행은 시작 시각부터');
+    ok(C.roomLiveSince({status: 'PENDING', created_at: at(2026, 10, 26, 11, 40)}) === new Date(2026, 10, 26, 11, 40).getTime(),
+      '대기는 접수 시각부터');
+    ok(C.roomDur(12000) === '12초' && C.roomDur(180000) === '3분' && C.roomDur(3900000) === '1시간 5분' && C.roomDur(-1) === '',
+      '경과 문구(초·분·시간)');
+    ok(C.roomLiveWhat({kind: 'chat', summary: '클로드: 큐 확인 [워커 규칙] 셸'}) === '큐 확인', '요약에서 머리말·워커 규칙을 뗌');
+    ok(C.roomLiveWhat({summary: 'x'.repeat(90)}).length === 71, '긴 줄은 70자 + …로 줄임');
+
+    // 누가 일하나 — 작업 중 → 한도 소진 → 대기 → 쉬는 중 → 응답 없음/미확인
+    ok(C.roomAgentAct('notebook', items, {}, {}, null, now).state === 'work', '노트북은 지금 실행 중');
+    ok(C.roomAgentAct('notebook', items, {}, {}, null, now).n === 2, '잡고 있는 일 2건(실행 + 승인 대기)');
+    ok(C.roomAgentAct('cue', items, {}, {}, null, now).state === 'work', '큐도 내 앞 PENDING 을 받아서 작업 중');
+    ok(C.roomAgentAct('vooy', items, {}, {}, null, now).state === 'unknown', '신호·기록 없는 비서는 미확인(지어내지 않음)');
+    ok(C.roomAgentAct('pi1', items, {pi1: {at: at(2026, 10, 26, 11, 55), state: 'idle'}}, {}, null, now).state === 'wait',
+      '5분 전 신호 = 대기');
+    ok(C.roomAgentAct('pi1', items, {pi1: {at: at(2026, 10, 26, 10, 0), state: 'idle'}}, {}, null, now).state === 'idle',
+      '2시간 전 신호 = 쉬는 중');
+    ok(C.roomAgentAct('pi1', items, {pi1: {at: at(2026, 10, 25, 6, 0), state: 'working'}}, {}, null, now).state === 'out',
+      '하루 넘은 신호 = 응답 없음');
+    ok(C.roomAgentAct('keyring', items, {}, {keyring: {pct: 0, at: at(2026, 10, 26, 11, 0)}}, null, now).state === 'limit',
+      '이번 주기 잔여 0% = 한도 소진');
+    ok(C.roomAgentAct('cue', items, {}, {cue: {pct: 0, at: at(2026, 10, 26, 11, 0)}}, null, now).state === 'work',
+      '한도 0 이어도 잡고 있는 일이 있으면 작업 중');
+    ok(C.roomAgentAct('notebook', [], {}, {}, {heartbeat: {state: 'ok', min: 2}}, now).state === 'wait', '노트북 하트비트 2분 = 대기');
+    ok(C.roomAgentAct('notebook', [], {}, {}, {heartbeat: {state: 'unknown', min: null}}, now).state === 'unknown',
+      '시트 시각만으로는 가동이라 말하지 않음(heartbeat unknown)');
+    const cnt = C.roomActCounts(['pi1', 'pi2', 'notebook', 'cue', 'vooy'], items,
+      {pi1: {at: at(2026, 10, 26, 11, 55)}}, {}, null, now);
+    ok(cnt.work === 2 && cnt.wait === 1 && cnt.unknown === 2, '작업 중·대기·미확인을 각각 센다');
+
+    // 화면·CSS 계약
+    ok(/id="live"/.test(html), 'index.html 에 #live 자리');
+    ok(/지금 작업 중/.test(js), '화면 문구 "지금 작업 중"');
+    ok(/function renderLive\(\)/.test(js) && (js.match(/renderLive\(\)/g) || []).length >= 3, 'renderLive 가 머리말·사용량·신호에서 다시 그려진다');
+    ok(/data-since/.test(js) && /function tickLive\(\)/.test(js), '경과는 1초마다 글자만 고침');
+    ok(/\.live\{/.test(css) && /\.lw-el/.test(css) && /\.live-a\.work/.test(css), '작업 판·경과·가동 칩 스타일');
+    ok(!/onclick=/.test(html), '인라인 onclick 없음(동작은 app.js 가 붙임)');
+    ok(/data-go=/.test(js) && /jumpToMsg/.test(js), '일 칩을 누르면 그 말로 이동');
+    ok(/ROOM_LIVE_MAX/.test(js) && /live-more/.test(js) && /\.live-more/.test(css), '줄은 3개까지 — 나머지는 "+N건 더"');
   }
 
   console.log('N) 비밀값 하드코딩 없음 (공개 저장소)');

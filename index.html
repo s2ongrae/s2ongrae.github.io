@@ -221,6 +221,70 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .room-head .ord-refresh:hover{border-color:#C9D6FF;background:#F3F6FF;color:var(--racc-d);transform:translateY(-1px)}
 .room-head .ord-refresh:active{transform:none}
 
+/* 🔴 지금 작업 중 — 누가 무슨 일을 하는지 한눈에(작업 리스트 · 가동 상태) */
+.room-live{background:#fff;border:1px solid var(--rl);border-radius:16px;padding:11px 12px 10px;min-width:0;
+  display:flex;flex-direction:column;gap:9px}
+.room-live.no-work{background:linear-gradient(180deg,#FFFFFF,#F8FAFE)}
+.rl-head{display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap}
+.rl-t{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;color:var(--rink);
+  letter-spacing:-.01em;white-space:nowrap}
+.rl-t b{font-variant-numeric:tabular-nums;color:#B42318;font-weight:900}
+.rl-t .rl-dot{width:8px;height:8px;border-radius:50%;background:#D7DDEC;flex-shrink:0}
+.rl-t .rl-dot.on{background:#EF4444;box-shadow:0 0 0 3px rgba(239,68,68,.14);animation:rlPulse 1.9s ease-in-out infinite}
+@keyframes rlPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.82)}}
+@media (prefers-reduced-motion:reduce){.rl-t .rl-dot.on{animation:none}}
+.rl-s{margin-left:auto;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;
+  font-size:10px;font-weight:800;color:var(--rmut);font-variant-numeric:tabular-nums}
+.rl-s .k{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.rl-s .k::before{content:'';width:6px;height:6px;border-radius:50%;background:#CBD5E1;flex-shrink:0}
+.rl-s .k.work::before{background:#EF4444}
+.rl-s .k.wait::before{background:#10B981}
+.rl-s .k.idle::before{background:#F59E0B}
+.rl-s .k.limit::before{background:#7C3AED}
+.rl-s .k.out::before{background:#94A3B8}
+.rl-s .k.unknown::before{background:#CBD5E1}
+.rl-works{display:flex;flex-direction:column;gap:6px;min-width:0}
+/* button 안에서도 안전하게 block 레이아웃(grid·flex 는 사파리 button 에서 어긋나는 사례가 있음) */
+.rl-work{display:block;width:100%;text-align:left;font-family:inherit;cursor:pointer;
+  padding:8px 10px;border-radius:11px;border:1px solid var(--rl);background:var(--rsoft);min-width:0;
+  transition:border-color .15s,background .15s}
+.rl-work:hover,.rl-work:focus-visible{border-color:#C9D6FF;background:#F3F6FF;outline:none}
+.rl-work.run{background:linear-gradient(180deg,#F7F5FF,#F2F0FF);border-color:#DED8FA}
+.rl-work.run:hover{border-color:#C7BEF7}
+.rl-work.wait{background:#FFFCF3;border-color:#F7E3B4}
+.rl-work.pend{background:#F8FAFE;border-color:#E4EAF6}
+.rl-who{font-size:11px;font-weight:800;color:var(--rink);white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.rl-what{display:block;font-size:11.5px;color:var(--rink2);line-height:1.45;margin-top:2px;min-width:0;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rl-tail{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;font-size:10px;color:var(--rmut);
+  font-weight:700;font-variant-numeric:tabular-nums}
+.rl-chip{border-radius:999px;padding:1px 8px;font-size:9.5px;font-weight:800;white-space:nowrap;
+  background:#EEF2FA;color:#475569}
+.rl-chip.run{background:#EDE9FE;color:#5B21B6}
+.rl-chip.wait{background:#FEF3C7;color:#92400E}
+.rl-chip.pend{background:#E8EFFC;color:#3B4FC4}
+.rl-warn{background:#FEF2F2;color:#B42318;border:1px solid #FBD5D5;border-radius:999px;padding:1px 7px;font-size:9.5px;font-weight:800}
+.rl-el{margin-left:auto;color:var(--rhint);font-weight:700;font-variant-numeric:tabular-nums}
+.rl-none{font-size:11.5px;color:var(--rmut);line-height:1.5;padding:2px 1px 1px}
+.rl-more{font-size:10.5px;font-weight:700;color:var(--rhint);padding:1px 2px}
+.rl-ags{display:flex;gap:6px;overflow-x:auto;padding:1px 1px 3px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.rl-ag{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 9px;
+  border:1px solid var(--rl);background:#fff;font-family:inherit;cursor:pointer;min-height:26px;
+  transition:border-color .15s,background .15s}
+.rl-ag:hover{border-color:#C9D6FF;background:#F5F8FF}
+.rl-ag.on{border-color:#B9C8FF;background:#EEF2FF;box-shadow:0 0 0 1px #DCE4FF inset}
+.rl-ag-n{font-size:10.5px;font-weight:800;color:var(--rink);white-space:nowrap}
+.rl-ag-s{font-size:9.5px;font-weight:800;border-radius:999px;padding:0 5px;white-space:nowrap;
+  background:#F1F4FA;color:#5A6480}
+.rl-ag-w{font-size:9.5px;color:var(--rhint);white-space:nowrap;font-variant-numeric:tabular-nums}
+.rl-ag.work{border-color:#FBD5D5;background:#FFF5F5}
+.rl-ag.work .rl-ag-s{background:#FEE2E2;color:#B42318}
+.rl-ag.wait .rl-ag-s{background:#DCFCE7;color:#047857}
+.rl-ag.idle .rl-ag-s{background:#FEF3C7;color:#92400E}
+.rl-ag.limit .rl-ag-s{background:#EDE9FE;color:#5B21B6}
+.rl-ag.out .rl-ag-s{background:#F1F5F9;color:#64748B}
+.rl-ag.unknown .rl-ag-s{background:#F4F6FA;color:#8791A8}
+
 /* 📊 비서 사용량 — 접기/펼치기 패널 */
 .room-use{background:#fff;border:1px solid var(--rl);border-radius:16px;min-width:0;overflow:hidden;
   transition:border-color .15s,box-shadow .15s}
@@ -524,7 +588,6 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;
   transition:border-color .15s,background .15s,color .15s;white-space:nowrap}
 .ord-btn:hover{border-color:var(--blue);background:var(--blue-l);color:var(--blue-d)}
-.ord-compose{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
 .ord-inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;
   padding:10px 13px;font-size:13px;line-height:1.55;font-family:inherit;color:var(--text);
   outline:none;resize:vertical;min-height:58px}
@@ -533,20 +596,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ord-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .ord-edit{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;min-width:0}
 .ord-list{display:flex;flex-direction:column;min-width:0}
-.ord-item{display:flex;gap:10px;padding:11px 12px;background:var(--bg);border:1px solid var(--border);
-  border-radius:10px;min-width:0}
-.ord-item.st-wait{background:var(--gold-l);border-color:#FDE68A}
-.ord-item.st-run{background:var(--purple-l);border-color:#DDD6FE}
-.ord-item.st-done{background:var(--green-l);border-color:#BBF7D0}
-.ord-item.st-bad{background:var(--red-l);border-color:#FECACA}
-.ord-ic{font-size:15px;line-height:1.25;flex-shrink:0}
-.ord-main{flex:1;min-width:0}
-.ord-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.ord-type{font-size:12px;font-weight:700;color:var(--text)}
 .ord-when{font-size:10px;color:var(--hint);margin-left:auto;white-space:nowrap}
-.ord-text{font-size:12px;color:var(--text2);line-height:1.55;margin-top:3px;
-  overflow-wrap:anywhere;white-space:pre-wrap}
-.ord-text.err{color:var(--red)}
 .ord-sub{font-size:10px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
 .ord-acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .ord-ok,.ord-no{border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
@@ -558,7 +608,6 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .c-run{background:#EDE9FE;color:#5B21B6}.c-done{background:#D1FAE5;color:#065F46}
 .c-fail{background:#FEE2E2;color:#991B1B}.c-off{background:#E2E8F0;color:#475569}
 .c-review{background:#FFEDD5;color:#9A3412}
-.ord-item.st-review{background:#FFF7ED;border-color:#FED7AA}
 .ord-gate{margin-top:6px;padding:8px 10px;background:#fff;border:1px solid #FED7AA;border-radius:8px;
   font-size:11px;color:#7C2D12;line-height:1.6;overflow-wrap:anywhere}
 .ord-gate b{color:#9A3412}
@@ -760,6 +809,12 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .use-dev{padding:10px 11px 11px}
   .use-pct{font-size:20px}
   .role-grid{grid-template-columns:repeat(auto-fill,minmax(148px,1fr));padding:0 12px 12px}
+  .room-live{padding:10px 11px 9px;gap:8px}
+  .rl-head{gap:7px}
+  .rl-s{font-size:9.5px;gap:7px}
+  .rl-what{font-size:11px}
+  .rl-work{padding:8px 9px}
+  .rl-ag{min-height:30px;padding:4px 10px}
   .room-filters{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
   .room-filters::-webkit-scrollbar{display:none}
   .room-filters .room-hint{display:inline;flex:0 0 auto}
@@ -795,6 +850,8 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .room-title{font-size:15px}
   .room-hash{width:25px;height:25px;border-radius:8px;font-size:14px}
   .room-use-s{font-size:9.5px;gap:8px}
+  .rl-t{font-size:12px}
+  .rl-ag-w{display:none}
   .use-grid{grid-template-columns:1fr 1fr}
   .room-compose .ord-foot{gap:6px}
   .room-compose .ord-chars{font-size:9.5px}
@@ -872,8 +929,7 @@ body{
 .memo-card-title{font-size:13.5px}
 .memo-card-body{font-size:12.5px;line-height:1.65}
 .mon-card .section-title{letter-spacing:-.01em}
-.mon-dev,.ord-item{border-radius:12px}
-.ord-item{box-shadow:0 1px 3px rgba(22,34,56,.025)}
+.mon-dev{border-radius:12px}
 .room-card.order-card{box-shadow:0 4px 12px rgba(22,34,56,.045),0 24px 54px -38px rgba(22,34,56,.42)}
 .room-card.order-card:hover{border-color:#D7DEF0}
 .room-feed{background-color:#F7F8FC;background-image:radial-gradient(rgba(91,124,250,.12) 1px,transparent 1px)}
@@ -1219,6 +1275,9 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
       </div>
     </div>
     <div class="room-body">
+
+    <!-- 🔴 지금 작업 중 — 누가 무슨 일을 하는지(작업 리스트 · 가동 상태). renderLive() 가 그린다 -->
+    <div class="room-live" id="room-live" role="region" aria-label="지금 작업 중"></div>
 
     <!-- 📊 비서 사용량 — 접기/펼치기. 잔여 %는 이 기기에 저장(0원), 서버가 알면 함께 저장 -->
     <details class="room-use" id="room-use" ontoggle="useToggle()">
@@ -2175,10 +2234,12 @@ function ordSig(items){
 function renderOrderHead(){
   const cnt = document.getElementById('ord-count'), stt = document.getElementById('ord-state');
   const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
-  const p = ORD_ITEMS.filter(i => (i.status === 'PENDING' || i.status === 'RUNNING') && !ordIsPlainReply(i)).length;
+  const p = ORD_ITEMS.filter(i => i.status === 'PENDING' && !ordIsPlainReply(i)).length;
+  const r = ORD_ITEMS.filter(i => i.status === 'RUNNING' && !ordIsPlainReply(i)).length;
   const g = ORD_ITEMS.filter(i => i.status === 'REVIEW_NEEDED').length;
   if(cnt){
     const parts = [];
+    if(r) parts.push('실행 ' + r);
     if(w) parts.push('승인 ' + w);
     if(g) parts.push('검토 ' + g);
     if(p) parts.push('대기 ' + p);
@@ -2443,6 +2504,11 @@ function ordFilterSet(btn){
   if(k === 'who') ORD_WHO = (v === 'all' || ordFilterWhoList().some(x => x.id === v)) ? v : 'all';
   else ORD_FILTER = ['all', 'live', 'wait', 'done'].indexOf(v) >= 0 ? v : 'all';
   renderOrders();
+  // 「지금 작업 중」 판의 비서 칩은 타임라인으로 바로 내려가게(필터 행은 그 자리에 있으니 그대로)
+  if(k === 'who' && btn && /(^|\s)rl-ag(\s|$)/.test(String(btn.className || ''))){
+    const box = document.getElementById('ord-list');
+    try { if(box && box.scrollIntoView) box.scrollIntoView({behavior: 'smooth', block: 'start'}); } catch(e) {}
+  }
 }
 function ordVisible(it){
   if(!it || !it.id) return false;
@@ -2535,6 +2601,177 @@ function ordPromote(it){
   ordModeSet('ask'); ordTyped();
   try { inp.focus(); } catch(e) {}
   sync('오더 모드로 옮겼어요 — 확인하고 보내면 큐에 들어가요', 3600);
+}
+
+/* ════════ 🔴 지금 작업 중 — 누가 무슨 일을 하는지 (2026-11-26) ════════
+ *  · "지금 작업중인 리스트" = 처리할 사람이 있는 오더(PENDING·RUNNING·승인 대기·검토 필요).
+ *    순수 답장(ordIsPlainReply)은 일이 아니라서 넣지 않는다 — 머리말 '대기' 수와 같은 규칙.
+ *  · "누가 일하고 누가 쉬는지" = ① 그 일을 잡고 있는가 → ② 한도가 0 인가 → ③ 최근 30분 신호/활동
+ *    → ④ 하루 안 신호(쉬는 중) → ⑤ 하루 넘음(응답 없음) → ⑥ 신호 없음(미확인).
+ *    숫자를 지어내지 않는다 — 신호도 기록도 없으면 '미확인'으로 남긴다.
+ */
+const ORD_LIVE = {
+  RUNNING:          {t: '실행 중',   c: 'run'},
+  WAITING_APPROVAL: {t: '승인 대기', c: 'wait'},
+  REVIEW_NEEDED:    {t: '검토 필요', c: 'wait'},
+  PENDING:          {t: '차례 대기', c: 'pend'}
+};
+const ORD_LIVE_RANK = {RUNNING: 0, WAITING_APPROVAL: 1, REVIEW_NEEDED: 2, PENDING: 3};
+const ORD_ACT = {
+  work:    {t: '작업 중',   c: 'work'},
+  limit:   {t: '한도 소진', c: 'limit'},
+  wait:    {t: '대기',      c: 'wait'},
+  idle:    {t: '쉬는 중',   c: 'idle'},
+  out:     {t: '응답 없음', c: 'out'},
+  unknown: {t: '미확인',    c: 'unknown'}
+};
+const ORD_ACT_WAIT_MIN = 30;      // 30분 안에 신호·말이 있으면 곁에 있는 것(=대기)
+const ORD_LIVE_MAX = 3;           // 판에 보이는 작업 줄은 3개까지 — 나머지는 타임라인에서
+
+/** 이 오더를 지금 누가 하고 있나 — 실행 중이면 잡은 사람(claimed_by), 아니면 받을 사람. @전체는 아직 주인 없음 */
+function ordLiveOwner(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(!ORD_LIVE[st]) return '';
+  if(st === 'RUNNING' && it.claimed_by) return ordSenderKey({source: it.claimed_by});
+  const k = ordTargetKey(it);
+  if(k === 'all') return '';
+  if(!String((it && it.target) || '').trim()){          // 대상 칸이 빈 옛 줄 — 본문 @이름으로 한 번 더
+    const m = ordTargetFromText(ordMsgText(it));
+    if(m && m !== 'all') return m;
+  }
+  return k;
+}
+/** 지금 도는 일 — 실행 중 → 승인·검토 → 차례 대기 순, 같은 상태면 먼저 접수된 것부터 */
+function ordLiveList(){
+  const out = [];
+  (Array.isArray(ORD_ITEMS) ? ORD_ITEMS : []).forEach(it => {
+    const st = String((it && it.status) || '').toUpperCase();
+    if(!it || !ORD_LIVE[st] || ordIsPlainReply(it)) return;
+    out.push({it: it, st: st, owner: ordLiveOwner(it)});
+  });
+  out.sort((a, b) => (ORD_LIVE_RANK[a.st] - ORD_LIVE_RANK[b.st]) ||
+    (String(a.it.created_at || '') < String(b.it.created_at || '') ? -1 : 1));
+  return out;
+}
+/** 그 일이 시작된(실행 중) 또는 기다리기 시작한(대기) 시각 */
+function ordLiveSince(it){
+  const st = String((it && it.status) || '').toUpperCase();
+  if(st === 'RUNNING'){
+    const s = ordStartMs(it);
+    if(s) return s;
+  }
+  const t = Date.parse(String((it && it.created_at) || ''));
+  return isFinite(t) ? t : 0;
+}
+/** 카드에 쓸 한 줄 — 워커 규칙 문구·'클로드:' 머리말을 뗀 본문 */
+function ordLiveWhat(it){ return ordShort(ordMsgText(it) || ordBody(it).t || '', 70); }
+
+/** 비서 한 명의 지금 — 작업 중 → 한도 소진 → 대기 → 쉬는 중 → 응답 없음/미확인 */
+function ordAgentAct(id){
+  const k = String(id || '');
+  if(!k) return {st: 'unknown', n: 0, min: null, item: null};
+  const live = ordLiveList().filter(x => x.owner === k);
+  if(live.length) return {st: 'work', n: live.length, min: null, item: live[0].it};
+  const def = agentById(k) || {id: k};
+  let min = useSignalMin(useSignal(def));
+  const room = useRoomSignal(k);                       // 상태 파일이 없는 비서(큐·부이·키링)의 가동 근거
+  if(room && room.min !== null && (min === null || room.min < min)) min = room.min;
+  if(k === 'notebook'){                                // 노트북은 하트비트(10분 이내)가 살아 있는 신호
+    const hb = QSTAT_DATA && QSTAT_DATA.heartbeat;
+    const hm = (hb && hb.state && hb.state !== 'unknown') ? numOf(hb.min) : null;
+    if(hm !== null && (min === null || hm < min)) min = hm;
+  }
+  const x = useOf(k);
+  if(useFresh(def, x) && numOf(x.pct) <= 0) return {st: 'limit', n: 0, min: min, item: null};
+  if(min === null) return {st: 'unknown', n: 0, min: null, item: null};
+  if(min <= ORD_ACT_WAIT_MIN) return {st: 'wait', n: 0, min: min, item: null};
+  if(min <= USE_ALIVE_MIN) return {st: 'idle', n: 0, min: min, item: null};
+  return {st: 'out', n: 0, min: min, item: null};
+}
+/** 참여 비서별 지금 상태 — 작업 중/한도/대기/쉬는 중/응답 없음/미확인 몇 명 */
+function ordActCounts(){
+  const c = {work: 0, limit: 0, wait: 0, idle: 0, out: 0, unknown: 0};
+  agentMentions().forEach(a => { c[ordAgentAct(a.id).st]++; });
+  return c;
+}
+/** 그 비서의 이름·이모지 — 명부에 없어도(부계정·처음 보는 id) 같은 규칙으로 읽는다 */
+function ordLiveWho(id){
+  const k = String(id || '');
+  if(!k) return {icon: '👥', name: '전체'};
+  const a = agentById(k);
+  if(a) return {icon: a.icon || '🤖', name: a.mentionAs || a.name};
+  const info = agentAutoInfo(k);
+  return {icon: info.icon || '🤖', name: info.name || k};
+}
+/** 작업 한 줄 — 담당 · 요청 요약 · 상태 · 경과(1초마다 ordTick 이 고친다) */
+function ordLiveRow(x){
+  const it = x.it, s = ORD_LIVE[x.st];
+  const who = ordLiveWho(x.owner);
+  const since = ordLiveSince(it);
+  const el = since ? '<span class="ord-elapsed" data-since="' + since + '">' + esc(monDur(Math.max(0, Date.now() - since))) + '</span>' : '';
+  let tail;
+  if(x.st === 'RUNNING') tail = el + '째';
+  else if(x.st === 'WAITING_APPROVAL'){
+    const cd = ordDeadline(it);                          // 1초마다 줄어드는 승인 남은 시간
+    tail = cd ? '<span class="ord-cd" data-until="' + cd + '">⏳ ' + esc(ordExpire(it.expires_in_ms)) + '</span>'
+      : esc(ordExpire(it.expires_in_ms));
+  }
+  else if(x.st === 'PENDING') tail = el + ' 기다리는 중';
+  else tail = esc(ordWhen(it.created_at)) + ' 접수';
+  const stale = ordStale(it);
+  const warn = stale ? '<span class="rl-warn" title="' + esc(stale.why) + '">⚠ 정체 의심</span>' : '';
+  const id = String(it.id || '');
+  const tip = ordSumLine(it) + (x.owner ? '' : '\n@전체 — 먼저 확인한 비서가 집어 가요');
+  return '<button type="button" class="rl-work ' + s.c + '" onclick="ordJumpTo(\'' + esc(id) + '\')" title="' + esc(tip) + '">' +
+    '<span class="rl-who">' + esc(who.icon + ' ' + who.name) + '</span>' +
+    '<span class="rl-what">' + esc(ordLiveWhat(it)) + '</span>' +
+    '<span class="rl-tail"><span class="rl-chip ' + s.c + '">' + esc(s.t) + '</span>' + warn +
+      '<span class="rl-el">' + tail + '</span></span></button>';
+}
+/** 비서 한 명 칩 — 누르면 그 비서의 말만 보이게(발신 필터) */
+function ordActChip(a){
+  const act = ordAgentAct(a.id);
+  const m = ORD_ACT[act.st];
+  const when = act.st === 'work' ? '실행 ' + act.n + '건'
+    : (act.min === null ? (act.st === 'unknown' ? '신호 없음' : '기록 없음') : (agoText(act.min) || '방금'));
+  const tip = a.name + ' — ' + m.t +
+    (act.st === 'work' ? ' · ' + ordLiveWhat(act.item) : (act.st === 'limit' ? ' · 이번 주기 잔여 0%' : ' · ' + when)) +
+    '\n눌러서 이 비서의 말만 보기';
+  return '<button type="button" class="rl-ag ' + m.c + (ORD_WHO === a.id ? ' on' : '') + '"' +
+    ' data-k="who" data-v="' + esc(a.id) + '" onclick="ordFilterSet(this)" title="' + esc(tip) + '">' +
+    '<span class="rl-ag-n">' + esc((a.icon || '🤖') + ' ' + (a.mentionAs || a.name)) + '</span>' +
+    '<span class="rl-ag-s">' + esc(m.t) + '</span>' +
+    (act.st === 'work' ? '' : '<span class="rl-ag-w">' + esc(when) + '</span>') + '</button>';
+}
+/** 회의실 머리말 아래 「지금 작업 중」 판 — 일이 없으면 없다고 정직하게 적는다 */
+let LIVE_SIG = '';
+function liveSig(live, c){
+  return live.map(x => [x.it.id, x.st, x.owner, x.it.beat_at || ''].join('\u0001')).join(',') +
+    '|' + [c.work, c.limit, c.wait, c.idle, c.out, c.unknown].join(',') + '|' + ORD_WHO +
+    '|' + Math.floor(Date.now() / 60000);      // 분이 바뀌면 '몇 분 전' 글자를 다듬는다
+}
+function renderLive(){
+  const box = document.getElementById('room-live');
+  if(!box) return;
+  const live = ordLiveList();
+  const c = ordActCounts();
+  const sig = liveSig(live, c);
+  if(sig === LIVE_SIG) return;                 // 달라진 게 없으면 다시 그리지 않아요(칩 가로 스크롤 유지)
+  LIVE_SIG = sig;
+  const sum = ['work', 'wait', 'idle', 'limit', 'out', 'unknown'].filter(k => c[k])
+    .map(k => '<span class="k ' + k + '">' + esc(ORD_ACT[k].t) + ' <b>' + c[k] + '</b>명</span>').join('');
+  const works = live.length
+    ? '<div class="rl-works">' + live.slice(0, ORD_LIVE_MAX).map(ordLiveRow).join('') +
+      (live.length > ORD_LIVE_MAX ? '<div class="rl-more">＋ ' + (live.length - ORD_LIVE_MAX) + '건 더 — 아래 타임라인에서 보기</div>' : '') +
+      '</div>'
+    : '<div class="rl-none">지금 도는 일은 없어요 — 말을 걸면 여기에 담당·경과가 바로 떠요</div>';
+  box.className = 'room-live' + (live.length ? '' : ' no-work');
+  const known = c.work + c.limit + c.wait + c.idle + c.out;    // 신호가 하나도 없으면 칩 줄은 접는다
+  box.innerHTML =
+    '<div class="rl-head"><span class="rl-t"><i class="rl-dot' + (live.length ? ' on' : '') + '" aria-hidden="true"></i>' +
+      '지금 작업 중 <b>' + live.length + '</b></span><span class="rl-s">' + (sum || '아직 가동 신호가 없어요') + '</span></div>' +
+    works +
+    (known ? '<div class="rl-ags" role="list">' + agentMentions().map(ordActChip).join('') + '</div>' : '');
 }
 
 /* ════════ 📊 비서 사용량 ════════ */
@@ -3067,9 +3304,11 @@ function renderRoles(){
 }
 /** 회의실 머리말 — 참여 비서 수 · 사용량 요약 · 오더 건수 */
 function renderRoom(){
+  renderLive();                                     // 🔴 지금 작업 중 · 누가 일하는지
   const people = document.getElementById('room-people');
   if(people){
-    people.textContent = '👥 ' + agentMentions().length + '명';
+    const work = ordActCounts().work;
+    people.textContent = '👥 ' + agentMentions().length + '명' + (work ? ' · 🔴 작업 ' + work : '');
     // 누가 무슨 일을 맡았는지 — 칩·카드에 다 안 보이므로 머리말 title 에 전체 역할표를 둔다
     people.title = agentMentions().map(a => a.name + '(' + a.id + ') — ' + (a.duty || a.sub || '')).join('\n');
   }

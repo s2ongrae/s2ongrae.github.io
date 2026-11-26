@@ -162,7 +162,24 @@
 - **피투 상태 파일**: `status/pi2.json`(피원은 지금처럼 `status/agent.json`). 카드 6칸 = 직접·허브·회사PC·피원·피투·오더 큐.
 - **화면 리뉴얼(2026-11-25, v35)**: 머리말(`room-title-wrap` + `#ord-count`) · 접이식 **비서 사용량**(`#room-use`, 요약 숫자는 머리말 `#room-use-sum` 한 곳에서만 — `.use-sum` 은 테스트가 내용을 보므로 남겨 두고 숨긴다) · **역할표**(`#room-roles`/`#role-table`, `renderRoles()` — 명부만 고치면 카드·멘션·표가 같이 바뀐다) · 타임라인(`room-chat` 안 `#ord-list`) · 입력바(`#room-tools` + `#room-plus`).
   폰(≤700px)은 빠른 오더·대상 칸을 `#room-plus`(＋)로 접고(`aria-expanded`), 입력바만 `position:sticky` 로 붙는다 — 카드는 `overflow:clip` 이라 `room-chat` 이 스크롤 컨테이너가 되지 않는다(`overflow:hidden` 으로 바꾸면 sticky 가 죽는다).
-  **깨면 안 되는 계약(테스트가 문자열로 본다)**: `class="order-card room-card"` · `<details class="room-use"` · `chat-row in/out` · `chat-av` · `chat-bubble side-in` · `chat-day` · `mt mt-…` · `who w-…` · `#room-people`·`#ord-presets`·`#ord-mentions`·`#ord-mode`·`#ord-who`.
+  **깨면 안 되는 계약(테스트가 문자열로 본다)**: `class="order-card room-card"` · `<details class="room-use"` · `chat-row in/out` · `chat-av` · `chat-bubble side-in` · `chat-day` · `mt mt-…` · `who w-…` · `#room-people`·`#ord-presets`·`#ord-mentions`·`#ord-mode`·`#ord-who` · `#room-live`(지금 작업 중 판).
+- **🔴 지금 작업 중(2026-11-26)**: 회의실 머리말 바로 아래 `#room-live`(`renderLive()`)가 **지금 도는 일**과 **누가 일하는지**를 한 판에 보여준다.
+  · **작업중 리스트** = 처리할 사람이 있는 오더(`RUNNING`·`WAITING_APPROVAL`·`REVIEW_NEEDED`·`PENDING`)를 `실행 중 → 승인 → 검토 → 차례 대기` 순으로 한 줄씩.
+    줄에는 **담당(이모지+이름) · 요청 요약(70자, `[워커 규칙]`·`클로드:` 제거) · 상태 알약 · 경과**(`.ord-elapsed` 1초 갱신, 승인은 `.ord-cd` 카운트다운)이 들어가고, 1시간 넘게 신호가 없으면 `⚠ 정체 의심`.
+    순수 답장(`ordIsPlainReply`)은 일이 아니라서 뺀다 — 머리말 '대기' 수와 같은 규칙.
+  · **담당 판정(`ordLiveOwner`)**: 실행 중이면 잡은 사람(`claimed_by`), 아니면 받을 사람(`payload.target`). `@전체`는 아직 주인 없어 `👥 전체`,
+    대상 칸이 빈 옛 줄은 본문 `@이름`(`ordTargetFromText`)으로 한 번 더 본다. 명부에 없는 부계정도 `agentAutoInfo` 로 이름·이모지가 붙는다.
+  · **가동 상태(`ordAgentAct`)**: ① 그 일을 잡고 있나(**작업 중**) → ② 이번 주기 잔여 0%(**한도 소진**) → ③ 30분 안 신호·회의실 활동(**대기**)
+    → ④ 하루 안 신호(**쉬는 중**) → ⑤ 하루 넘음(**응답 없음**) → ⑥ 근거 없음(**미확인**). 신호는 `status/agent.json`·`status/pi2.json`·`agent_beat`(=`AGENT_DATA`),
+    상태 파일이 없는 비서는 **회의실 활동**(`source`/`claimed_by`/`replied_by`), 노트북은 `queue_status` 하트비트(`state:'unknown'` 은 신호로 안 침)까지 본다.
+    **숫자·상태를 지어내지 않는다** — 근거가 없으면 미확인으로 남긴다.
+  · 비서 칩(`.rl-ag`)을 누르면 `ordFilterSet` 으로 **그 비서의 말만** 보이게 하고 타임라인으로 내려간다. 작업 줄을 누르면 `ordJumpTo(id)` 로 그 말풍선으로 간다.
+  · 다시 그리기는 `LIVE_SIG`(오더 id·상태·담당·beat + 상태별 인원 + 필터 + 분) 로 막는다 — 달라진 게 없으면 칩 가로 스크롤이 튀지 않게.
+  · 머리말 `#ord-count` 는 `실행 N · 승인 N · 검토 N · 대기 N`(`대기` = PENDING 만), `#room-people` 은 `👥 N명 · 🔴 작업 N`.
+  · `room/` PWA 도 같은 규칙을 `<ROOM_CORE>` 의 `roomLiveItems`·`roomLiveOwner`·`roomAgentAct`·`roomActCounts`·`roomDur` 로 갖고 `#live` 판에 그린다(1초 `tickLive`, 일 칩 → `jumpToMsg`).
+  · 테스트: `portal_integration` **AB)절**(정렬·담당·6상태·줄 내용·정체·이스케이프·빈 판·배지·칩 필터) · `room` **N-1)절**(같은 규칙 + `#live` 계약).
+- **죽은 CSS 정리(2026-11-26)**: 카톡 타임라인으로 바뀌며 쓰이지 않게 된 옛 오더 카드 스타일(`.ord-compose`·`.ord-item`/`.st-*`·`.ord-ic`·`.ord-main`·`.ord-line`·`.ord-type`·`.ord-text`)을 지웠다.
+  `.mt-*`·`.w-*` 는 클래스 이름을 코드가 조합해 만들므로(`mt-${cls}`) 지금도 살아 있다.
 - 테스트: `portal_server` 14)절(발신·대상·대화·멘션 필터·**대용량 target 필터 사전 거르기 500행**) · 15)절(사용량·pi 비트) · **16)절(명부·부분 사용량 보고·sources_seen·@이름 대상)** · **17)절(GET 읽기·claim/done·mentions·reply_to·duty)** · `portal_integration` **V)절**(회의실·말풍선·필터·전송·사용량·비서 추가·XSS) · **W)절(큐·부이·키링 기본·배지·서버 명부 공유·자동 합류·빼기 전파)** · **X)절(닉네임·이모지 머리·부계정 자동 이름·담당 표시)** · **10)절(외부 비서 웹훅 — 발사 조건·무한루프·본문 규격·실패 격리)**.
 
 ## 🤖 노트북 오더함 (2026-11-15)
