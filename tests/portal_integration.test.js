@@ -1933,6 +1933,8 @@ console.log('AG) ✅ 완료 보고 — 배지·필터·보고 요청 (2026-11-26
   ok(DC.run("ordReportChip(ordById('Q-m2')).t") === '완료·보고됨', '결과가 있으면 보고됨 배지');
   ok(DC.run("ordReportChip(ordById('Q-m3')).t") === '완료·보고됨', '보고가 달린 말도 보고됨');
   ok(DC.run("ordReportChip(ordById('Q-m5')).t") === '지연(15분+)', '15분 넘은 대기는 지연 배지');
+  ok(DC.run("ordReportChip({id:'Q-pr', status:'PENDING', kind:'chat', source:'pi1', target:'vooy', created_at:new Date(Date.now()-40*60000).toISOString()})") === null,
+    '아무도 집지 않는 순수 답장에는 지연 배지를 달지 않는다(머리말 대기 수와 같은 규칙)');
   ok(DC.run("ordLateMin({status:'PENDING', created_at:new Date(Date.now()-5*60000).toISOString()})") < 15, '5분은 지연 아님');
   ok(/c-miss/.test(DC.run("ordReportChipHtml(ordById('Q-m1'))")), '누락 배지는 빨간 칩');
   ok(/완료·보고누락/.test(feedC()) && /완료·보고됨/.test(feedC()) && /지연\(15분\+\)/.test(feedC()), '타임라인 말풍선에 배지가 보인다');

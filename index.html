@@ -2619,8 +2619,10 @@ const ORD_REP_CHIP = {
   miss: {t: '완료·보고누락', c: 'c-miss'},
   late: {t: '지연(15분+)',   c: 'c-late'}
 };
-/** 배지 — 대기·진행 중인데 15분이 지났거나, 끝났는데 보고가 있는지/없는지 */
+/** 배지 — 대기·진행 중인데 15분이 지났거나, 끝났는데 보고가 있는지/없는지.
+ *  순수 답장(비서끼리·나에게 남긴 말)은 아무도 집지 않으므로 '지연'이 아니다 — 머리말 '대기' 수와 같은 규칙. */
 function ordReportChip(it){
+  if(ordIsPlainReply(it)) return null;
   const st = String((it && it.status) || '').toUpperCase();
   if(st === 'PENDING' || st === 'RUNNING') return ordLateMin(it) >= ORD_LATE_MIN ? ORD_REP_CHIP.late : null;
   const rep = ordReportState(it);

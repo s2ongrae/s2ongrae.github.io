@@ -497,6 +497,8 @@ function coreTests() {
     ok(C.roomReportChip(items[4], items, now).t === '지연(15분+)', '30분 넘은 대기는 지연 배지');
     ok(C.roomLateMin({status: 'PENDING', created_at: at(11, 55)}, now) === 5 && C.roomReportChip({status: 'PENDING', created_at: at(11, 55)}, [], now) === null,
       '5분은 지연 아님');
+    ok(C.roomReportChip({id: 'p9', status: 'PENDING', kind: 'chat', source: 'pi1', target: 'vooy', created_at: at(10, 0)}, [], now) === null,
+      '순수 답장에는 지연 배지가 없다');
     // ④ 검색·필터
     ok(C.roomSearchHit(items[0], '82만원') === true && C.roomSearchHit(items[0], 'T1') === true, '결과·오더 id 로 찾는다');
     ok(C.roomSearchHit(items[0], '지출 카드값') === true && C.roomSearchHit(items[0], '지출 없는말') === false, '여러 낱말은 모두 만족해야');

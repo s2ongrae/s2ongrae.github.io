@@ -771,6 +771,7 @@ function roomLateMin(it, now){
   return Math.floor(Math.max(0, n - t) / 60000);
 }
 function roomReportChip(it, items, now){
+  if(roomIsPlainReply(it)) return null;      // 순수 답장은 아무도 집지 않는다 — '지연'이 아니다
   const st = String((it && it.status) || '').toUpperCase();
   if(st === 'PENDING' || st === 'RUNNING') return roomLateMin(it, now) >= ROOM_LATE_MIN ? ROOM_REP.late : null;
   const r = roomReportState(it, items);
