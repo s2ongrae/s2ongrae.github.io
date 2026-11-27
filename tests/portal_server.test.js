@@ -6,7 +6,7 @@ const memo = (id,x={})=>Object.assign({id,title:'제목'+id,body:'내용'+id,col
 
 console.log('1) 접근 통제');
 let r = S.doGet(); ok(r.ok===false && r.error==='POST로만 사용할 수 있어요.' && Object.keys(r).length===2, 'doGet은 안내 문구만(캘린더·메모 안 줌)');
-for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','cal_list','cal_create','cal_update','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide','webhook_set','agent_beat']){
+for(const a of ['getTaskLists','getTasks','addTask','completeTask','deleteTask','getCalendarEvents','createEvent','deleteEvent','cal_list','cal_create','cal_update','loadMemos','saveMemos','ping','queue_status','queue_list','queue_enqueue','queue_decide','webhook_set','agent_beat','file_upload','file_get']){
   r = post({action:a}); ok(r.error==='unauthorized', `키 없이 ${a} 거절`);
   r = post({action:a, key:'x'.repeat(64)}); ok(r.error==='unauthorized', `틀린 키로 ${a} 거절`);
 }
@@ -2166,7 +2166,8 @@ console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한�
   ok(call1.opts && !call1.opts.headers, '인증 헤더 없음');
   const b1 = call1.opts ? JSON.parse(call1.opts.payload) : {};
   // 2026-11-26 — 깨어난 비서가 바로 읽는 자리에 완료 보고 규칙(report_rule)을 더했다(기존 키는 그대로).
-  ok(Object.keys(b1).sort().join(',') === 'created_at,id,mentions,prompt,report_rule,summary,target', '본문은 {id,target,mentions,summary,prompt,created_at} + report_rule');
+  ok(Object.keys(b1).sort().join(',') === 'created_at,files,id,mentions,prompt,report_rule,summary,target', '본문은 {id,target,mentions,summary,prompt,created_at,files} + report_rule');
+  ok(Array.isArray(b1.files) && b1.files.length === 0, '첨부가 없으면 files 는 빈 배열(키는 늘 있다)');
   ok(typeof b1.report_rule === 'string' && /보고/.test(b1.report_rule) && /reply_to/.test(b1.report_rule), 'report_rule 에 “끝나면 회의실 보고”가 담긴다');
   ok(b1.id === w.item.id && b1.target === 'cue2' && b1.created_at === w.item.created_at, 'id · target · created_at 이 큐 줄과 같다');
   ok(Array.isArray(b1.mentions) && b1.mentions.indexOf('cue2') >= 0, 'mentions 에 큐투가 들어 있다');
@@ -2256,6 +2257,85 @@ console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한�
   post(enq(chat('cue2', '@큐투 깨져도 돼', 'portal')));
   ok(S.fetchCalls.length === 0, '속성이 깨져 있으면 조용히 아무도 안 깨운다(접수는 성공)');
 }
+
+console.log('26) 📎 파일·이미지 공유 — Drive 보관 · payload 에는 id 만 · 공유 폴더 밖 거절 (2026-11-27)');
+{
+  const KF = S.props.SECRET_KEY;
+  const SHEETF = 'SHEETidFiles0001';
+  const HEADF = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  S.addSheet(SHEETF, { 'Command_Queue': [HEADF.slice(0)] });
+  S.props.QUEUE_SHEET_ID = SHEETF;
+  const b64 = s => Buffer.from(String(s), 'utf8').toString('base64');
+  const up = (x) => post(Object.assign({ action: 'file_upload', key: KF }, x));
+  const shareFolder = () => {
+    const root = S.ROOT.folders.find(f => f.name === '김성래포털');
+    return root && root.folders.find(f => f.name === '포털_공유');
+  };
+
+  // ① 올리기 — 본체는 Drive, 돌려주는 것은 {id,n,s,m} 네 칸뿐
+  let f1 = up({ name: '사진 1.jpg', mime: 'image/jpeg', size: 4, data: b64('abcd') });
+  ok(f1.ok === true && f1.file && /^[A-Za-z0-9_-]{10,80}$/.test(f1.file.id), '사진 올리기 — Drive 파일 id 를 돌려준다');
+  ok(f1.file.n === '사진 1.jpg' && f1.file.s === 4 && f1.file.m === 'image/jpeg', '이름·크기·종류가 그대로');
+  ok(!!shareFolder() && shareFolder().files.some(f => f.getId() === f1.file.id), '김성래포털/포털_공유 폴더에 보관된다');
+  ok(/공개 링크 아님/.test(String(f1.note)), '공개 링크로 만들지 않는다고 밝힌다');
+  const f2 = up({ mime: 'image/png', data: 'data:image/png;base64,' + b64('png!') });
+  ok(f2.ok === true && f2.file.n === '첨부.png' && f2.file.s === 4, '이름이 없으면 첨부.png · data: 접두사도 받는다');
+  const f3 = up({ name: '../../etc/passwd', mime: 'application/pdf', data: b64('%PDF') });
+  ok(f3.ok === true && f3.file.n === 'passwd.pdf', '경로(../)는 떼고 확장자가 없으면 종류에서 붙인다');
+  const f4 = up({ name: 'x'.repeat(120) + '.txt', mime: 'text/plain', data: b64('hi') });
+  ok(f4.ok === true && f4.file.n.length <= 80 && /\.txt$/.test(f4.file.n), '이름은 80자로 줄이고 확장자는 살린다');
+
+  // ② 거절 — 종류·빈 내용·깨진 base64·큰 파일
+  ok(up({ name: 'a.exe', mime: 'application/x-msdownload', data: b64('MZ') }).code === 'bad_request', '허용 목록 밖 종류는 거절');
+  ok(up({ name: 'a.jpg', mime: 'image/jpeg', data: '' }).code === 'bad_request', '내용이 비면 거절');
+  ok(up({ name: 'a.jpg', mime: 'image/jpeg', data: '@@@ ###' }).code === 'bad_request', 'base64 가 아니면 거절');
+  const big = up({ name: 'big.jpg', mime: 'image/jpeg', size: 5 * 1024 * 1024, data: b64('small') });
+  ok(big.ok === false && big.code === 'too_large' && /4MB/.test(String(big.error)), '4MB 를 넘는다고 하면 디코딩 전에 거절(too_large)');
+  const huge = up({ name: 'huge.jpg', mime: 'image/jpeg', data: 'A'.repeat(5592412) });
+  ok(huge.ok === false && huge.code === 'too_large', '본문 길이로도 먼저 막는다');
+  const saveFiles = shareFolder().files.length;
+  ok(saveFiles >= 4, '거절된 업로드는 폴더에 남지 않는다');
+
+  // ③ 말에 붙이기 — payload 에는 {id,n,s,m} 만, queue_list 가 그대로 돌려준다
+  const files = [f1.file, f2.file];
+  let r = post({ action: 'queue_enqueue', key: KF, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
+    payload: { prompt: '이 사진 두 장 보고 정리해줘', mode: 'ask', kind: 'chat', target: 'pi2', files } });
+  ok(r.ok === true && r.item.files.length === 2, '첨부 2개가 말에 붙는다');
+  ok(r.item.files[0].id === f1.file.id && r.item.files[0].n === '사진 1.jpg' && r.item.files[0].m === 'image/jpeg', 'queue_list 항목에 첨부가 그대로 실린다');
+  let pl = JSON.parse(S.books[SHEETF]['Command_Queue'].slice(-1)[0][HEADF.indexOf('payload')]);
+  ok(Array.isArray(pl.files) && pl.files.length === 2 && pl.files[0].id === f1.file.id, '시트 payload 에는 id·이름·크기·종류만 (본체 없음)');
+  ok(JSON.stringify(pl).length < 4000 && !/base64|data:/.test(JSON.stringify(pl)), '사진 본체는 시트에 들어가지 않는다(payload 4,000자 안)');
+  const listed = post({ action: 'queue_list', key: KF, limit: 5 });
+  const first = (listed.items || []).filter(x => x.id === r.item.id)[0] || {};
+  ok(Array.isArray(first.files) && first.files.length === 2, 'queue_list 도 첨부를 돌려준다');
+
+  // ④ 잘못된 첨부는 접수 자체를 거절한다(조용히 사진만 사라지면 안 된다)
+  const bad = (files2, label) => {
+    const out = post({ action: 'queue_enqueue', key: KF, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
+      payload: { prompt: 'x', mode: 'ask', kind: 'chat', target: 'pi2', files: files2 } });
+    ok(out.ok === false && out.code === 'bad_request', label);
+  };
+  bad([{ id: f1.file.id, n: 'a.jpg', s: 4, m: 'application/x-msdownload' }], '허용 밖 종류가 든 첨부는 거절');
+  bad([{ id: 'short', n: 'a.jpg', s: 4, m: 'image/jpeg' }], 'id 모양이 틀린 첨부는 거절');
+  bad([{ id: f1.file.id, n: 'a.jpg', s: 9 * 1024 * 1024, m: 'image/jpeg' }], '크기가 4MB 를 넘는 첨부는 거절');
+  bad([f1.file, f1.file, f1.file, f1.file, f1.file], '한 번에 4개를 넘으면 거절');
+  r = post({ action: 'queue_enqueue', key: KF, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
+    payload: { prompt: '첨부 없음', mode: 'ask', kind: 'chat', target: 'pi2', files: [] } });
+  ok(r.ok === true && r.item.files.length === 0, '빈 목록은 그냥 첨부 없음');
+
+  // ⑤ 다시 받기 — 비밀 키 POST 로만, 포털_공유 안 파일만
+  let g = post({ action: 'file_get', key: KF, id: f1.file.id });
+  ok(g.ok === true && g.n === '사진 1.jpg' && g.m === 'image/jpeg', 'file_get 은 올린 파일을 이름·종류와 함께 돌려준다');
+  ok(Buffer.from(String(g.data), 'base64').toString('utf8') === 'abcd', 'file_get 바이트가 올린 내용과 같다');
+  ok(post({ action: 'file_get', key: KF, id: 'AAAAAAAAAAAAAAAA' }).code === 'not_found', '없는 파일은 not_found');
+  ok(post({ action: 'file_get', key: KF, id: 'bad id!' }).code === 'bad_request', 'id 모양이 틀리면 bad_request');
+  const memoF = S.memoFile();
+  ok(post({ action: 'file_get', key: KF, id: memoF.getId() }).code === 'forbidden', '포털_공유 밖 파일(포털_메모.json)은 거절');
+  ok(JSON.parse(S.sb.doGet({ parameter: { action: 'file_get', id: f1.file.id, key: KF } }).getContent()).code === 'read_only', 'GET 으로는 파일을 안 준다');
+}
+
 
 console.log(`\n포털 서버 테스트: ${pass}건 통과, ${fail}건 실패`);
 process.exit(fail?1:0);

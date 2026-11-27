@@ -2,17 +2,32 @@ const fs = require('fs'), vm = require('vm'), nodeCrypto = require('crypto');
 module.exports = function makePortalServer(){
   let CLOCK = new Date('2026-10-13T03:00:00Z').getTime();
   let fileSeq = 0;
-  class FakeFile{ constructor(n,c,p){this.name=n;this.content=c;this.parent=p;this.trashed=false;this.created=CLOCK;this.id='f'+(++fileSeq);this.updated=CLOCK;}
-    getId(){return this.id;} getLastUpdated(){return new Date(this.updated);}
-    getBlob(){const c=this.content;return{getDataAsString:()=>c};} setContent(c){this.content=c;this.updated=CLOCK;return this;}
-    getDateCreated(){return new Date(this.created);} setTrashed(t){this.trashed=t;return this;} 
-    makeCopy(n,f){const x=new FakeFile(n,this.content,f);f.files.push(x);return x;} }
+  // 2026-11-27 — 파일·이미지 공유 시험용: Blob(바이트·종류·이름) · 부모 폴더 · base64
+  class FakeBlob{ constructor(data,type,name){
+      if(Buffer.isBuffer(data)) this.bytes=data;
+      else if(data instanceof Uint8Array) this.bytes=Buffer.from(data);
+      else if(Array.isArray(data)) this.bytes=Buffer.from(data);
+      else this.bytes=Buffer.from(String(data==null?'':data),'utf8');
+      this.type=String(type||'text/plain'); this.name=String(name||''); }
+    getBytes(){return Array.from(this.bytes);} getDataAsString(){return this.bytes.toString('utf8');}
+    getContentType(){return this.type;} getName(){return this.name;} setName(n){this.name=String(n);} }
+  class FakeFile{ constructor(n,c,p,mime){this.name=n;this.content=c;this.parent=p;this.mime=mime||'text/plain';this.trashed=false;this.created=CLOCK;this.id='1AbCfake'+(++fileSeq)+'XyZ0123456789';this.updated=CLOCK;}
+    getId(){return this.id;} getName(){return this.name;} setName(n){this.name=String(n);return this;} getLastUpdated(){return new Date(this.updated);}
+    getBlob(){const f=this; if(Buffer.isBuffer(f.content)) return new FakeBlob(f.content, f.mime, f.name);
+      return{getDataAsString:()=>f.content, getBytes:()=>Array.from(Buffer.from(String(f.content),'utf8')), getContentType:()=>f.mime, getName:()=>f.name};}
+    setContent(c){this.content=c;this.updated=CLOCK;return this;}
+    getDateCreated(){return new Date(this.created);} setTrashed(t){this.trashed=t;return this;}
+    getParents(){const p=this.parent; let i=0; return {hasNext:()=>!!p&&i<1, next:()=>{i++;return p;}};}
+    makeCopy(n,f){const x=new FakeFile(n,this.content,f,this.mime);f.files.push(x);return x;} }
   class FakeFolder{ constructor(n,p){this.name=n;this.parent=p;this.files=[];this.folders=[];}
+    getName(){return this.name;}
     _it(a){let i=0;return{hasNext:()=>i<a.length,next:()=>a[i++]};}
     getFilesByName(n){return this._it(this.files.filter(f=>!f.trashed&&f.name===n));} getFiles(){return this._it(this.files.filter(f=>!f.trashed));}
     getFoldersByName(n){return this._it(this.folders.filter(f=>f.name===n));}
     createFolder(n){const f=new FakeFolder(n,this);this.folders.push(f);return f;}
-    createFile(n,c){const f=new FakeFile(n,c,this);this.files.push(f);return f;} }
+    createFile(n,c,mime){ let name=n, content=c, type=mime;
+      if(n instanceof FakeBlob){ name=n.getName(); content=Buffer.from(n.getBytes()); type=n.getContentType(); }
+      const f=new FakeFile(name,content,this,type); this.files.push(f); return f; } }
   const ROOT=new FakeFolder('',null), props={}; let lockBusy=false;
   const fetchCalls=[]; let fetchFail=false;   // 웹훅 호출 기록 / 실패 주입 스위치
   const cacheStore=new Map();                   // CacheService(웹훅 발사 결과 기록)
@@ -75,6 +90,9 @@ module.exports = function makePortalServer(){
       DigestAlgorithm:{SHA_256:'SHA_256'}, Charset:{UTF_8:'UTF_8'},
       computeDigest:(alg,s)=>Array.from(nodeCrypto.createHash('sha256').update(String(s==null?'':s),'utf8').digest()),
       base64EncodeWebSafe:s=>Buffer.from(String(s==null?'':s),'utf8').toString('base64').replace(/\+/g,'-').replace(/\//g,'_'),
+      base64Encode:d=>{ const b=Array.isArray(d)?Buffer.from(d):(Buffer.isBuffer(d)?d:Buffer.from(String(d==null?'':d),'utf8')); return b.toString('base64'); },
+      base64Decode:s=>{ const b=Buffer.from(String(s==null?'':s),'base64'); if(!b.length) throw new Error('bad base64'); return Array.from(b); },
+      newBlob:(data,type,name)=>new FakeBlob(data,type,name),
       formatDate:(d,tz,f)=>{const x=new Date(d.getTime()+9*3600e3),p=n=>String(n).padStart(2,'0');
         f=String(f).replace(/'([^']*)'/g,'$1');            // GAS 의 작은따옴표 글자 그대로
         return f.replace('yyyy',x.getUTCFullYear()).replace('MM',p(x.getUTCMonth()+1)).replace('dd',p(x.getUTCDate()))

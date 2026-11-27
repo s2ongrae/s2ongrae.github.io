@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'approval_list', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-27.brief10';
+const SERVER_VERSION = '2026-11-27.brief11';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -113,6 +113,8 @@ function doPost(e) {
       case 'usage_report':      return out(usageSet_(body));      // 📊 외부 비서의 자기 보고(usage_set 과 같은 곳)
       case 'agents_get':        return out(agentListGet());       // 👥 참여 비서 명부(읽기)
       case 'agent_save':        return out(agentSave_(body));     // 👥 참여 비서 명부(추가·이름 변경·제거)
+      case 'file_upload':       return out(queueFileUpload_(body)); // 📎 파일·이미지 공유 — Drive 에 올리고 id 만 받는다
+      case 'file_get':          return out(queueFileGet_(body));    // 📎 공유한 파일 다시 받기(화면이 blob 으로 그린다)
       default:                  return out({ ok: false, error: '알 수 없는 요청이에요.' });
     }
   } catch (err) {
@@ -1797,6 +1799,8 @@ function qqItem_(r) {
       return clip(by, 20);
     })(),
     summary: qqSummary_(type, p),
+    // 📎 첨부(2026-11-27) — 화면이 말풍선에 사진·파일 칩을 그린다. 본체는 Drive 에 있다(file_get).
+    files: qqFileVec_(p.files, false),
     // 🔔 레이 님이 결정해야 하는가 — 실행 승인 대기 + 아직 결정 안 한 승인 요청(2026-11-27)
     needs_decision: st === 'WAITING_APPROVAL' ||
       (String(p.kind || '').toLowerCase() === 'approval' && st === 'PENDING'),
@@ -1860,6 +1864,17 @@ function qqPayloadOf_(type, p) {
     if (ref && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/.test(ref)) out.ref = ref;
     const due = String(p.due == null ? '' : p.due).trim();
     if (due) out.due = clip(due, 40);
+  }
+  // 📎 첨부(2026-11-27) — 사진·서류는 Drive 에 있고 여기에는 {id,n,s,m} 만 싣는다.
+  //  payload 상한(4,000자)이 있어 본체를 실을 수 없다. 대화·오더 어느 쪽에도 붙일 수 있다.
+  if (isObj(p) && p.files) {
+    const fl = qqFileVec_(p.files, true);
+    if (fl.length) {
+      if (JSON.stringify(fl).length > QQ_FILE_FILES_CHARS) {
+        throw qqErr_('too_long', '첨부 이름이 너무 길어요 — 이름을 짧게 바꾸거나 파일 수를 줄여주세요.');
+      }
+      out.files = fl;
+    }
   }
   // 2026-11-27 — 'notebook' 도 그대로 싣는다(예전에는 기본값이라며 지웠다).
   //  노트북은 kind='chat' 이면 target==='notebook' 인 줄만 집어 가므로(hub-agent CommandQueue.gs
@@ -2612,6 +2627,8 @@ function qqWebhookBody_(row, p, agentId) {
     summary: qqSummary_(row && row.type, p || {}),
     // 원문 전체 — 대화는 줄바꿈 그대로, 실행 오더는 큐가 붙인 규칙까지 그대로(가림만).
     prompt: qqMask_(kind === 'chat' ? qqStripWorkerNote_(rawPrompt) : rawPrompt, QQ_CELL_MAX),
+    // 📎 첨부 — 깨운 비서도 같은 파일을 볼 수 있게 id·이름·크기·종류를 같이 보낸다(2026-11-27).
+    files: qqFileVec_(p && p.files, false),
     created_at: String((row && row.created_at) || ''),
     // 2026-11-26 — 깨어난 비서가 바로 읽는 자리에 완료 보고 규칙을 둔다(사용자: "처리했으면 했다고 보고를 남겨라").
     report_rule: QQ_REPORT_RULE
@@ -3941,4 +3958,153 @@ function agentBeatRead_(target) {
       min: isFinite(dm) ? Math.max(0, Math.round((Date.now() - dm) / 60000)) : null
     };
   } catch (_) { return null; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 📎 파일·이미지 공유 (2026-11-27) — 회의실에서 사진·서류를 붙여 보낸다
+//
+//  레이 님 지시: "여기서 파일이나 이미지도 공유할 수 있게 업데이트해".
+//
+//  · 왜 Drive 인가 — Command_Queue 는 시트 한 줄이고 payload 상한이 4,000자다
+//    (CommandQueue.gs 와 같은 값). 사진을 base64 로 실을 수 없다(작은 썸네일도 2,000자).
+//    그래서 **파일 본체는 Drive 에 두고, 시트에는 {id,n,s,m} 네 칸만** 싣는다.
+//  · 어디에 — 김성래포털/포털_공유. 메모 백업 옆이고, **이 폴더 파일만** file_get 으로 다시 꺼낸다.
+//  · 공개하지 않는다 — 링크 공유를 켜지 않는다(회의실에는 사적인 사진·서류가 온다).
+//    화면은 비밀 키가 붙은 POST(file_get)로 바이트를 받아 data URL 로 그린다.
+//  · 지우는 법 — Drive 의 포털_공유 폴더에서 지우면 된다(시트 줄의 첨부는 '지워짐'으로 보인다).
+//  · 무료 범위 — Apps Script·Drive 만 쓴다(외부 저장 서비스 없음).
+const QQ_FILE_FOLDER = '포털_공유';                 // 김성래포털/포털_공유
+const QQ_FILE_MAX = 4;                              // 한 말에 붙는 파일 수
+const QQ_FILE_BYTES = 4 * 1024 * 1024;              // 파일 하나 4MB (큰 사진은 화면이 먼저 줄인다)
+const QQ_FILE_FILES_CHARS = 1200;                   // payload 안 files 글자 상한
+const QQ_FILE_ID_RE = /^[A-Za-z0-9_-]{10,80}$/;     // Drive 파일 id 모양
+// 붙일 수 있는 종류 — 화면(index.html·room/app.js)의 목록과 같게 유지한다.
+const QQ_FILE_MIME = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
+  'image/heic': 'heic',
+  'application/pdf': 'pdf', 'text/plain': 'txt', 'text/csv': 'csv', 'text/markdown': 'md',
+  'application/zip': 'zip',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'application/haansofthwp': 'hwp', 'application/x-hwp': 'hwp',
+  'application/haansofthwpx': 'hwpx', 'application/x-hwpx': 'hwpx',
+  'application/vnd.hancom.hwp': 'hwp'
+};
+/** 사람이 읽는 크기 — '240KB' · '1.2MB' */
+function qqFileSize_(n) {
+  const v = Math.max(0, Number(n) || 0);
+  if (v < 1024) return v + 'B';
+  if (v < 1024 * 1024) return Math.round(v / 1024) + 'KB';
+  return (Math.round(v / 104857.6) / 10) + 'MB';
+}
+/** 올린 파일 이름 — 경로를 떼고 위험한 글자를 지우고 80자로 줄인다(확장자는 살린다). */
+function qqFileName_(raw, mime) {
+  let n = String(raw == null ? '' : raw).replace(/\\/g, '/').split('/').pop();
+  n = n.replace(/[\u0000-\u001f\u007f<>:"|?*]/g, '').replace(/\s+/g, ' ').trim();
+  const ext = QQ_FILE_MIME[String(mime || '').toLowerCase()] || '';
+  const hasExt = /\.[A-Za-z0-9]{1,7}$/.test(n);
+  if (!n) n = '첨부';
+  if (!hasExt && ext) n += '.' + ext;
+  if (n.length > 80) {
+    const dot = n.lastIndexOf('.');
+    const tail = (dot > 0 && n.length - dot <= 8) ? n.slice(dot) : '';
+    n = n.slice(0, Math.max(1, 80 - tail.length)) + tail;
+  }
+  return n;
+}
+/**
+ * payload.files → [{id,n,s,m}]. strict 면 잘못된 것을 **거절**하고(접수할 때),
+ * 아니면 조용히 걸러 낸다(읽을 때 — 옛 줄·남이 쓴 값 때문에 목록이 깨지면 안 된다).
+ */
+function qqFileVec_(raw, strict) {
+  if (strict && raw !== undefined && raw !== null && !Array.isArray(raw)) {
+    throw qqErr_('bad_request', '첨부(files)는 목록이어야 해요.');
+  }
+  const arr = Array.isArray(raw) ? raw : [];
+  if (strict && arr.length > QQ_FILE_MAX) {
+    throw qqErr_('bad_request', '한 번에 붙일 수 있는 파일은 ' + QQ_FILE_MAX + '개까지예요.');
+  }
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    const f = isObj(arr[i]) ? arr[i] : null;
+    const bad = function (msg) { if (strict) throw qqErr_('bad_request', msg); };
+    if (!f) { bad('첨부 모양이 올바르지 않아요.'); continue; }
+    const id = String(f.id == null ? '' : f.id).trim();
+    const m = String(f.m == null ? '' : f.m).trim().toLowerCase();
+    const s = Math.floor(Number(f.s));
+    if (!QQ_FILE_ID_RE.test(id)) { bad('첨부 파일 id 가 올바르지 않아요.'); continue; }
+    if (!QQ_FILE_MIME[m]) { bad('붙일 수 없는 파일 종류예요: ' + clip(m, 60)); continue; }
+    if (!isFinite(s) || s <= 0 || s > QQ_FILE_BYTES) { bad('첨부 크기가 올바르지 않아요(한 개 ' + qqFileSize_(QQ_FILE_BYTES) + '까지).'); continue; }
+    out.push({ id: id, n: qqFileName_(f.n, m), s: s, m: m });
+    if (out.length >= QQ_FILE_MAX) break;
+  }
+  return out;
+}
+/** 공유 폴더 하나(없으면 만든다) */
+function qqFileFolder_() { return getFolder(QQ_FILE_FOLDER, getRoot()); }
+/** 이 파일이 포털_공유 안에 있는가 — 비밀 키가 있어도 남의 Drive 파일을 이 창구로 읽지 않게. */
+function qqFileShared_(file) {
+  try {
+    const it = file.getParents();
+    let guard = 0;
+    while (it.hasNext() && guard++ < 50) {
+      if (String(it.next().getName()) === QQ_FILE_FOLDER) return true;
+    }
+  } catch (_) { return false; }
+  return false;
+}
+/**
+ * 📎 file_upload — 화면이 파일을 base64 로 올린다.
+ *  본문: {name, mime, size?, data(base64 — data:… 접두사 허용)}
+ *  돌려줌: {ok, at, file:{id,n,s,m}} — 이 file 을 말풍선 payload.files 에 실어 보낸다.
+ */
+function queueFileUpload_(body) {
+  const b = isObj(body) ? body : {};
+  const mime = String(b.mime == null ? '' : b.mime).trim().toLowerCase().split(';')[0];
+  if (!QQ_FILE_MIME[mime]) throw qqErr_('bad_request', '올릴 수 있는 파일이 아니에요(사진·PDF·문서·압축).');
+  const name = qqFileName_(b.name, mime);
+  const data = String(b.data == null ? '' : b.data).replace(/^data:[^,]*,/, '').replace(/\s+/g, '');
+  if (!data) throw qqErr_('bad_request', '파일 내용이 비어 있어요.');
+  if (!/^[A-Za-z0-9+/=_\-]+$/.test(data)) throw qqErr_('bad_request', '파일 내용(base64)이 올바르지 않아요.');
+  // 디코딩 **전에** 길이로 막는다 — 큰 본문으로 시간·메모리를 쓰지 않게.
+  const b64Max = Math.ceil(QQ_FILE_BYTES / 3) * 4 + 16;
+  const given = Math.floor(Number(b.size));
+  if (data.length > b64Max || (isFinite(given) && given > QQ_FILE_BYTES)) {
+    throw qqErr_('too_large', '파일이 너무 커요 — 한 개 ' + qqFileSize_(QQ_FILE_BYTES) + '까지예요(' + name + ').');
+  }
+  let bytes;
+  try { bytes = Utilities.base64Decode(data); } catch (e) { throw qqErr_('bad_request', '파일 내용을 읽지 못했어요.'); }
+  if (!bytes || !bytes.length) throw qqErr_('bad_request', '파일 내용이 비어 있어요.');
+  if (bytes.length > QQ_FILE_BYTES) throw qqErr_('too_large', '파일이 너무 커요 — 한 개 ' + qqFileSize_(QQ_FILE_BYTES) + '까지예요(' + name + ').');
+  const blob = Utilities.newBlob(bytes, mime, name);
+  const file = qqFileFolder_().createFile(blob);
+  return {
+    ok: true, at: qqNow_(),
+    file: { id: file.getId(), n: name, s: bytes.length, m: mime },
+    note: 'Drive 「' + PORTAL_FOLDER + '/' + QQ_FILE_FOLDER + '」에 보관했어요(공개 링크 아님).'
+  };
+}
+/**
+ * 📎 file_get — 공유한 파일의 바이트를 돌려준다(base64). 화면이 blob 으로 그린다.
+ *  본문: {id} · 비밀 키 필요(POST 전용). 포털_공유 밖의 파일은 거절한다.
+ */
+function queueFileGet_(body) {
+  const id = String((body && body.id) || '').trim();
+  if (!QQ_FILE_ID_RE.test(id)) throw qqErr_('bad_request', '파일 id 가 올바르지 않아요.');
+  let f = null;
+  try { f = DriveApp.getFileById(id); } catch (e) { f = null; }
+  if (!f) throw qqErr_('not_found', '그 파일을 찾지 못했어요 — Drive 에서 지웠을 수 있어요.');
+  if (!qqFileShared_(f)) throw qqErr_('forbidden', '회의실에서 공유한 파일이 아니에요.');
+  const blob = f.getBlob();
+  const bytes = blob.getBytes();
+  if (!bytes || !bytes.length) throw qqErr_('not_found', '파일 내용이 비어 있어요.');
+  return {
+    ok: true, id: id, n: clip(f.getName(), 80), s: bytes.length,
+    m: String(blob.getContentType() || '').toLowerCase(),
+    data: Utilities.base64Encode(bytes)
+  };
 }

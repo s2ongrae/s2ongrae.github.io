@@ -2034,5 +2034,89 @@ console.log('AK) 🌿 입력칸 어사이드 · 🧹 자동 정리 (2026-11-27)'
   ok(DN.calls.length === 0, '서버 설정 전엔 부르지 않는다');
 }
 
+console.log('AL) 📎 파일·이미지 공유 — 붙이기 · 올리기 · 말풍선 · 다시 받기 (2026-11-27)');
+{
+  const SKF = mk();
+  const KF = SKF.KEY;
+  // 회의실 한 줄을 미리 넣어 두고, 첨부가 붙은 말을 실제로 보낸다
+  SKF.props.QUEUE_SHEET_ID = 'SHEETidIntFiles01';
+  SKF.addSheet('SHEETidIntFiles01', { 'Command_Queue': [[
+    'id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash']] });
+  const DF = makeDevice(SKF);
+  DF.config();
+  const lastBody = a => {
+    for (let i = DF.calls.length - 1; i >= 0; i--) { const b = JSON.parse(DF.calls[i].opts.body); if (b.action === a) return b; }
+    return null;
+  };
+  const B64 = s => Buffer.from(String(s), 'utf8').toString('base64');
+
+  // ① 규칙 — 포털·서버·회의실이 같은 값
+  ok(DF.run('ORD_FILE_MAX') === 4 && DF.run('ORD_FILE_BYTES') === 4 * 1024 * 1024, '한 말에 4개 · 한 개 4MB');
+  ok(DF.run("ordFileWhy('image/jpeg', 1024, 0)") === '' && DF.run("ordFileWhy('application/pdf', 1024, 3)") === '', '사진·PDF 는 붙는다');
+  ok(/종류/.test(DF.run("ordFileWhy('application/x-msdownload', 10, 0)")), '허용 밖 종류는 이유를 말한다');
+  ok(/4MB/.test(DF.run("ordFileWhy('image/png', 5*1024*1024, 0)")), '4MB 를 넘으면 크기를 말한다');
+  ok(/4개/.test(DF.run("ordFileWhy('image/png', 10, 4)")), '이미 4개면 더 못 붙인다');
+  ok(DF.run('ordFileSize(2048)') === '2KB' && DF.run('ordFileSize(2*1048576)') === '2MB', '크기 표시');
+  ok(DF.run("ordFileIcon('application/pdf')") === '📕' && DF.run("ordFileIcon('weird/x')") === '📎', '종류 아이콘');
+
+  // ② 붙인 파일 → 보내기 전에 Drive 로 올라간다(file_upload) → 말에 files 로 실린다
+  DF.run("ORD_PEND = [{name:'사진 1.jpg', size:4, mime:'image/jpeg', dataUrl:'data:image/jpeg;base64," + B64('abcd') + "'}]");
+  DF.el('ord-inp').value = '@피투 이 사진 보고 정리해줘';
+  await DF.run('sendOrder()');
+  const up = lastBody('file_upload');
+  ok(up && up.mime === 'image/jpeg' && up.name === '사진 1.jpg' && up.data === 'data:image/jpeg;base64,' + B64('abcd'), '보내기 전에 file_upload 로 올린다(비밀 키 포함 POST)');
+  const enq = lastBody('queue_enqueue');
+  ok(enq && Array.isArray(enq.payload.files) && enq.payload.files.length === 1, '말에 files 가 실린다');
+  ok(/^[A-Za-z0-9_-]{10,80}$/.test(String(enq.payload.files[0].id || '')), 'files 에는 Drive id 만(사진 본체 없음)');
+  ok(!/base64/.test(JSON.stringify(enq.payload.files)), 'base64 는 실리지 않는다(payload 4,000자)');
+  ok(DF.run('ORD_PEND.length') === 0, '보낸 뒤 미리보기는 비워진다');
+
+  // ③ 첨부만 보내도 된다 — 글이 없으면 첨부 줄로 채운다
+  DF.run("ORD_PEND = [{name:'계약서.pdf', size:120000, mime:'application/pdf', dataUrl:'data:application/pdf;base64," + B64('%PDF') + "'}]");
+  DF.el('ord-inp').value = '';
+  await DF.run('sendOrder()');
+  const enq2 = lastBody('queue_enqueue');
+  ok(enq2 && /첨부 1개/.test(enq2.payload.prompt) && enq2.payload.files.length === 1, '글 없이 첨부만 보내면 첨부 줄이 본문이 된다');
+
+  // ④ 올리지 못하면 말을 보내지 않는다(첨부가 조용히 사라지면 상대는 온 줄 안다)
+  const before = DF.calls.filter(c => JSON.parse(c.opts.body).action === 'queue_enqueue').length;
+  DF.run("ORD_PEND = [{name:'큰파일.pdf', size:9*1024*1024, mime:'application/pdf', dataUrl:'data:application/pdf;base64," + B64('%PDF') + "'}]");
+  DF.el('ord-inp').value = '이거 봐줘';
+  await DF.run('sendOrder()');                                    // 서버가 too_large 로 거절한다(9MB)
+  ok(DF.calls.filter(c => JSON.parse(c.opts.body).action === 'queue_enqueue').length === before, '업로드가 거절되면 말을 보내지 않는다');
+  ok(DF.run('ORD_PEND.length') === 1, '실패한 첨부는 그대로 두어 다시 보낼 수 있다');
+  DF.run('ordFilesClear()');
+
+  // ⑤ 말풍선 — 사진은 그림 자리, 서류는 칩, 이름은 이스케이프
+  const h = DF.run("ordFilesHtml({id:'Q-x', files:[{id:'1AbCdEfGhIjKlMnOpQrStUvWxYz0123', n:'사진 <b>1</b>.jpg', s:2048, m:'image/jpeg'},{id:'1AbCdEfGhIjKlMnOpQrStUvWxYz0456', n:'계약서.pdf', s:120000, m:'application/pdf'}]})");
+  ok(/class="chat-files"/.test(h) && /class="chat-img" data-fid="1AbCdEfGhIjKlMnOpQrStUvWxYz0123"/.test(h), '사진은 data-fid 를 단 그림으로');
+  ok(/class="chat-file"/.test(h) && /계약서\.pdf/.test(h) && /117KB/.test(h), '서류는 칩(이름·크기)');
+  ok(/사진 &lt;b&gt;1&lt;\/b&gt;\.jpg/.test(h) && !/<b>1<\/b>/.test(h), '첨부 이름도 이스케이프한다');
+  // 이름은 onclick 문자열에 넣지 않는다 — esc() 는 &#39; 를 풀면 코드가 되는 것을 막지 못한다(2026-11-27)
+  const evil = DF.run("ordFilesHtml({id:'Q-z', files:[{id:'1AbCdEfGhIjKlMnOpQrStUvWxYz0777', n:\"x',alert(1),'\", s:10, m:'application/pdf'}]})");
+  ok(!/alert\(/.test(String(evil).split('title=')[0]) && /onclick="ordFileOpen\('1AbCdEfGhIjKlMnOpQrStUvWxYz0777'\)"/.test(evil), '이름이 코드로 새지 않는다(버튼에는 id 만)');
+  ok(/x&#39;,alert\(1\)/.test(evil), '이름은 title 에만 이스케이프해 들어간다');
+  ok(DF.run("ordFilesHtml({id:'Q-y'})") === '' && DF.run("ordFilesHtml({files:[{n:'x'}]})") === '', '첨부가 없거나 id 가 없으면 안 그린다');
+
+  // ⑥ 다시 받기 — file_get(비밀 키 POST)으로 받아 그리고, 한 번 받으면 기억한다
+  const files1 = JSON.parse(DF.calls.filter(c => JSON.parse(c.opts.body).action === 'queue_enqueue')[0].opts.body).payload.files;
+  const got = await DF.run("ordFileData('" + files1[0].id + "')");
+  ok(/^data:image\/jpeg;base64,/.test(String(got)) && Buffer.from(String(got).split(',')[1], 'base64').toString('utf8') === 'abcd', 'file_get 으로 받은 바이트가 올린 내용과 같다');
+  const callsBefore = DF.calls.length;
+  await DF.run("ordFileData('" + files1[0].id + "')");
+  ok(DF.calls.length === callsBefore, '한 번 받은 파일은 다시 요청하지 않는다(60초마다 다시 그려도 그대로)');
+  const missing = await DF.run("ordFileData('1AbCdEfGhIjKlMnOpQrStUvWxYz9999')");
+  ok(missing === '', '없는 파일은 빈 값(화면은 “불러오지 못했어요”만 말한다)');
+
+  // ⑦ 화면 배선 — 버튼·입력·미리보기·붙여넣기·끌어다 놓기
+  ok(/id="ord-file-btn"/.test(html) && /id="ord-file-inp"/.test(html) && /id="ord-files"/.test(html), '📎 버튼 · 파일 입력 · 미리보기 자리');
+  ok(/type="file" id="ord-file-inp" multiple hidden/.test(html) && /accept="image\/\*/.test(html), '여러 개 · 사진 허용');
+  ok(/onpaste="ordPaste\(event\)"/.test(html) && /ondrop="ordDragDrop\(event\)"/.test(html) && /ondragover="ordDragOver\(event\)"/.test(html), '붙여넣기·끌어다 놓기 배선');
+  ok(/ordFileHydrate\(box\)/.test(html) && /chat-files/.test(html), '말풍선을 그린 뒤 사진을 채운다');
+  ok(/\.room-file\{/.test(html) && /\.chat-img\{/.test(html) && /\.rf\{/.test(html), '첨부 스타일(버튼·미리보기·사진)');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();
