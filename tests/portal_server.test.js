@@ -1626,9 +1626,9 @@ console.log('\n21) 👀 이모지 반응 — queue_react · 자동 「전달됨 
   ok(Array.isArray(li.reactions) && li.reactions.length === 1 && li.reactions[0].by === 'vooy' && li.reactions[0].e === '👀', 'queue_list 항목에 reactions 가 실린다');
   ok(!JSON.stringify(rx()).includes('비교표'), '반응 탭에는 본문이 남지 않는다');
 
-  // ③ 🔧 진행 중 — 내 앞 PENDING 이면 집는다
+  // ③ 🔧 진행 중 — 반응만(2026-11-27): RUNNING 으로 집으면 노트북 워커 20분 타임아웃(TIMEOUT_REVIEW)에 걸린다
   r1 = react('vooy', 'Q-r1', '🔧');
-  ok(r1.effect === 'claimed' && r1.status === 'RUNNING' && st('Q-r1') === 'RUNNING' && rowOf('Q-r1')[HEADR.indexOf('claimed_by')] === 'vooy', '🔧 은 내 앞 PENDING 을 RUNNING 으로 집는다');
+  ok(r1.ok === true && r1.effect === '' && r1.status === 'PENDING' && st('Q-r1') === 'PENDING' && rowOf('Q-r1')[HEADR.indexOf('claimed_by')] === '', '🔧 은 반응만 남기고 상태는 그대로(PENDING) — 워커 타임아웃에 안 걸린다');
   // ④ ✅ 완료 — 확인 답장을 대신해 닫는다
   r1 = react('vooy', 'Q-r1', '✅');
   ok(r1.effect === 'closed' && st('Q-r1') === 'DONE' && rowOf('Q-r1')[HEADR.indexOf('result')] === '✅ 완료', '✅ 은 내 말을 DONE 으로 닫고 결과칸에 ✅ 완료');
@@ -1778,6 +1778,76 @@ console.log('\n22) 🧹 묵은 대화 정리 — queue_sweep (미리보기 기�
   const br = post({ action: 'queue_brief', key: KW });
   ok(br.ok === true && (br.agents.find(a => a.id === 'vooy') || {}).unread === 0, '정리 뒤 브리핑의 안 읽음이 0');
   S.props.QUEUE_SHEET_ID = SW;
+}
+
+console.log('\n23) 🩹 어제 실측 회귀 3건 — TIMEOUT_REVIEW 닫기 · 출처 오기 · 🔧 충돌 (2026-11-27)');
+{
+  const KT = S.props.SECRET_KEY;
+  const ST = 'SHEETidFix2301';
+  const HEADT = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const now = S.sb.Date.now();
+  const iso = ms => new Date(ms).toISOString();
+  const mkT = (id, hoursAgo, source, payload, status, extra) => {
+    const row = new Array(HEADT.length).fill('');
+    row[HEADT.indexOf('id')] = id; row[HEADT.indexOf('created_at')] = iso(now - hoursAgo * 3600000);
+    row[HEADT.indexOf('source')] = source; row[HEADT.indexOf('type')] = 'claude_prompt';
+    row[HEADT.indexOf('payload')] = JSON.stringify(payload); row[HEADT.indexOf('status')] = status || 'PENDING';
+    Object.keys(extra || {}).forEach(k => { const i = HEADT.indexOf(k); if (i >= 0) row[i] = extra[k]; });
+    return row;
+  };
+  const chat = (target, prompt, x) => Object.assign({ prompt, mode: 'ask', kind: 'chat', target }, x || {});
+  const TIMEOUT_ERR = '응답 없음(20분) · 재실행하지 않았습니다 — claude_prompt 은(는) 두 번 돌리면 결과가 중복될 수 있습니다.';
+  S.addSheet(ST, { 'Command_Queue': [HEADT.slice(0),
+    mkT('Q-f1', 20, 'pi2', chat('vooy2', '【@뷔투 개선 일감 ④】 SEO 개선안'), 'TIMEOUT_REVIEW', { claimed_by: 'vooy2', claimed_at: iso(now - 19 * 3600000), error: TIMEOUT_ERR }),
+    mkT('Q-f2', 20, 'pi1', chat('vooy2', '@뷔투 또 하나'), 'TIMEOUT_REVIEW', { claimed_by: 'vooy2', claimed_at: iso(now - 19 * 3600000), error: TIMEOUT_ERR }),
+    mkT('Q-f3', 20, 'pi1', chat('vooy2', '@뷔투 답 안 한 격리 건'), 'TIMEOUT_REVIEW', { claimed_by: 'vooy2', error: TIMEOUT_ERR }),
+    mkT('Q-f4', 20, 'pi1', { prompt: '가계부 점검', mode: 'ask' }, 'TIMEOUT_REVIEW', { claimed_by: 'notebook', error: TIMEOUT_ERR }),
+    mkT('Q-f5', 3, 'pi1', chat('keyring2', '@키투 블로그 수정 인계'))
+  ] });
+  S.props.QUEUE_SHEET_ID = ST;
+  const row = id => S.books[ST]['Command_Queue'].find(r => r[0] === id) || [];
+  const col = (id, k) => row(id)[HEADT.indexOf(k)];
+  const enq = (source, payload, extra) => post(Object.assign({ action: 'queue_enqueue', key: KT, type: 'claude_prompt', workspace: 'gaegyebu', source, payload }, extra || {}));
+
+  // ① 집은 비서의 답장은 TIMEOUT_REVIEW 도 닫는다 — 에러 문구도 지운다
+  const e1 = enq('vooy2', chat('pi2', '[뷔투 보고] 1. 프로젝트: 묘한살림 SEO — 완료', { reply_to: 'Q-f1' }));
+  ok(e1.ok === true && e1.closed && e1.closed.id === 'Q-f1' && e1.closed.by === 'vooy2', '집은 비서(뷔투)가 답장하면 TIMEOUT_REVIEW 원글이 닫힌다');
+  ok(col('Q-f1', 'status') === 'DONE' && col('Q-f1', 'error') === '' && String(col('Q-f1', 'result')).indexOf('↩ 답장') === 0, 'DONE · "응답 없음" 문구 제거 · 결과칸 ↩ 답장');
+  const e1b = enq('pi2', chat('portal', '대신 답해요', { reply_to: 'Q-f2' }));
+  ok(!e1b.closed && col('Q-f2', 'status') === 'TIMEOUT_REVIEW', '집은 비서가 아닌 다른 비서의 답장은 닫지 않는다');
+  const e1c = enq('pi2', chat('portal', '노트북 건 답', { reply_to: 'Q-f4' }));
+  ok(!e1c.closed && col('Q-f4', 'status') === 'TIMEOUT_REVIEW', '노트북이 집은 TIMEOUT_REVIEW 는 건드리지 않는다');
+
+  // ② 정리(sweep) — 집은 비서가 답한 TIMEOUT_REVIEW 만 닫고, 답 없는 것·노트북 것은 그대로
+  enq('vooy2', chat('pi1', '[뷔투 보고] 또 하나 끝', { reply_to: 'Q-f2' }));
+  const sw0 = post({ action: 'queue_sweep', key: KT });
+  ok(sw0.apply === false && sw0.stale === 0, '미리보기 — Q-f2 는 이미 위 답장으로 닫혔다');
+  S.books[ST]['Command_Queue'].find(r => r[0] === 'Q-f2')[HEADT.indexOf('status')] = 'TIMEOUT_REVIEW';   // (시험용) 닫기 전 상태로 되돌린다
+  const sw = post({ action: 'queue_sweep', key: KT });
+  ok(sw.answered === 1 && sw.items[0].id === 'Q-f2', '정리 후보: 집은 비서가 답한 TIMEOUT_REVIEW 1건');
+  ok(col('Q-f3', 'status') === 'TIMEOUT_REVIEW' && !sw.items.some(x => x.id === 'Q-f3'), '답이 없는 격리 건은 후보가 아니다(stale 로도 안 닫는다 — 결과 미확인)');
+  const swA = post({ action: 'queue_sweep', key: KT, apply: true });
+  ok(swA.applied === 1 && col('Q-f2', 'status') === 'DONE' && col('Q-f2', 'error') === '', 'apply 하면 닫고 에러 문구를 지운다');
+  ok(col('Q-f4', 'status') === 'TIMEOUT_REVIEW', '노트북이 집은 건 정리에서도 그대로');
+
+  // ③ 출처 오기 — 명시한 source 가 portal 이어도 그 비서의 이름표로 시작하는 답장이면 그 비서
+  const m1 = enq('portal', chat('portal', '[키투 보고] 레이 님, 재알림 확인했습니다. 현재 로그인 대기 상태입니다.', { reply_to: 'Q-f5' }));
+  ok(m1.ok === true && m1.item.source === 'keyring2', "source:'portal' 로 와도 [키투 …] 로 시작하고 원글이 키투 앞이면 키투의 말로 기록한다");
+  const m2 = enq('portal', chat('keyring2', '키투야 상황 어때?', { reply_to: 'Q-f5' }));
+  ok(m2.item.source === 'portal', '진짜 레이 님 말(이름표 없음)은 그대로 portal');
+  const m3 = enq('portal', chat('portal', '[뷔투 보고] 다른 비서 이름표', { reply_to: 'Q-f5' }));
+  ok(m3.item.source === 'portal', '원글을 받은 비서(키투)와 다른 이름표는 인정하지 않는다');
+  const m4 = enq('portal', chat('portal', '[키투 보고] 원글 없는 말'));
+  ok(m4.item.source === 'portal', 'reply_to 가 없으면 이름표만으로는 바꾸지 않는다');
+  const m5 = enq('cue', chat('portal', '[키투 보고] 큐가 쓴 말', { reply_to: 'Q-f5' }));
+  ok(m5.item.source === 'cue', '명시한 source 가 비서면 그대로(이름표로 덮지 않는다)');
+  ok(post({ action: 'queue_list', key: KT, limit: 5 }).items.some(x => x.id === m1.item.id && x.source === 'keyring2'), '목록에도 키투로 보인다');
+
+  // ④ 규칙 문구에 침묵·claim 주의가 들어간다
+  ok(/침묵이 정답/.test(m1.report_rule || '') && /queue_claim 으로 집지 마세요/.test(m1.report_rule || '') && /응답 없음/.test(m1.report_rule || ''), 'report_rule 에 침묵·20분 격리 주의가 있다');
+  S.props.QUEUE_SHEET_ID = 'SHEETidReact2101';
 }
 
 console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');

@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-26.brief6';
+const SERVER_VERSION = '2026-11-27.brief7';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -2375,7 +2375,8 @@ var QQ_REPORT_RULE = '끝나면 회의실에 한 줄 보고를 남겨 주세요 
   // 2026-11-26 — 운영 규칙(docs/AGENT_PROTOCOL.md) 핵심 3줄을 응답마다 함께 실어 준다(비서가 읽고 지키게).
   '[운영 규칙] ①reply_to 를 달아 답하면 그 원글이 자동으로 닫혀요(@전체 말 제외) — 일을 끝낸 뒤 한 번만 답하세요. ' +
   '②"확인했어요·수신 완료"처럼 내용 없는 답장은 보내지 마세요(이미 닫힌 말에 감사·확인 답장도 금지 — 비서끼리 무한 왕복). 확인만 하고 싶으면 이모지로: POST queue_react {as,id,emoji:"👀"} (👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님 — ✅·🙅 은 내 앞 말을 닫아요). ' +
-  '③주기 확인 비서는 매 주기 GET queue_inbox?as=<내 id> 한 번만 읽고, count 가 0 이면 아무 말도 하지 마세요.';
+  '③주기 확인 비서는 매 주기 GET queue_inbox?as=<내 id> 한 번만 읽고, count 가 0 이면 아무 말도 하지 마세요("확인했습니다·변경 없음" 같은 현황 글도 보내지 마세요 — 침묵이 정답). ' +
+  '④오래 걸리는 일은 queue_claim 으로 집지 마세요 — 20분 넘게 신호가 없으면 노트북 워커가 "응답 없음"으로 격리해요. 🔧 반응만 남기고, 끝나면 reply_to 로 답하세요.';
 function qqStripWorkerNote_(s) {
   return String(s == null ? '' : s).replace(QQ_WORKER_NOTE_RE, '').trim();
 }
@@ -2686,12 +2687,29 @@ const QQ_AI_REPORT_RE = /(?:^|\n)[ \t]*(?:1[.)][ \t]*)?프로젝트[ \t]*[:：]|
  *     (AI 보고 모양의 글이거나, 원글이 비서 앞으로 온 것이면).
  *  ④ 그래도 모르면 portal(사용자).
  */
+/** 본문이 `[키투 보고]`·`【뷔투 …】` 처럼 그 비서의 이름표로 시작하는가 (이름·별칭·id). */
+function qqSelfLabeled_(text, id) {
+  const m = /^\s*[【\[]\s*([^\]】\s·:：\/]{1,12})/.exec(String(text == null ? '' : text));
+  if (!m) return false;
+  const label = m[1].toLowerCase();
+  const names = (QQ_SECONDARY[id] || []).slice();
+  Object.keys(QQ_TARGET_NAMES).forEach(function (n) { if (QQ_TARGET_NAMES[n] === id) names.push(n); });
+  names.push(id);
+  return names.some(function (n) { return String(n).toLowerCase() === label; });
+}
 function qqSourceFor_(body, ctx) {
   const b = isObj(body) ? body : {};
   const rb = String(b.replied_by || (isObj(b.payload) && b.payload.replied_by) || '').trim().toLowerCase();
   if (qqIsAiId_(rb)) return rb;
   const explicit = String(b.source || b.client_id || (isObj(b.payload) && b.payload.source) || '').trim();
-  if (explicit) return qqSourceOf_(explicit);
+  // 2026-11-27 — 키투의 `[키투 보고] …` 4건이 source:'portal' 로 들어와 레이 님 말(오른쪽 파란 말풍선)로 찍혔다.
+  //  명시한 source 가 portal 이어도, 답장(reply_to)의 원글이 비서 앞이고 본문이 그 비서의 이름표로 시작하면 그 비서의 말로 본다.
+  let viaPortal = false;
+  if (explicit) {
+    const s = qqSourceOf_(explicit);
+    if (s !== 'portal') return s;
+    viaPortal = true;
+  }
   const replyTo = String(b.reply_to || (isObj(b.payload) && b.payload.reply_to) || '').trim();
   if (replyTo && ctx) {
     let row = null;
@@ -2699,7 +2717,8 @@ function qqSourceFor_(body, ctx) {
     const t = row ? qqRowTarget_(row) : '';
     if (qqIsAiId_(t)) {
       const rep = String(b.summary || (isObj(b.payload) && b.payload.prompt) || '');
-      if (!rep.trim() || QQ_AI_REPORT_RE.test(rep)) return t;
+      if (viaPortal) { if (qqSelfLabeled_(rep, t)) return t; }
+      else if (!rep.trim() || QQ_AI_REPORT_RE.test(rep)) return t;
     }
   }
   return 'portal';
@@ -2726,18 +2745,21 @@ function qqCloseOnReply_(ctx, row, p, nowMs) {
     const r = qqFindRow_(ctx, rid);
     if (!r) return null;
     const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
-    if (st !== 'PENDING' && st !== 'RUNNING') return null;
+    // 2026-11-27 — TIMEOUT_REVIEW 도 닫는다: 집은 비서(claimed_by)가 결과를 냈다면 '응답 없음'이 아니다.
+    //  (뷔투 2건: 노트북 워커가 20분 넘게 신호 없는 RUNNING 을 격리했는데 뷔투는 그 뒤에 산출물을 냈다 — 원 오더만 빨갛게 남았다)
+    if (st !== 'PENDING' && st !== 'RUNNING' && st !== 'TIMEOUT_REVIEW') return null;
     const tgt = qqRowTarget_(r);
     const claimed = String(r.claimed_by == null ? '' : r.claimed_by).trim().toLowerCase();
     if (tgt === 'notebook' || claimed === 'notebook') return null;
-    const owner = st === 'RUNNING' && claimed ? claimed : tgt;
+    const owner = (st === 'RUNNING' || st === 'TIMEOUT_REVIEW') && claimed ? claimed : tgt;
     if (owner !== by) return null;
     const started = Date.parse(String(r.claimed_at || '')) || 0;
     const hasResult = !!String(r.result == null ? '' : r.result).trim();
     qqUpdateRow_(ctx, r.__row, {
       status: 'DONE', claimed_by: by, claimed_at: claimed ? r.claimed_at : qqIso_(nowMs), finished_at: qqIso_(nowMs),
       duration_ms: started ? Math.max(0, nowMs - started) : 0, exit_code: 0,
-      result: hasResult ? r.result : QQ_REPLY_CLOSE_MARK + String(row.id)
+      result: hasResult ? r.result : QQ_REPLY_CLOSE_MARK + String(row.id),
+      error: st === 'TIMEOUT_REVIEW' ? '' : r.error
     });
     return { id: rid, by: by, status: 'DONE' };
   } catch (err) { return null; }      // 닫기에 실패해도 답장 접수는 그대로 성공
@@ -2754,8 +2776,9 @@ function qqCloseOnReply_(ctx, row, p, nowMs) {
 //   · ✓ 전달됨 — **서버가 자동**으로 남긴다: 비서가 queue_inbox 로 그 말을 가져간 순간. 토큰 0, 비서 수정 없음.
 //                '읽음'이 아니다 — 가져간 것만 확실하고 이해했는지는 서버가 모른다.
 //   · 👀 접수   — 비서가 직접. 내 일로 보고 있다(닫지 않음).
-//   · 🔧 진행 중 — 비서가 직접. 내 앞 PENDING 이면 queue_claim 과 같이 RUNNING 으로 집는다.
-//   · ✅ 완료   — 비서가 직접. 내 앞 말이면 닫는다(DONE, 결과칸 `✅ 완료`). 확인 답장을 대신한다.
+//   · 🔧 진행 중 — 비서가 직접. **반응만**(상태는 안 바뀐다) — RUNNING 으로 집으면 노트북 워커가 20분 넘게 신호 없는 RUNNING 을
+//                '응답 없음(TIMEOUT_REVIEW)'으로 격리한다(2026-11-27 실측 — 뷔투 2건).
+//   · ✅ 완료   — 비서가 직접. 내 앞 말이면 닫는다(DONE, 결과칸 `✅ 완료`). 확인 답장을 대신한다(TIMEOUT_REVIEW 도 닫는다).
 //   · 🙅 내 일 아님 — 비서가 직접. 내 앞 말이면 닫는다(DONE, 결과칸 `🙅 내 일 아님`).
 //  @전체·멘션으로만 부른 말·노트북 앞 오더는 반응만 남기고 상태는 바꾸지 않는다.
 // ═══════════════════════════════════════════════════════════════
@@ -2845,14 +2868,19 @@ function queueSweep(body) {
     const plan = [];
     rows.forEach(function (r) {
       const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
-      if (st !== 'PENDING') return;
+      if (st !== 'PENDING' && st !== 'TIMEOUT_REVIEW') return;
       const p = qqParse_(r.payload);
       if (qqLow_(p.kind) !== 'chat') return;            // 실행 오더는 안 건드린다
-      const t = qqRowTarget_(r);
-      if (!qqIsAiId_(t) || t === 'notebook') return;    // @전체·노트북·사람(포털) 앞은 안 건드린다
+      const t0 = qqRowTarget_(r);
+      if (!qqIsAiId_(t0) || t0 === 'notebook') return;  // @전체·노트북·사람(포털) 앞은 안 건드린다
+      const claimedBy = qqLow_(r.claimed_by);
+      if (claimedBy === 'notebook') return;
+      // TIMEOUT_REVIEW 는 집은 비서(claimed_by)가 결과를 냈을 때만 닫는다(미접수 stale 갈래에는 안 넣는다)
+      const t = st === 'TIMEOUT_REVIEW' ? (claimedBy || t0) : t0;
       const id = String(r.id);
       const rid = firstReply[id] && firstReply[id][t];
-      if (rid) { plan.push({ row: r, kind: 'answered', to: t, reply: rid, ageH: 0 }); return; }
+      if (rid) { plan.push({ row: r, kind: 'answered', to: t, reply: rid, ageH: 0, was: st }); return; }
+      if (st === 'TIMEOUT_REVIEW') return;
       const ageH = (nowMs - (Date.parse(String(r.created_at || '')) || nowMs)) / 3600000;
       const seen = (rmap[id] || []).some(function (x) { return x.by === t && (x.e === '👀' || x.e === '🔧'); });
       if (!seen && ageH >= hours) plan.push({ row: r, kind: 'stale', to: t, reply: '', ageH: ageH });
@@ -2883,7 +2911,8 @@ function queueSweep(body) {
       const r = x.row;
       if (x.kind === 'answered') {
         qqUpdateRow_(ctx, r.__row, { status: 'DONE', claimed_by: x.to, claimed_at: nowIso, finished_at: nowIso,
-          duration_ms: 0, exit_code: 0, result: QQ_REPLY_CLOSE_MARK + x.reply });
+          duration_ms: 0, exit_code: 0, result: QQ_REPLY_CLOSE_MARK + x.reply,
+          error: x.was === 'TIMEOUT_REVIEW' ? '' : r.error });
       } else {
         qqUpdateRow_(ctx, r.__row, { status: 'EXPIRED', finished_at: nowIso,
           error: '🧹 정리: ' + hours + '시간 넘게 받는 비서가 접수하지 않아 닫았어요(필요하면 다시 보내 주세요).' });
@@ -2929,10 +2958,10 @@ function queueReact(body) {
     let effect = '', status = st;
     const owner = st === 'RUNNING' && claimed ? claimed : tgt;
     const mine = owner === as && tgt !== 'notebook' && claimed !== 'notebook' && as !== 'notebook';
-    if (emoji === '🔧' && st === 'PENDING' && tgt === as && mine) {
-      qqUpdateRow_(ctx, r.__row, { status: 'RUNNING', claimed_at: qqIso_(nowMs), claimed_by: as, attempts: Number(r.attempts || 0) + 1 });
-      effect = 'claimed'; status = 'RUNNING';
-    } else if ((emoji === '✅' || emoji === '🙅') && (st === 'PENDING' || st === 'RUNNING') && mine) {
+    // 🔧 은 **반응만** 남긴다(2026-11-27). 예전엔 RUNNING 으로 집었는데, 노트북 워커(CommandQueue.gs)가
+    //  20분 넘게 신호(beat)가 없는 RUNNING 을 '응답 없음 → TIMEOUT_REVIEW' 로 격리해 버렸다(뷔투 2건 실측).
+    //  집어서 표시하고 싶으면 queue_claim 을 쓰되 오래 걸리면 쓰지 않는다.
+    if ((emoji === '✅' || emoji === '🙅') && (st === 'PENDING' || st === 'RUNNING' || st === 'TIMEOUT_REVIEW') && mine) {
       const started = Date.parse(String(r.claimed_at || '')) || 0;
       const hasResult = !!String(r.result == null ? '' : r.result).trim();
       qqUpdateRow_(ctx, r.__row, {
