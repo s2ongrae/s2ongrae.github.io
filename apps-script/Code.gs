@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'approval_list', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-27.brief8';
+const SERVER_VERSION = '2026-11-27.brief9';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -2890,7 +2890,15 @@ function qqDeliverMark_(ctx, me, ids, rmap) {
 //   · 어느 경우든 요청한 비서에게 결과를 reply_to 답장으로 보낸다(웹훅 비서는 바로 깨어나고 폴링 비서는 받은편지함에서 본다).
 // ═══════════════════════════════════════════════════════════════
 const QQ_APPROVAL_TITLE_MAX = 80;
-const QQ_APPROVAL_HINT_RE = /(승인|허락|결재|컨펌)[^\n]{0,6}(요청|부탁|필요|해\s*주|주시|받아야|받고)|(진행|발행|결제|구매|삭제|배포|등록|업로드|전송)\s*해도\s*(될까요|되나요|괜찮을까요|괜찮나요)|(결정|선택)\s*(해|을|를)?\s*주세요/;
+// 2026-11-27 실측 보정 — 처음 규칙은 6건 중 4건이 오탐이었다("승인이 필요한 사항은 확인하겠습니다"·"승인은 없습니다"·"승인된 요청이 오면").
+//  문장 단위로 보고, '요청 형태'만 잡고, 부정·약속 문장은 뺀다(qqApprovalHint_).
+const QQ_APPROVAL_HINT_RE = /(승인|허락|결재|컨펌)\s*(을|를)?\s*(부탁|요청)\s*(드립니다|드려요|드릴게요|합니다|해요)|(재?승인|허락|결재|컨펌)\s*(이|가)?\s*필요\s*(합니다|해요|함|$)|(승인|허락|컨펌)\s*해\s*주(세요|시겠|실\s*수)|(진행|발행|결제|구매|삭제|배포|등록|업로드|전송)\s*해도\s*(될까요|되나요|괜찮을까요|괜찮나요)|(결정|선택)\s*(해|을|를)?\s*주세요/;
+const QQ_APPROVAL_NEG_RE = /(없습니다|없어요|없음|않겠|않습니다|하지 않|안 할|확인하겠습니다)/;
+function qqApprovalHint_(text) {
+  return String(text == null ? '' : text).split(/[.!?。\n]+/).some(function (sen) {
+    return QQ_APPROVAL_HINT_RE.test(sen) && !QQ_APPROVAL_NEG_RE.test(sen);
+  });
+}
 const QQ_DECISIONS = { approve: '✅ 승인', hold: '⏸ 보류', reject: '🚫 거절' };
 /** 시트 줄의 결정 — approval_note 머리의 표시로 읽는다('approve'|'hold'|'reject'|'') */
 function qqDecisionOf_(r) {
@@ -2926,7 +2934,7 @@ function approvalList(body) {
       if (!qqIsAiId_(src) || qqDecisionOf_(r) || portalReplied[String(r.id)]) continue;
       if (nowMs - (Date.parse(String(r.created_at || '')) || 0) > 48 * 3600000) continue;
       const p0 = qqParse_(r.payload);
-      if (!QQ_APPROVAL_HINT_RE.test(String(p0.prompt == null ? '' : p0.prompt))) continue;
+      if (!qqApprovalHint_(p0.prompt)) continue;
       kind = 'suggested';
     }
     if (!kind) continue;

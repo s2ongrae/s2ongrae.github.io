@@ -1944,6 +1944,15 @@ console.log('\n24) 🔔 승인함 — kind:approval · approval_list · approval
   ok(d.ok === true && d.kind === 'order' && colA('Q-a4', 'status') === 'PENDING', '실행 승인은 queue_decide 와 같은 길로 PENDING(노트북 실행 차례)');
   L = list();
   ok(L.count === 0 && L.items.length === 0, '결정하고 나면 승인함이 빈다');
+  // 자동 감지 — 2026-11-27 실측 6건으로 보정: 요청 형태만, 부정·약속 문장은 뺀다
+  const H = s => S.sb.qqApprovalHint_(s);
+  ok(H('키링 주기 변경은 키링 앱에서 성래 님 승인이 필요합니다. 나머지는 끝') === true, '진짜: 승인이 필요합니다(문장 끝)');
+  ok(H('GAS 재배포 및 레이 님 OAuth 1회 재승인 필요. 고해상도는 병행') === true, '진짜: 재승인 필요.');
+  ok(H('쿠팡 광고비 결제 승인 부탁드려요') === true && H('상품명 1안으로 진행해도 될까요?') === true && H('A안 B안 중 선택해 주세요') === true, '진짜: 부탁드려요·진행해도 될까요·선택해 주세요');
+  ok(H('직접 승인된 변경 요청이 오면 그때 현재 설정을 확인하겠습니다.') === false, '오탐 제거: 승인된 … 오면(조건문)');
+  ok(H('판단이나 승인이 필요한 사항은 성래님께 먼저 확인하겠습니다.') === false, '오탐 제거: 승인이 필요한 사항은 … 하겠습니다(약속)');
+  ok(H('현재 레이 님께서 해 주셔야 하는 확인이나 승인은 없습니다.') === false && H('1. 프로젝트: 확인·승인 요청 알림 2. 완료 작업') === false, '오탐 제거: 없습니다(부정) · 제목 속 승인 요청');
+  ok(H('[뷔투 · 허락 요청] 앞으로 할지 말지 정해야 하는 일은 두 분께 허락받고 진행합니다') === false, '오탐 제거: 꼬리표 [허락 요청] · 절차 안내');
   // 입력 검사
   ok(post({ action: 'approval_decide', key: KA, id: 'Q-a2', decision: 'maybe' }).ok === false, '모르는 결정은 거절');
   ok(post({ action: 'approval_decide', key: KA, id: 'Q-a6', decision: 'approve' }).ok === false, '승인 요청이 아닌 말(레이 님이 비서에게 보낸 말)은 결정할 수 없다');
