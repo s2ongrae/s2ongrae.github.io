@@ -31,7 +31,7 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'approval_list', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-27.brief9';
+const SERVER_VERSION = '2026-11-27.brief10';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -1843,6 +1843,8 @@ function qqPayloadOf_(type, p) {
   // 2026-11-25 통합 회의실 — kind='chat' 이면 노트북이 코드가 아니라 '답장'을 만든다(같은 claude_prompt 큐).
   // target 은 @멘션(누구에게). 둘 다 노트북 lib/chat.js 가 읽는다. 모르는 값은 싣지 않는다.
   if (isObj(p) && String(p.kind || '').toLowerCase() === 'chat') out.kind = 'chat';
+  // 2026-11-27 — 📣 알림(답장 불필요): 접수 순간 닫히고 받는 비서 받은편지함에 한 번 간다. 결정 알림·공지용.
+  if (isObj(p) && p.notice === true && out.kind === 'chat') out.notice = true;
   // 2026-11-27 — 🔔 승인 요청. 레이 님(포털) 앞으로만 가고, 레이 님이 결정할 때까지 PENDING 으로 남는다(승인함에 모인다).
   //  실행 오더가 아니므로 mode 는 늘 ask, 대상은 늘 portal. 제목·위험 종류·관련 오더·기한은 선택.
   const isApproval = isObj(p) && String(p.kind || '').toLowerCase() === 'approval';
@@ -1851,7 +1853,7 @@ function qqPayloadOf_(type, p) {
     out.kind = 'approval';
     out.target = 'portal';
     const firstLine = prompt.split(/\r?\n/)[0].replace(/\s+/g, ' ').trim();
-    out.title = clip(String(p.title == null ? '' : p.title).replace(/\s+/g, ' ').trim() || firstLine, QQ_APPROVAL_TITLE_MAX);
+    out.title = clip((String(p.title == null ? '' : p.title).replace(/\s+/g, ' ').trim() || firstLine).replace(/^(\s*@\S+)+\s*/, '').trim(), QQ_APPROVAL_TITLE_MAX);
     const risk = String(p.risk == null ? '' : p.risk).replace(/\s+/g, ' ').trim();
     if (risk) out.risk = clip(risk, 20);
     const ref = String(p.ref == null ? '' : p.ref).trim();
@@ -2523,6 +2525,7 @@ var QQ_REPORT_RULE = '끝나면 회의실에 한 줄 보고를 남겨 주세요 
   '②"확인했어요·수신 완료"처럼 내용 없는 답장은 보내지 마세요(이미 닫힌 말에 감사·확인 답장도 금지 — 비서끼리 무한 왕복). 확인만 하고 싶으면 이모지로: POST queue_react {as,id,emoji:"👀"} (👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님 — ✅·🙅 은 내 앞 말을 닫아요). ' +
   '③주기 확인 비서는 매 주기 GET queue_inbox?as=<내 id> 한 번만 읽고, count 가 0 이면 아무 말도 하지 마세요("확인했습니다·변경 없음" 같은 현황 글도 보내지 마세요 — 침묵이 정답). ' +
   '④오래 걸리는 일은 queue_claim 으로 집지 마세요 — 20분 넘게 신호가 없으면 노트북 워커가 "응답 없음"으로 격리해요. 🔧 반응만 남기고, 끝나면 reply_to 로 답하세요. ' +
+  '⑥답장이 필요 없는 알림은 payload.notice:true 로 보내세요(접수 순간 닫히고 받는 비서에게 한 번 갑니다). @전체 공지도 접수 순간 닫혀요. 보고서 협업 필요 줄에 이름을 쓰면 그 비서 앞으로 협업 요청이 자동으로 만들어져요 — 받으면 👀 후 진행, 아니면 🙅. ' +
   '⑤레이 님 승인이 필요한 일(돈·결제·외부 발행·계정·로그인·삭제·개인정보·배포)은 회의실에만 queue_enqueue {type:"claude_prompt", payload:{kind:"approval", title:"<한 줄>", prompt:"<무엇을·왜·안 하면 어떻게>", risk:"<돈|외부 발행|…>"}} 로 요청하세요 — 텔레그램·슬랙·카톡 등 다른 앱으로 보내지 마세요. 결정(✅ 승인·⏸ 보류·🚫 거절)은 reply_to 답장으로 가고, 승인 전에는 실행하지 마세요.';
 function qqStripWorkerNote_(s) {
   return String(s == null ? '' : s).replace(QQ_WORKER_NOTE_RE, '').trim();
@@ -2558,7 +2561,11 @@ function qqDeliveredOnly_(type, payload) {
   const p = qqParse_(payload);
   if (!isObj(p)) return false;
   if (String(p.kind || '').toLowerCase() !== 'chat') return false;
-  return String(p.target || '').toLowerCase() === 'portal';
+  const t = String(p.target || '').toLowerCase();
+  // 2026-11-27 — 사람 앞 말에 더해 @전체 공지·알림(notice:true)도 '전달 완료'로 닫는다.
+  //  예전엔 @전체 공지 8건·결정 알림·규칙 공지가 영원히 대기로 남아 브리핑 숫자를 부풀렸다(실측).
+  //  비서는 받은편지함에서 '한 번' 받는다(queue_inbox 의 cast 갈래 — DONE 이어도 마지막 확인 뒤 온 것만).
+  return t === 'portal' || t === 'all' || p.notice === true;
 }
 
 // ── 외부 에이전트 인바운드 웹훅 (2026-11-25) ───────────────────
@@ -2689,6 +2696,13 @@ function queueInbox(body) {
     const m = QQ_REPLY_JSON_RE.exec(String(r.payload == null ? '' : r.payload));
     if (m) answered[m[1]] = true;
   });
+  const myCollabParents = {};                           // 나에게 협업 요청(자식 줄)이 만들어진 원 보고
+  rows.forEach(function (r) {
+    const raw = String(r.payload == null ? '' : r.payload);
+    if (raw.indexOf('"collab":true') < 0 || qqRowTarget_(r) !== me) return;
+    const m = QQ_REPLY_JSON_RE.exec(raw);
+    if (m) myCollabParents[m[1]] = true;
+  });
   const items = [];
   let count = 0, repliedOpen = 0, running = 0, cast = 0;
   for (let i = rows.length - 1; i >= 0; i--) {
@@ -2696,13 +2710,24 @@ function queueInbox(body) {
     const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
     const by = qqLow_(r.claimed_by);
     const mineRunning = st === 'RUNNING' && by === me;
-    if (st !== 'PENDING' && !mineRunning) continue;
-    if (qqLow_(r.source) === me) continue;               // 내가 보낸 말은 내 일이 아니다
     const t = qqRowTarget_(r);
     const createdMs = Date.parse(String(r.created_at || '')) || 0;
-    let isCast = false;
-    if (!mineRunning && t !== me) {
+    // 2026-11-27 — '전달 완료'로 닫힌 대화(@전체 공지·알림·사람 앞 보고 속 @멘션)도 마지막 확인 뒤 온 것만 한 번 준다
+    let doneCast = false;
+    if (st !== 'PENDING' && !mineRunning) {
+      if (st !== 'DONE' || createdMs < castFrom) continue;
+      const raw0 = String(r.payload == null ? '' : r.payload);
+      if (!/"kind"\s*:\s*"chat"/.test(raw0)) continue;
+      doneCast = true;
+    }
+    if (qqLow_(r.source) === me) continue;               // 내가 보낸 말은 내 일이 아니다
+    let isCast = doneCast;
+    if (!mineRunning && (t !== me || doneCast)) {
       if (t === 'all') isCast = true;
+      else if (doneCast && t === me) {                      // 내 앞 말이 이미 닫혔으면 알림(notice)일 때만 한 번
+        if (!/"notice"\s*:\s*true/.test(String(r.payload == null ? '' : r.payload))) continue;
+        isCast = true;
+      }
       else {
         // 본문 @멘션·'협업 필요' 줄로만 부른 말 — PENDING 줄만, 문자열에 @·협업이 있을 때만 무겁게 본다
         const raw = String(r.payload == null ? '' : r.payload);
@@ -2714,6 +2739,7 @@ function queueInbox(body) {
       }
     }
     if (answered[String(r.id)]) { repliedOpen++; continue; }
+    if (isCast && myCollabParents[String(r.id)]) continue;   // 같은 내용이 협업 요청으로 이미 내 앞에 있다
     if (isCast && (createdMs < castFrom || (sinceMs && createdMs <= sinceMs))) continue;   // 이미 한 번 전달한 말
     if (!isCast && sinceMs && createdMs <= sinceMs && !mineRunning) continue;
     count++;
@@ -2742,7 +2768,7 @@ function queueWebhookLast() {
  *  · 호출은 통째로 격리한다 — 웹훅이 실패해도 queue_enqueue 는 그대로 성공이다.
  *  반환: 깨운 에이전트 id 배열(시험·보고용).
  */
-function qqFireWebhooks_(row, p) {
+function qqFireWebhooks_(row, p, skip) {
   try {
     const map = qqWebhookMap_();
     const ids = Object.keys(map);
@@ -2753,6 +2779,7 @@ function qqFireWebhooks_(row, p) {
     const fired = [];
     ids.forEach(function (agentId) {
       if (source === agentId) return;
+      if (skip && skip.indexOf(agentId) >= 0) return;   // 협업 요청으로 따로 깨울 비서는 원 보고로 또 깨우지 않는다
       if (!(target === agentId || target === 'all' || mentioned.indexOf(agentId) >= 0)) return;
       try {
         if (typeof UrlFetchApp === 'undefined') throw new Error('no UrlFetchApp');
@@ -3087,7 +3114,8 @@ function approvalDecide(body) {
     const isChatToMe = qqLow_(p.kind) === 'chat' && qqLow_(p.target) === 'portal';
     if (!isReq && !isChatToMe) throw qqErr_('bad_request', '승인 요청이 아니에요.');
     requester = qqIsAiId_(qqLow_(r.source)) ? qqLow_(r.source) : '';
-    title = String(p.title || '').trim() || String(p.prompt || '').split(/\r?\n/)[0].slice(0, 60);
+    title = clip(String(String(p.title || '').trim() || String(p.prompt || '').split(/\r?\n/)[0])
+      .replace(/^(\s*@\S+)+\s*/, '').trim(), 60);
     kind = isReq ? 'request' : 'suggested';
     const prev = qqDecisionOf_(r);
     if (prev && prev !== 'hold') return { ok: true, id: id, changed: false, status: st, decision: prev, reason: '이미 결정한 항목이에요.' };
@@ -3108,17 +3136,73 @@ function approvalDecide(body) {
   let replyId = '';
   if (requester) {
     const ws = String(first.workspace || '').trim() || (qqWorkspaces_()[0] || '');
-    const text = '@' + requester + ' [레이 님 결정] ' + QQ_DECISIONS[decision] + ' — ' + title + (note ? '\n메모: ' + note : '') +
+    const text = '@' + qqAgentName_(requester) + ' [레이 님 결정] ' + QQ_DECISIONS[decision] + ' — ' + title + (note ? '\n메모: ' + note : '') +
       (decision === 'approve' ? '\n진행하고, 끝나면 reply_to 로 결과를 한 번 남겨 주세요.'
         : decision === 'hold' ? '\n아직 진행하지 마세요. 필요한 정보가 있으면 이 말에 reply_to 로 답해 주세요.'
         : '\n진행하지 마세요.');
     try {
       const e = queueEnqueue({ type: 'claude_prompt', workspace: ws, source: 'portal', client_id: 'portal',
-        payload: { kind: 'chat', target: requester, reply_to: id, prompt: text } });
+        payload: { kind: 'chat', target: requester, reply_to: id, prompt: text, notice: true } });
       replyId = e && e.item ? e.item.id : '';
     } catch (err) { replyId = ''; }
   }
   return { ok: true, id: id, decision: decision, kind: kind, changed: changed, status: status, reply_id: replyId, requester: requester };
+}
+
+// ── 🤝 협업 요청 자동 할 일 · 이름 · 어사이드 판정 (2026-11-27) ─────────────
+const QQ_COLLAB_MAX = 3;
+/** id → 부르는 이름(큐투·뷔투·키투 확정 호칭 먼저, 다음 명부) */
+function qqAgentName_(id) {
+  const k = qqLow_(id);
+  if (QQ_SECONDARY[k]) return QQ_SECONDARY[k][0];
+  for (const n in QQ_TARGET_NAMES) { if (QQ_TARGET_NAMES[n] === k && n !== '전체') return n; }
+  try { const a = agentRoster_().filter(function (x) { return x.id === k; })[0]; if (a && a.name) return a.name; } catch (e) { /* 명부 없음 */ }
+  return k;
+}
+/**
+ * 보고서의 '협업 필요: ○○' → ○○ 앞으로 할 일 한 줄씩(최대 3명). 원 보고를 reply_to 로 묶어 스레드로 보인다.
+ *  노트북은 빼고(실행은 오더로 따로), 이미 대상인 비서·자기 자신·사람·@전체도 뺀다. 실패해도 원 보고 접수는 그대로.
+ */
+function qqCollabTasks_(ctx, row, p, nowMs) {
+  try {
+    const src = qqLow_(row.source);
+    if (!qqIsAiId_(src) || src === 'notebook') return [];
+    const text = String(p.prompt == null ? '' : p.prompt);
+    if (text.indexOf('[협업 요청 · 자동]') >= 0) return [];   // 자동 협업 요청을 옮겨 적은 말은 다시 퍼뜨리지 않는다
+    const tgt = qqLow_(p.target);
+    const ids = qqCollabMentions_(text, false).filter(function (id) {
+      return id !== src && id !== tgt && id !== 'portal' && id !== 'all' && id !== 'notebook' && qqIsAiId_(id);
+    }).slice(0, QQ_COLLAB_MAX);
+    if (!ids.length) return [];
+    const line = clip(qqCollabSegments_(text).join(' / ').replace(/\s+/g, ' ').trim(), 160);
+    const out = [];
+    ids.forEach(function (id, i) {
+      const ms = nowMs + i + 1;
+      const pl = { prompt: '[협업 요청 · 자동] ' + qqAgentName_(src) + '의 보고에서 협업이 필요하다고 했어요 — 「' + line + '」' +
+          '\n원문: ' + row.id + '\n할 수 있으면 👀 반응 뒤 진행하고 이 말에 reply_to 로 결과를 남겨 주세요. 내 일이 아니면 🙅.',
+        mode: 'ask', kind: 'chat', target: id, reply_to: String(row.id), collab: true };
+      const pj = JSON.stringify(pl);
+      const child = { id: qqMakeId_(ms), created_at: qqIso_(ms), source: src, type: 'claude_prompt', workspace: row.workspace,
+        payload: pj, status: 'PENDING', attempts: 0, claimed_at: '', claimed_by: '', finished_at: '', duration_ms: '', exit_code: '',
+        result: '', error: '', detail: '', risk_level: 'LOW', approval_expires_at: '', approval_by: '', approval_at: '',
+        approval_note: '', approval_hash: qqHashPayload_(pj) };
+      qqAppend_(ctx, child);
+      out.push(child);
+    });
+    return out;
+  } catch (err) { return []; }
+}
+/** 🌿 어사이드 한 줄 명령 중 외부에 흔적이 남는 작업을 비서가 시켰는가(상태 확인은 아니다) */
+const QQ_ASIDE_CMD_RE = /^\s*🌿\s*어사이드\s+(\S+)\s*$/;
+const QQ_ASIDE_SAFE = ['상태', '확인', '점검', 'status', 'health', '헬스'];
+function qqAsideExternal_(type, payload, source) {
+  if (type !== 'claude_prompt') return false;
+  const p = qqParse_(payload);
+  if (qqLow_(p.kind) !== 'chat' || qqLow_(p.target) !== 'notebook') return false;
+  const m = QQ_ASIDE_CMD_RE.exec(String(p.prompt == null ? '' : p.prompt));
+  if (!m) return false;
+  if (QQ_ASIDE_SAFE.indexOf(String(m[1]).toLowerCase()) >= 0) return false;
+  return qqLow_(source) !== 'portal';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3132,10 +3216,24 @@ function approvalDecide(body) {
 //  apply 는 한 번에 최대 limit(기본 30)건 — 남으면 remaining 으로 알리니 한 번 더 부른다(30초 제한 방어). Audit_Log 에 한 줄.
 // ═══════════════════════════════════════════════════════════════
 const QQ_SWEEP_LIMIT = 30;
+const QQ_SWEEP_SEEN_H = 72;                          // 접수(👀·🔧) 뒤 진행·답장 없음
+const QQ_SWEEP_REVIEW_H = 72;                        // 보류 브랜치·결과 미확인 방치
+const QQ_AUTOSWEEP_KEY = 'qq_autosweep_at';
+const QQ_AUTOSWEEP_EVERY_MS = 6 * 3600000;           // 자동 정리는 6시간에 한 번
 function queueSweep(body) {
-  const apply = !!(body && (body.apply === true || String(body.apply) === 'true'));
+  // 2026-11-27 — auto:true(포털이 6시간에 한 번) = 안전한 갈래만 바로 닫는다. 사람이 고르는 stale(미접수) 은 빼고.
+  const auto = !!(body && (body.auto === true || String(body.auto) === 'true'));
+  const apply = auto || !!(body && (body.apply === true || String(body.apply) === 'true'));
   const hours = Math.min(168, Math.max(6, Number(body && body.min_age_hours) || 12));
   const limit = Math.min(60, Math.max(1, Math.round(Number(body && body.limit) || QQ_SWEEP_LIMIT)));
+  if (auto && !(body && body.force === true)) {
+    try {
+      const c = CacheService.getScriptCache();
+      const last = Number(c.get(QQ_AUTOSWEEP_KEY) || 0);
+      if (last && Date.now() - last < QQ_AUTOSWEEP_EVERY_MS) return { ok: true, auto: true, skipped: true, last_at: qqIso_(last) };
+      c.put(QQ_AUTOSWEEP_KEY, String(Date.now()), 21600);
+    } catch (e) { /* 캐시가 없으면 그냥 돈다 */ }
+  }
   const run = function () {
     const ctx = qqOpen_();
     const rows = qqRows_(ctx, QQ_SCAN_ROWS);
@@ -3152,28 +3250,40 @@ function queueSweep(body) {
     const plan = [];
     rows.forEach(function (r) {
       const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
-      if (st !== 'PENDING' && st !== 'TIMEOUT_REVIEW') return;
       const p = qqParse_(r.payload);
-      if (qqLow_(p.kind) !== 'chat') return;            // 실행 오더는 안 건드린다
+      const kind = qqLow_(p.kind);
       const t0 = qqRowTarget_(r);
-      if (!qqIsAiId_(t0) || t0 === 'notebook') return;  // @전체·노트북·사람(포털) 앞은 안 건드린다
       const claimedBy = qqLow_(r.claimed_by);
-      if (claimedBy === 'notebook') return;
-      // TIMEOUT_REVIEW 는 집은 비서(claimed_by)가 결과를 냈을 때만 닫는다(미접수 stale 갈래에는 안 넣는다)
-      const t = st === 'TIMEOUT_REVIEW' ? (claimedBy || t0) : t0;
       const id = String(r.id);
-      const rid = firstReply[id] && firstReply[id][t];
-      if (rid) { plan.push({ row: r, kind: 'answered', to: t, reply: rid, ageH: 0, was: st }); return; }
-      if (st === 'TIMEOUT_REVIEW') return;
       const ageH = (nowMs - (Date.parse(String(r.created_at || '')) || nowMs)) / 3600000;
+      // ⓐ 보류 브랜치(REVIEW_NEEDED)·결과 미확인(TIMEOUT_REVIEW)이 3일 넘게 방치 — 기록만 닫는다(브랜치는 GitHub 에 남는다)
+      if ((st === 'REVIEW_NEEDED' || st === 'TIMEOUT_REVIEW') && ageH >= QQ_SWEEP_REVIEW_H) {
+        const answeredByClaimer = st === 'TIMEOUT_REVIEW' && kind === 'chat' && firstReply[id] && firstReply[id][claimedBy || t0];
+        if (!answeredByClaimer) { plan.push({ row: r, kind: 'review', to: claimedBy || t0, branch: String(r.branch || '') }); return; }
+      }
+      if (st !== 'PENDING' && st !== 'TIMEOUT_REVIEW') return;
+      if (kind !== 'chat') return;                       // 실행 오더는 안 건드린다
+      // ⓑ @전체 공지(예전 줄) — 이제는 접수 순간 닫히지만, 그 전 것은 '전달됨'으로 닫는다
+      if (t0 === 'all') { if (st === 'PENDING' && ageH >= 1) plan.push({ row: r, kind: 'broadcast', to: 'all' }); return; }
+      if (!qqIsAiId_(t0) || t0 === 'notebook') return;  // 노트북·사람(포털) 앞은 안 건드린다
+      if (claimedBy === 'notebook') return;
+      const t = st === 'TIMEOUT_REVIEW' ? (claimedBy || t0) : t0;
+      const rid = firstReply[id] && firstReply[id][t];
+      if (rid) { plan.push({ row: r, kind: 'answered', to: t, reply: rid, was: st }); return; }
+      if (st === 'TIMEOUT_REVIEW') return;
+      // ⓒ 알림(notice)이 예전 배포에서 대기로 남은 것 — 전달됨으로
+      if (p.notice === true) { plan.push({ row: r, kind: 'broadcast', to: t }); return; }
       const seen = (rmap[id] || []).some(function (x) { return x.by === t && (x.e === '👀' || x.e === '🔧'); });
-      if (!seen && ageH >= hours) plan.push({ row: r, kind: 'stale', to: t, reply: '', ageH: ageH });
+      // ⓓ 접수(👀·🔧)하고 3일 넘게 진행·답장 없음
+      if (seen) { if (ageH >= QQ_SWEEP_SEEN_H) plan.push({ row: r, kind: 'seen_stale', to: t }); return; }
+      // ⓔ 미접수 묵은 말 — 사람이 직접 고를 때만(자동 모드에선 '안 읽는 비서'를 숨기지 않는다)
+      if (!auto && ageH >= hours) plan.push({ row: r, kind: 'stale', to: t });
     });
-    const count = { answered: 0, stale: 0 };
+    const count = { answered: 0, stale: 0, broadcast: 0, seen_stale: 0, review: 0 };
     const byAgent = {};
     plan.forEach(function (x) {
       count[x.kind]++;
-      const a = byAgent[x.to] || (byAgent[x.to] = { answered: 0, stale: 0 });
+      const a = byAgent[x.to] || (byAgent[x.to] = { answered: 0, stale: 0, broadcast: 0, seen_stale: 0, review: 0 });
       a[x.kind]++;
     });
     const batch = plan.slice(0, limit);
@@ -3182,8 +3292,9 @@ function queueSweep(body) {
         age_h: Math.round(((nowMs - (Date.parse(String(x.row.created_at || '')) || nowMs)) / 3600000) * 10) / 10,
         text: clip(qqBriefText_(x.row), 70) };
     };
-    const res = { ok: true, apply: apply, min_age_hours: hours, scanned: rows.length, plan: plan.length,
-      answered: count.answered, stale: count.stale, by_agent: byAgent, version: SERVER_VERSION };
+    const res = { ok: true, apply: apply, auto: auto, min_age_hours: hours, scanned: rows.length, plan: plan.length,
+      answered: count.answered, stale: count.stale, broadcast: count.broadcast, seen_stale: count.seen_stale, review: count.review,
+      by_agent: byAgent, version: SERVER_VERSION };
     if (!apply) {
       res.items = batch.map(show);
       res.note = '미리보기예요 — 아무것도 바꾸지 않았어요. 닫으려면 apply:true 로 다시 부르세요.';
@@ -3197,6 +3308,16 @@ function queueSweep(body) {
         qqUpdateRow_(ctx, r.__row, { status: 'DONE', claimed_by: x.to, claimed_at: nowIso, finished_at: nowIso,
           duration_ms: 0, exit_code: 0, result: QQ_REPLY_CLOSE_MARK + x.reply,
           error: x.was === 'TIMEOUT_REVIEW' ? '' : r.error });
+      } else if (x.kind === 'broadcast') {
+        qqUpdateRow_(ctx, r.__row, { status: 'DONE', finished_at: nowIso, duration_ms: 0, exit_code: 0,
+          result: String(r.result || '').trim() ? r.result : '📣 전달됨(공지·알림 — 답장 필요 없음)' });
+      } else if (x.kind === 'seen_stale') {
+        qqUpdateRow_(ctx, r.__row, { status: 'EXPIRED', finished_at: nowIso,
+          error: '🧹 정리: 접수(👀) 뒤 ' + Math.round(QQ_SWEEP_SEEN_H / 24) + '일 넘게 진행·답장이 없어 닫았어요(필요하면 다시 보내 주세요).' });
+      } else if (x.kind === 'review') {
+        qqUpdateRow_(ctx, r.__row, { status: 'EXPIRED', finished_at: nowIso,
+          error: '🧹 정리: ' + Math.round(QQ_SWEEP_REVIEW_H / 24) + '일 넘게 병합·확인되지 않아 기록을 닫았어요' +
+            (x.branch ? ' — 브랜치 ' + x.branch + ' 는 GitHub 에 그대로 있어요(필요하면 병합).' : '.') });
       } else {
         qqUpdateRow_(ctx, r.__row, { status: 'EXPIRED', finished_at: nowIso,
           error: '🧹 정리: ' + hours + '시간 넘게 받는 비서가 접수하지 않아 닫았어요(필요하면 다시 보내 주세요).' });
@@ -3204,9 +3325,10 @@ function queueSweep(body) {
       done.push(show(x));
     });
     if (done.length) {
-      qqAudit_(ctx, { id: 'sweep', type: 'sweep', workspace: '', risk: 'LOW', decision: 'sweep', by: 'api', channel: 'api',
-        note: '정리 ' + done.length + '건 — 답장됨 ' + done.filter(function (d) { return d.kind === 'answered'; }).length +
-          ' · 미접수 ' + done.filter(function (d) { return d.kind === 'stale'; }).length, payloadHash: '', source: 'api' });
+      const n = function (k) { return done.filter(function (d) { return d.kind === k; }).length; };
+      qqAudit_(ctx, { id: 'sweep', type: 'sweep', workspace: '', risk: 'LOW', decision: auto ? 'autosweep' : 'sweep', by: 'api', channel: 'api',
+        note: '정리 ' + done.length + '건 — 답장됨 ' + n('answered') + ' · 공지·알림 ' + n('broadcast') + ' · 접수 후 방치 ' + n('seen_stale') +
+          ' · 보류 브랜치 ' + n('review') + ' · 미접수 ' + n('stale'), payloadHash: '', source: 'api' });
     }
     res.applied = done.length;
     res.remaining = plan.length - done.length;
@@ -3438,8 +3560,11 @@ function queueEnqueue(body) {
   const payload = qqWithWorkerNote_(type, qqPayloadOf_(type, envelope));
   if (payload.length > QQ_MAX_PAYLOAD) throw qqErr_('too_long', '오더 내용이 너무 길어요.');
 
-  const risk = (type === 'content_render' || (type === 'claude_prompt' && qqModeOf_(payload) === 'edit')) ? 'HIGH' : 'LOW';
-  const verdict = risk === 'HIGH' ? qqAutoDelegation_(type, qqParse_(payload), workspace) : { auto: false, reason: '' };
+  // 2026-11-27 — 🌿 어사이드 외부 작업(무신사·카카오·퀴즈·네이버·알리 — 사용자 계정으로 외부에 흔적)은
+  //  사람(포털)이 아닌 비서가 시키면 레이 님 승인(WAITING_APPROVAL)을 거친다. 상태 확인(status)은 그대로.
+  const asideExternal = qqAsideExternal_(type, payload, qqSourceFor_(body, null));
+  const risk = (type === 'content_render' || asideExternal || (type === 'claude_prompt' && qqModeOf_(payload) === 'edit')) ? 'HIGH' : 'LOW';
+  const verdict = (risk === 'HIGH' && !asideExternal) ? qqAutoDelegation_(type, qqParse_(payload), workspace) : { auto: false, reason: '' };
   const autoBy = risk === 'HIGH' && verdict.auto ? 'auto' : '';
   const needsApproval = risk === 'HIGH' && !verdict.auto;
   const nowMs = Date.now();
@@ -3448,6 +3573,7 @@ function queueEnqueue(body) {
   const delivered = qqDeliveredOnly_(type, payload);
 
   let posted = null;   // 락 밖에서 웹훅을 쏘려고 잡아 두는 줄(락을 네트워크로 잡지 않는다)
+  let collabRows = []; // 협업 요청으로 새로 만든 줄(같이 깨운다)
   const res = qqLock_(function () {
     const ctx = qqOpen_();
     if (!spec.idempotent) {
@@ -3472,6 +3598,9 @@ function queueEnqueue(body) {
     };
     qqAppend_(ctx, row);
     posted = row;
+    // 2026-11-27 — 보고서의 '협업 필요: ○○' 를 ○○ 의 할 일로 만든다(실측: 지목 25건 중 이어받은 게 7건뿐이었다).
+    const ppC = qqParse_(payload);
+    if (type === 'claude_prompt' && qqLow_(ppC.kind) === 'chat' && !ppC.collab && !ppC.notice) collabRows = qqCollabTasks_(ctx, row, ppC, nowMs);
     // 2026-11-26 — 답장(reply_to)을 단 비서가 그 원글의 주인이면 원글을 닫는다.
     //  실측: 큐·피투·뷔투 앞 PENDING 의 절반이 '답장은 했는데 queue_done 을 안 찍은' 줄이었다(대기 45건 부풀림).
     const closed = qqCloseOnReply_(ctx, row, qqParse_(payload), nowMs);
@@ -3487,7 +3616,10 @@ function queueEnqueue(body) {
     };
   });
   // 접수에 성공했을 때만 — 기다리는 외부 비서(큐·큐투 …)를 깨운다. 실패는 접수에 영향 없다.
-  if (posted) qqFireWebhooks_(posted, qqParse_(posted.payload));
+  const collabIds = collabRows.map(function (c) { return qqParse_(c.payload).target; });
+  if (posted) qqFireWebhooks_(posted, qqParse_(posted.payload), collabIds);
+  collabRows.forEach(function (c) { qqFireWebhooks_(c, qqParse_(c.payload)); });
+  if (res && res.ok && collabRows.length) res.collab = collabRows.map(function (c) { return { id: c.id, to: qqParse_(c.payload).target }; });
   // 2026-11-26 — 오더를 낸 화면·비서도 "끝나면 보고를 남기라"는 규칙을 응답에서 바로 본다.
   if (res && res.ok) res.report_rule = QQ_REPORT_RULE;
   return res;

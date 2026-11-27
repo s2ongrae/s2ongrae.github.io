@@ -1373,7 +1373,7 @@ console.log('17) 🔓 GET 읽기 · queue_claim/done · mentions·reply_to · �
   ok(post({ action: 'queue_list', key: KS, limit: 5 }).pending === beforePend, '대기 건수가 늘지 않는다');
   const toAll = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'cue',
     payload: { prompt: '@전체 다들 확인', mode: 'ask', kind: 'chat', target: 'all' } });
-  ok(toAll.item.status === 'PENDING', '@전체 대화는 예전처럼 노트북이 답한다(PENDING)');
+  ok(toAll.item.status === 'DONE', '@전체 대화는 접수 순간 전달 완료로 닫힌다(2026-11-27 — 영원히 대기로 남아 브리핑을 부풀렸다)');
   const plain = post({ action: 'queue_enqueue', key: KS, type: 'claude_prompt', workspace: 'gaegyebu', source: 'portal',
     payload: { prompt: '제목만 고쳐줘', mode: 'ask' } });
   ok(plain.item.status === 'PENDING', '보통 오더는 그대로 PENDING');
@@ -1639,9 +1639,9 @@ console.log('20) ↩ 답장하면 원글을 닫는다 · 📋 오늘 브리핑(q
   post({ action: 'queue_inbox', key: KB, as: 'keyring2' });     // 먼저 한 번 확인(앞서 온 @전체 말은 여기서 전달됨)
   enq('pi1', chat('cue', '@큐 일정 정리해줘\n4. 협업 필요: 키투(예약 확인)'));
   let ik = post({ action: 'queue_inbox', key: KB, as: 'keyring2' });
-  ok(ik.cast === 1 && ik.count === 1 && ik.items[0].target === 'cue', '협업 줄·@멘션으로만 부른 말도 폴링 비서 받은편지함에 한 번 전달된다');
+  ok(ik.count === 1 && ik.cast === 0 && ik.items[0].target === 'keyring2' && /협업 요청/.test(ik.items[0].summary), '협업 줄로 부른 비서에겐 협업 요청이 할 일로 직접 들어온다(원 보고 멘션은 중복으로 안 준다)');
   ik = post({ action: 'queue_inbox', key: KB, as: 'keyring2', since: ik.items[0].created_at });
-  ok(ik.cast === 0 && ik.count === 0, '같은 멘션 말은 두 번째 확인(since=받은 시각)에는 다시 오지 않는다');
+  ok(ik.cast === 0 && ik.count === 0, '두 번째 확인(since=받은 시각)에는 다시 오지 않는다');
   ok(post({ action: 'queue_inbox', key: KB, as: 'pi2' }).items.every(x => x.target !== 'cue' || !/키투/.test(x.summary)), '멘션되지 않은 비서(피투)에게는 가지 않는다');
   ok(post({ action: 'queue_inbox', key: KB, as: 'vooy2', since: new Date(now + 60000).toISOString() }).count === 0, 'since 이후 새 말만');
   ok(post({ action: 'queue_inbox', key: KB }).ok === false && post({ action: 'queue_inbox', key: KB, as: 'portal' }).ok === false, 'as 가 없거나 portal 이면 거절');
@@ -1821,11 +1821,11 @@ console.log('\n22) 🧹 묵은 대화 정리 — queue_sweep (미리보기 기�
   // ① 미리보기가 기본 — 아무것도 바꾸지 않는다
   let pv = sweep();
   ok(pv.ok === true && pv.apply === false && /미리보기/.test(pv.note || ''), '기본은 미리보기');
-  ok(pv.answered === 1 && pv.stale === 2 && pv.plan === 3, '닫을 후보: 답장됨 1 + 미접수 2');
+  ok(pv.answered === 1 && pv.stale === 2 && pv.broadcast === 1 && pv.plan === 4, '닫을 후보: 답장됨 1 + 미접수 2 + 예전 @전체 공지 1');
   ok(JSON.stringify(S.books[SW]['Command_Queue']) === before, '미리보기는 시트를 하나도 안 바꾼다');
   ok(!S.books[SW]['Audit_Log'], '미리보기는 감사 로그도 안 남긴다');
   const ids = pv.items.map(x => x.id).sort().join(',');
-  ok(ids === 'Q-w1,Q-w3,Q-wa', '후보 = 답장된 말(w1) · 접수 없는 묵은 말(w3, ✓ 전달됨만 있음) · 반응 없는 묵은 말(wa)');
+  ok(ids === 'Q-w1,Q-w3,Q-w6,Q-wa', '후보 = 답장된 말(w1) · 접수 없는 묵은 말(w3, ✓ 전달됨만 있음) · 예전 @전체 공지(w6) · 반응 없는 묵은 말(wa)');
   ok(pv.items.every(x => typeof x.text === 'string' && x.text.length <= 70 && x.age_h >= 0), '후보마다 한 줄 요약(70자)·나이');
   ok(pv.by_agent.cue.answered === 1 && pv.by_agent.vooy.stale === 1 && pv.by_agent.keyring2.stale === 1, '비서별 집계');
   ok(sweep({ apply: 'no' }).apply === false && sweep({ apply: 1 }).apply === false, 'apply 는 true 일 때만(다른 값은 미리보기)');
@@ -1837,14 +1837,14 @@ console.log('\n22) 🧹 묵은 대화 정리 — queue_sweep (미리보기 기�
 
   // ③ 실제로 닫기
   const ap = sweep({ apply: true });
-  ok(ap.ok === true && ap.apply === true && ap.applied === 3 && ap.remaining === 0, 'apply 로 3건을 닫는다');
+  ok(ap.ok === true && ap.apply === true && ap.applied === 4 && ap.remaining === 0, 'apply 로 4건을 닫는다');
   ok(stW('Q-w1') === 'DONE' && rowW('Q-w1')[HEADW.indexOf('claimed_by')] === 'cue' && rowW('Q-w1')[HEADW.indexOf('result')] === '↩ 답장 Q-w2', '답장된 말은 DONE · 처리자 · 결과칸 ↩ 답장 <id>');
   ok(stW('Q-w3') === 'EXPIRED' && /정리/.test(rowW('Q-w3')[HEADW.indexOf('error')]) && rowW('Q-w3')[HEADW.indexOf('result')] === '', '미접수 묵은 말은 DONE 이 아니라 EXPIRED — 사유는 error 에, 결과칸은 비어 있다');
   ok(stW('Q-wa') === 'EXPIRED', '반응 없는 묵은 말도 EXPIRED');
   // ④ 건드리면 안 되는 것
   ok(stW('Q-w4') === 'PENDING', '접수(👀)한 말은 오래돼도 안 닫는다');
   ok(stW('Q-w5') === 'PENDING', '신선한 말은 안 닫는다');
-  ok(stW('Q-w6') === 'PENDING', '@전체 는 안 닫는다');
+  ok(stW('Q-w6') === 'DONE' && /전달됨/.test(rowW('Q-w6')[HEADW.indexOf('result')]), '예전 @전체 공지는 "전달됨"으로 닫는다(실행 안 한 게 아니라 전달 끝)');
   ok(stW('Q-w7') === 'PENDING', '실행 오더(비-chat)는 안 닫는다');
   ok(stW('Q-w8') === 'PENDING', '노트북 앞 대화는 안 닫는다');
   ok(stW('Q-w9') === 'PENDING', '사람(포털) 앞 말은 안 닫는다');
@@ -2037,6 +2037,116 @@ console.log('\n24) 🔔 승인함 — kind:approval · approval_list · approval
   S.props.QUEUE_SHEET_ID = 'SHEETidReact2101';
 }
 
+console.log('\n25) 🤝 유기적 협업 — 공지·알림 전달 · 협업 요청 자동 할 일 · 어사이드 승인 · 정리 새 갈래 (2026-11-27)');
+{
+  const KC = S.props.SECRET_KEY;
+  const SC = 'SHEETidCollab2501';
+  const HEADC = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash','branch'];
+  const now = S.sb.Date.now();
+  const iso = ms => new Date(ms).toISOString();
+  const mkC = (id, hoursAgo, source, payload, status, extra) => {
+    const row = new Array(HEADC.length).fill('');
+    row[HEADC.indexOf('id')] = id; row[HEADC.indexOf('created_at')] = iso(now - hoursAgo * 3600000);
+    row[HEADC.indexOf('source')] = source; row[HEADC.indexOf('type')] = 'claude_prompt'; row[HEADC.indexOf('workspace')] = 'gaegyebu';
+    row[HEADC.indexOf('payload')] = JSON.stringify(payload); row[HEADC.indexOf('status')] = status || 'PENDING';
+    Object.keys(extra || {}).forEach(k => { const i = HEADC.indexOf(k); if (i >= 0) row[i] = extra[k]; });
+    return row;
+  };
+  const chat = (target, prompt, x) => Object.assign({ prompt, mode: 'ask', kind: 'chat', target }, x || {});
+  S.addSheet(SC, { 'Command_Queue': [HEADC.slice(0),
+    mkC('Q-c1', 100, 'portal', chat('keyring2', '@키투 규칙 공지 읽어')),                                          // 접수 후 100시간 방치 → seen_stale
+    mkC('Q-c2', 100, 'portal', { prompt: '콘텐츠 허브 고쳐', mode: 'edit' }, 'REVIEW_NEEDED', { branch: 'auto-review/Q-c2', claimed_by: 'notebook' }), // 보류 브랜치 → review
+    mkC('Q-c3', 10, 'portal', { prompt: '최근 보류', mode: 'edit' }, 'REVIEW_NEEDED', { branch: 'auto-review/Q-c3' }),     // 3일 안 → 그대로
+    mkC('Q-c4', 30, 'portal', chat('cue', '@큐 안 읽은 일')),                                                     // 미접수 → 자동 모드에선 안 닫는다
+    mkC('Q-c5', 5, 'pi1', chat('all', '@전체 예전 공지')),                                                       // 예전 @전체 → broadcast
+    mkC('Q-c6', 5, 'portal', chat('vooy', '알림입니다', { notice: true }))                                          // 예전 배포에서 남은 알림 → broadcast
+  ], 'Reactions': [['at', 'order_id', 'agent', 'emoji'], [iso(now - 99 * 3600000), 'Q-c1', 'keyring2', '👀']] });
+  S.props.QUEUE_SHEET_ID = SC;
+  S.props.WEBHOOK_TRIGGERS_JSON = JSON.stringify({ cue: 'https://hook.test/cue', cue2: 'https://hook.test/cue2' });
+  S.sb.CacheService.getScriptCache().put('qq_check_log_v1', '{}');
+  S.sb.CacheService.getScriptCache().put('qq_autosweep_at', '');
+  const enq = (source, payload, extra) => post(Object.assign({ action: 'queue_enqueue', key: KC, type: 'claude_prompt', workspace: 'gaegyebu', source, payload }, extra || {}));
+  const rowC = id => S.books[SC]['Command_Queue'].find(r => r[0] === id) || [];
+  const stC = id => rowC(id)[HEADC.indexOf('status')];
+  const pl = r => { try { return JSON.parse(r[HEADC.indexOf('payload')] || '{}'); } catch (e) { return {}; } };
+
+  // ① @전체 공지·알림(notice) — 접수 순간 닫히고, 폴링 비서 받은편지함엔 한 번
+  post({ action: 'queue_inbox', key: KC, as: 'vooy2' });                                  // 첫 확인(이전 것은 여기서 소비)
+  const all = enq('portal', chat('all', '📢 내일 회의는 10시'));
+  ok(all.ok === true && all.item.status === 'DONE', '@전체 공지는 접수 순간 전달 완료(DONE)');
+  const nt = enq('pi1', chat('vooy2', '참고로 오늘 배포 끝났어요', { notice: true }));
+  ok(nt.ok === true && nt.item.status === 'DONE', '알림(notice)도 접수 순간 닫힌다');
+  let ib = post({ action: 'queue_inbox', key: KC, as: 'vooy2' });
+  const ibIds = ib.items.map(x => x.id);
+  ok(ibIds.indexOf(all.item.id) >= 0 && ibIds.indexOf(nt.item.id) >= 0 && ib.cast === 2, '닫혔어도 받은편지함엔 한 번 온다(공지·내 앞 알림)');
+  ib = post({ action: 'queue_inbox', key: KC, as: 'vooy2', since: all.item.created_at > nt.item.created_at ? all.item.created_at : nt.item.created_at });
+  ok(ib.count === 0, '두 번째 확인엔 다시 안 온다');
+  const done = enq('pi1', chat('vooy2', '이건 일감'), {});
+  enq('vooy2', chat('pi1', '했어요 — 결과 첨부', { reply_to: done.item.id }));             // 답장으로 닫힘
+  ib = post({ action: 'queue_inbox', key: KC, as: 'vooy2' });
+  ok(ib.items.every(x => x.id !== done.item.id), '이미 닫힌 내 일감(알림 아님)은 다시 주지 않는다');
+  ok(post({ action: 'queue_list', key: KC, limit: 20 }).items.filter(x => x.target === 'all' && x.status === 'PENDING').length === 1, '새 @전체는 대기로 안 남는다(예전 것 1건만)');
+
+  // ② 협업 요청 — 보고서의 '협업 필요' 줄이 그 비서의 할 일이 된다
+  S.fetchCalls.length = 0;
+  const rep = enq('vooy', chat('portal', '1. 프로젝트: 묘한살림\n2. 완료 작업: 비교표\n4. 협업 필요: 큐투(팩트체크), 키투(예약), 노트북(빌드), 부이(본인), 피원(검토)'));
+  ok(rep.ok === true && rep.item.status === 'DONE', '사람 앞 보고는 그대로 전달 완료');
+  const kids = rep.collab || [];
+  ok(kids.length === 3 && kids.map(k => k.to).sort().join() === 'cue2,keyring2,pi1', '협업 요청은 최대 3명 — 노트북·자기 자신(부이)은 빠진다');
+  const k1 = rowC(kids.find(k => k.to === 'keyring2').id); const kp = pl(k1);
+  ok(k1[HEADC.indexOf('status')] === 'PENDING' && k1[HEADC.indexOf('source')] === 'vooy' && kp.target === 'keyring2' && kp.reply_to === rep.item.id && kp.collab === true, '자식 줄: 부이가 키투 앞으로 · reply_to=원 보고(스레드) · collab 표시 · 대기');
+  ok(/협업 요청 · 자동/.test(kp.prompt) && /큐투\(팩트체크\)/.test(kp.prompt) && /원문: /.test(kp.prompt) && /🙅/.test(kp.prompt), '본문: 누가·무엇을·원문 id·할 수 없으면 🙅');
+  const cueHits = S.fetchCalls.filter(c => c.url === 'https://hook.test/cue2');
+  ok(cueHits.length === 1 && JSON.parse(cueHits[0].opts.payload).target === 'cue2', '웹훅 비서(큐투)는 자기 앞 협업 요청으로 한 번만 깨어난다');
+  const ik = post({ action: 'queue_inbox', key: KC, as: 'keyring2' });
+  ok(ik.items.some(x => x.id === kids.find(k => k.to === 'keyring2').id) && ik.items.every(x => x.id !== rep.item.id), '폴링 비서(키투) 받은편지함: 협업 요청만(원 보고는 중복으로 안 줌)');
+  // 협업 요청에 답하면 그 줄이 닫힌다(답장 닫기 규칙 그대로)
+  const kid = kids.find(k => k.to === 'keyring2').id;
+  const kr = enq('keyring2', chat('vooy', '예약 확인했어요 — 금요일 2시', { reply_to: kid }));
+  ok(kr.closed && kr.closed.id === kid && stC(kid) === 'DONE', '협업 요청에 reply_to 로 답하면 닫힌다');
+  ok(!(kr.collab && kr.collab.length), '답장·협업 요청 자체는 또 협업 요청을 만들지 않는다(무한 연쇄 없음)');
+  const nested = enq('cue2', chat('vooy', '[협업 요청 · 자동] 흉내\n4. 협업 필요: 키투', { collab: true }));
+  ok(!(nested.collab && nested.collab.length), 'collab 표시가 붙은 말은 다시 퍼뜨리지 않는다');
+  const none = enq('pi2', chat('portal', '보고\n4. 협업 필요: 없음'));
+  ok(!(none.collab && none.collab.length), '협업 필요: 없음 → 아무것도 안 만든다');
+  const direct = enq('pi2', chat('cue2', '@큐투 이거 봐줘\n4. 협업 필요: 큐투'));
+  ok(!(direct.collab && direct.collab.length), '이미 받는 사람인 비서에겐 협업 요청을 따로 안 만든다');
+
+  // ③ 결정 알림 — 이름으로·notice 로(대기로 안 남는다)
+  const ask = enq('vooy2', { kind: 'approval', prompt: '@피원 @피투 [뷔투 · 허락 요청] 상품명 1안으로 바꿀게요\n근거는 검색량' });
+  const dec = post({ action: 'approval_decide', key: KC, id: ask.item.id, decision: 'approve', note: '좋아' });
+  const dr = rowC(dec.reply_id); const dp = pl(dr);
+  ok(dr[HEADC.indexOf('status')] === 'DONE' && dp.notice === true, '결정 알림은 알림(notice)으로 — 접수 순간 닫힌다(브리핑 안 읽음에 안 센다)');
+  ok(/^@뷔투 \[레이 님 결정\] ✅ 승인 — \[뷔투 · 허락 요청\] 상품명 1안으로 바꿀게요/.test(dp.prompt), '알림은 이름(@뷔투)으로, 제목 앞 @멘션은 떼고');
+
+  // ④ 🌿 어사이드 — 외부 작업은 비서가 시키면 레이 님 승인, 상태 확인·사람 버튼은 그대로
+  const asideAgent = enq('pi2', chat('notebook', '🌿어사이드 무신사'));
+  ok(asideAgent.ok === true && asideAgent.item.status === 'WAITING_APPROVAL' && asideAgent.item.risk_level === 'HIGH', '비서가 시킨 외부 작업(무신사) → 승인 대기');
+  ok(post({ action: 'approval_list', key: KC }).items.some(x => x.id === asideAgent.item.id && x.approval_kind === 'order'), '승인함에 실행 승인으로 모인다');
+  const asideStatus = enq('pi2', chat('notebook', '🌿어사이드 상태'));
+  ok(asideStatus.item.status === 'PENDING', '상태 확인은 승인 없이(읽기 전용)');
+  const asideHuman = enq('portal', chat('notebook', '🌿 어사이드 네이버'));
+  ok(asideHuman.item.status === 'PENDING', '레이 님이 포털 버튼으로 보낸 건 그대로(화면에서 이미 한 번 묻는다)');
+  ok(enq('pi2', chat('notebook', '🌿어사이드 무신사 하고 보고해줘')).item.status === 'PENDING', '한 줄 명령이 아닌 말은 어사이드가 아니다(노트북 대화)');
+
+  // ⑤ 정리 — 자동 모드: 안전한 갈래만 · 6시간에 한 번
+  const a1 = post({ action: 'queue_sweep', key: KC, auto: true });
+  ok(a1.ok === true && a1.auto === true && a1.apply === true && !a1.skipped, '자동 정리는 바로 적용한다');
+  ok(stC('Q-c1') === 'EXPIRED' && /접수\(👀\) 뒤 3일/.test(rowC('Q-c1')[HEADC.indexOf('error')]), '접수 후 3일 넘게 방치 → 닫는다(seen_stale)');
+  ok(stC('Q-c2') === 'EXPIRED' && /auto-review\/Q-c2 는 GitHub 에 그대로/.test(rowC('Q-c2')[HEADC.indexOf('error')]), '3일 넘은 보류 브랜치 → 기록만 닫고 브랜치 이름을 남긴다');
+  ok(stC('Q-c3') === 'REVIEW_NEEDED', '3일 안 된 보류 브랜치는 그대로');
+  ok(stC('Q-c4') === 'PENDING', '자동 모드는 미접수 일감을 닫지 않는다(안 읽는 비서를 숨기지 않는다)');
+  ok(stC('Q-c5') === 'DONE' && stC('Q-c6') === 'DONE' && /전달됨/.test(rowC('Q-c5')[HEADC.indexOf('result')]), '예전 @전체 공지·알림 → 전달됨으로 닫는다');
+  const a2 = post({ action: 'queue_sweep', key: KC, auto: true });
+  ok(a2.skipped === true && !!a2.last_at, '6시간 안에 다시 부르면 건너뛴다');
+  ok(post({ action: 'queue_sweep', key: KC, auto: true, force: true }).skipped !== true, 'force 면 바로 다시 돈다');
+  ok(post({ action: 'queue_sweep', key: KC }).apply === false, '보통 호출은 여전히 미리보기');
+  delete S.props.WEBHOOK_TRIGGERS_JSON;
+  S.props.QUEUE_SHEET_ID = 'SHEETidReact2101';
+}
+
 console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');
 {
   const K4 = S.props.SECRET_KEY;
@@ -2100,7 +2210,8 @@ console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한�
   const hit = S.fetchCalls.filter(c => c.url === CUE2);
   ok(hit.length === 1, '@ 없는 협업 줄 이름(큐투)으로 큐투 웹훅이 깨어난다');
   const cb = hit[0] ? JSON.parse(hit[0].opts.payload) : {};
-  ok((cb.mentions || []).indexOf('cue2') >= 0 && (cb.mentions || []).indexOf('notebook') >= 0, '웹훅 mentions 에도 협업 줄 id 가 들어 있다');
+  ok(cb.target === 'cue2' && /협업 요청/.test(cb.summary || '') && (cb.mentions || []).indexOf('cue2') >= 0, '큐투는 원 보고가 아니라 자기 앞 협업 요청으로 한 번 깨어난다(중복 깨움 없음)');
+  ok((collab.collab || []).some(c => c.to === 'cue2') && !(collab.collab || []).some(c => c.to === 'notebook'), '협업 요청은 큐투에게만 — 노트북은 빼고(실행은 오더로)');
   S.fetchCalls.length = 0;
   post(enq(Object.assign(chat('portal', '4. 협업 필요: 큐투 확인'), { source: 'cue2' })));
   ok(S.fetchCalls.length === 0, '협업 줄에 적힌 자기 자신(source)은 깨우지 않는다');

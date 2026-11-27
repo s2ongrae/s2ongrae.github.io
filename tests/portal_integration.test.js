@@ -242,12 +242,6 @@ console.log('Q) 상단 링크·상태등');
 
   // ⑤-1 하트비트 파일이 없을 때 — 시트 활동으로 노트북을 '대기 중·마지막 응답'이라 말하지 않는다(2026-11-18)
   D4.run(`renderQueueStatus({ok:true, connected:true, at:new Date().toISOString(), heartbeat:{state:'unknown',source:'sheet',approx:true,min:2,reason:'no_heartbeat'}, queue:{state:'ok',pending:1,waiting:0,timeout:0,oldest_min:2,review:0}, toss:{state:'ok',date:'2026-11-18',days:0}})`);
-  const nb4 = D4.run('monDevNotebookBody()');
-  ok(!/마지막 응답/.test(nb4) && !/대기 중/.test(nb4), '시트 활동만으로는 노트북이 대기 중·마지막 응답이라 말하지 않는다');
-  ok(/노트북 신호/.test(nb4) && /마지막 큐 활동/.test(nb4), '대신 신호가 없다는 것과 큐 활동(흔적)을 함께 보여준다');
-  D4.run('ORD_ITEMS = []');
-  const nb4b = D4.run('monDevNotebookBody()');
-  ok(/알 수 없어요/.test(nb4b) && /HEARTBEAT_FILE_ID/.test(nb4b), '대기가 없어도 생존을 모른다고 밝히고 켜는 법을 안내');
 
   // ⑤-2 검토 필요 카드 — 병합 1줄을 원클릭 복사
   const gate = D4.run(`ordGateBox({id:'Q-20261118-120000-gate', status:'REVIEW_NEEDED', workspace:'content-hub', branch:'auto-review/Q-20261118-120000-gate', block_reason:'게이트 보류 — 민감 경로', diff_summary:'3개 파일 +20/-4'})`);
@@ -633,246 +627,9 @@ console.log('S) 오더함 — 자동 확인·승인 카운트다운·다시 실�
   ok(D9.calls.length >= nShow, '탭 복귀는 필요한 만큼만 요청한다');
 }
 
-console.log('T) 작업 관제 — 기기 카드·생애주기·정체 의심·GitHub 이력');
-{
-  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
-    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
-    'approval_by','approval_at','approval_note','approval_hash'];
-  const S11 = mk();
-  const nowMs = Date.now();                 // 포털은 진짜 시계로 경과 시간을 재요(서버 시트는 가짜 시계)
-  const srvNow = S11.run('Date.now()');     // 하트비트 파일은 서버 시계 기준으로 써야 나이가 맞아요
-  const at = ms => new Date(ms).toISOString();
-  const row = (id, created, status, x) => {
-    const r = [id, created, 'phone', 'git_pull', 'gaegyebu', '{}', status, 0, '', '', ''];
-    while (r.length < HEAD.length) r.push('');
-    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
-    return r;
-  };
-  S11.props.QUEUE_SHEET_ID = 'SHEETidMonitor00001';
-  S11.addSheet('SHEETidMonitor00001', {'Command_Queue': [HEAD.slice(0)].concat([
-    // 어제 17:35 부터 RUNNING 으로 멈춰 있는 오더(실측 상황) + 밀린 PENDING 2건
-    row('Q-20261116-173532-gde8', at(nowMs - 16 * 3600000), 'RUNNING',
-      {type: 'claude_prompt', workspace: 'content-hub', claimed_at: at(nowMs - 16 * 3600000 - 60000), claimed_by: 'notebook',
-        payload: JSON.stringify({prompt: '콘텐츠 허브 점검', mode: 'ask'})}),
-    row('Q-1002', at(nowMs - 10 * 60000), 'PENDING', {type: 'toss_sync'}),
-    row('Q-1003', at(nowMs - 9 * 60000), 'PENDING', {type: 'git_pull'}),
-    row('Q-1004', at(nowMs - 3 * 60000), 'DONE', {type: 'git_pull', finished_at: at(nowMs - 2 * 60000),
-      claimed_at: at(nowMs - 3 * 60000), claimed_by: 'notebook', duration_ms: 4000, result: '이미 최신'}),
-    row('Q-1005', at(nowMs - 25 * 60000), 'FAILED', {type: 'toss_sync', finished_at: at(nowMs - 24 * 60000),
-      duration_ms: 1200, error: '한도 소진'}),
-    row('Q-1006', at(nowMs - 6 * 60000), 'WAITING_APPROVAL', {type: 'claude_prompt', workspace: 'gaegyebu',
-      payload: JSON.stringify({prompt: '제목 고쳐줘', mode: 'edit'}), risk_level: 'HIGH',
-      approval_expires_at: at(nowMs + 9 * 60000)})
-  ])});
-  const hbf = S11.ROOT.createFile('heartbeat.json', JSON.stringify({updated_at: at(srvNow - 40 * 60000), state: 'running', processed: 7, polls: 21, current: 'Q-20261116-173532-gde8', current_type: 'claude_prompt', version: '1.2.0'}));
-  S11.props.HEARTBEAT_FILE_ID = hbf.id;
-  const D11 = makeDevice(S11);
-  ok(/id="mon-cards"/.test(html) && /id="mon-feed"/.test(html), '포털에 작업 관제(기기 카드·통합 이력) 자리가 있다');
-  ok(/data-f="hub"/.test(html) && /data-f="pc"/.test(html) && /data-f="nd"/.test(html), '통합 이력에 허브·회사 PC·노트북 직접 갈래 버튼');
-  ok(/\.mon-grid\{grid-template-columns:1fr 1fr\}/.test(html), '폰에서는 기기 카드를 2x2 로');
-  D11.config();
-  await D11.run('refreshQueueStatus(true)');
-  await D11.run('loadOrders()');
-  const cards11 = () => D11.el('mon-cards').innerHTML;
-  const feed11 = () => D11.el('mon-feed').innerHTML;
-
-  // ① 정체 의심 — RUNNING 16시간 + 하트비트 40분 전
-  const run11 = D11.get('ORD_ITEMS').filter(i => i.status === 'RUNNING')[0];
-  ok(!!run11 && run11.claimed_at && run11.claimed_by === 'notebook', '서버가 집어간 시각·집어간 곳(claimed_at·claimed_by)을 준다');
-  ok(D11.run('ordStale({status:"RUNNING",claimed_at:"' + at(nowMs - 16 * 3600000) + '"}).lv') === 'bad', '16시간 RUNNING 은 멈춘 것 같음(bad)');
-  ok(D11.run('ordStale({status:"RUNNING",claimed_at:"' + at(nowMs - 25 * 60000) + '"}).lv') === 'warn', '25분 RUNNING 은 정체 의심(warn)');
-  ok(D11.run('ordStale({status:"RUNNING",claimed_at:"' + at(nowMs - 5 * 60000) + '"})') === null, '5분짜리 실행은 정상(경고 없음)');
-  ok(D11.run('ordStale({status:"DONE",claimed_at:"' + at(nowMs - 16 * 3600000) + '"})') === null, '끝난 오더는 정체가 아니다');
-  // 2026-11-18 야간 무인 — 정체 판정은 "시작부터 흐른 시간"이 아니라 "마지막 신호" 기준이다.
-  ok(D11.run('ordStale({status:"RUNNING",started_at:"' + at(nowMs - 50 * 60000) + '",beat_at:"' + at(nowMs - 8000) + '"})') === null,
-    '50분째 실행 중이어도 신호가 살아 있으면 정상(예전엔 30분 넘으면 경고했다)');
-  ok(D11.run('ordStale({status:"RUNNING",started_at:"' + at(nowMs - 50 * 60000) + '",beat_at:"' + at(nowMs - 25 * 60000) + '"}).lv') === 'warn',
-    '신호가 25분 끊기면 정체 의심(warn)');
-  ok(D11.run('ordStale({status:"RUNNING",started_at:"' + at(nowMs - 2 * 3600000) + '",beat_at:"' + at(nowMs - 70 * 60000) + '"}).lv') === 'bad',
-    '신호가 70분 끊기면 멈춘 것 같음(bad)');
-  ok(D11.run('ordElapsedMs({status:"RUNNING",started_at:"' + at(nowMs - 30 * 60000) + '",claimed_at:"' + at(nowMs - 1000) + '"})') >= 29 * 60000,
-    '경과 시간은 started_at 부터 센다(claimed_at 이 touch 로 움직여도 흐른다)');
-  ok(/마지막 신호 \d+초 전/.test(D11.run('ordBeatText({status:"RUNNING",beat_at:"' + at(nowMs - 6000) + '"})')), '오더 줄에 마지막 신호를 보여준다');
-  ok(D11.run('ordBeatText({status:"DONE",beat_at:"' + at(nowMs - 6000) + '"})') === '', '끝난 오더에는 마지막 신호를 안 붙인다');
-  ok(/멈춘 것 같아요/.test(cards11()) && /mon-dev bad/.test(cards11()), '노트북 카드가 빨간색으로 멈춘 것 같다고 알린다');
-  ok(/ord-stale bad/.test(D11.el('ord-list').innerHTML), '오더 카드에도 정체 경고 배지');
-  ok(D11.el('mon-badge').textContent.indexOf('정체') >= 0, '관제 배지에 정체 건수');
-  ok(/mon-bar/.test(D11.run('monCard({name:"x",cls:"run",state:"작업 중",main:"m",bar:true})')), '실행 중 표시(진행 막대)가 있다');
-
-  // ② 생애주기 — 예정 → 실행 중 → 끝냈다
-  const box11 = () => D11.el('ord-list').innerHTML;
-  ok(D11.run('ordSteps({status:"PENDING",created_at:"' + at(nowMs) + '"}).indexOf("② 실행 차례")') >= 0, '예정 오더는 ② 실행 차례');
-  ok(D11.run('ordSteps({status:"PENDING"}).indexOf("ord-stp now")') >= 0, '예정은 지금 단계로 표시');
-  ok(D11.run('ordSteps({status:"RUNNING"}).indexOf("② 실행 중")') >= 0, '실행 중은 ② 실행 중');
-  const doneSteps = D11.run('ordSteps({status:"DONE",created_at:"' + at(nowMs) + '",finished_at:"' + at(nowMs + 4000) + '"})');
-  ok(/③ 끝냄/.test(doneSteps) && (doneSteps.match(/ord-stp done/g) || []).length === 3, '끝난 오더는 ①②③ 모두 완료 표시');
-  ok(/③ 실패/.test(D11.run('ordSteps({status:"FAILED"})')), '실패는 ③ 실패로 표시');
-  ok(/② 실행 안 함/.test(D11.run('ordSteps({status:"EXPIRED"})')), '만료·거절은 실행 안 함으로 표시');
-  ok(/ord-steps/.test(box11()), '오더 카드마다 생애주기 줄이 보인다');
-  ok(/data-since="\d{13}"/.test(box11()) && /ord-elapsed/.test(box11()), '실행 중 오더에 경과 시간(1초마다 세는 자리)이 붙는다');
-  ok(D11.run('monDur(65000)') === '1분 5초' && D11.run('monDur(16*3600000)') === '16시간', '경과 시간을 읽기 쉽게');
-  ok(D11.run('ordElapsedMs({status:"DONE",claimed_at:"' + at(nowMs - 3400) + '",finished_at:"' + at(nowMs) + '"})') === 3400, '끝난 오더는 걸린 시간 = 끝 - 시작');
-  // 승인 대기·대기만 있을 때 노트북 카드가 "할 일이 예약돼 있다"고 알리는지 (하트비트가 살아 있는 경우)
-  D11.run('QSTAT_DATA = {heartbeat:{state:"ok", min:1, source:"drive"}}');
-  D11.run('ORD_ITEMS = [{status:"WAITING_APPROVAL",id:"x"}]');
-  ok(/승인 대기/.test(D11.run('monDevNotebook()')) && /\[✅ 승인\]/.test(D11.run('monDevNotebook()')), '승인 대기만 있으면 승인하면 실행된다고 알린다');
-  D11.run('ORD_ITEMS = [{status:"PENDING",id:"y"}]');
-  ok(/다음 차례를 기다리는 오더/.test(D11.run('monDevNotebook()')), '대기만 있으면 다음 차례를 알린다');
-  D11.run('QSTAT_DATA = {heartbeat:{state:"warn", min:40, source:"drive"}}');
-  ok(/응답 없음/.test(D11.run('monDevNotebook()')), '하트비트가 끊겼으면 승인·대기보다 "응답 없음"을 먼저 알린다');
-  await D11.run('refreshQueueStatus(true)');
-  await D11.run('loadOrders()');
-
-  // ③ 회사 PC — GitHub 기록이 있을 때 / 없을 때 / 한도
-  ok(D11.run('ghCanFetch()') === false, '테스트 환경(https 아님)에서는 GitHub 을 부르지 않는다');
-  ok(D11.calls.every(c => c.opts.method === 'POST' && JSON.parse(c.opts.body).action), 'GitHub 조회 때문에 다른 요청이 섞이지 않는다(POST 만)');
-  ok(/GitHub 기록을 아직 못 읽었어요/.test(cards11()), 'GitHub 기록이 없으면 솔직하게 안내');
-  D11.run('GH_DATA = {at: new Date().toISOString(), runs_at: new Date().toISOString(), repos: {' +
-    '"content-hub": {commits: [{sha: "abc1234", msg: "feat(ui): v3.3 — 카드 밀도", email: "s2ongrae+work@gmail.com", at: ' + JSON.stringify(at(nowMs - 3 * 60000)) + '}],' +
-    '  run: {name: "deploy", status: "completed", conclusion: "success", branch: "main"}},' +
-    '"gaegyebu": {commits: [{sha: "def5678", msg: "Merge pull request #1 from s2ongrae/agent/ui", email: "s2ongrae@gmail.com", at: ' + JSON.stringify(at(nowMs - 5 * 3600000)) + '}]}' +
-    '}}; monRender(true)');
-  ok(/방금 작업/.test(cards11()) && /content-hub|콘텐츠 허브/.test(cards11()), '가장 최근 푸시가 3분 전이면 방금 작업');
-  ok(/✅ CI 통과/.test(cards11()), '마지막 CI 결과를 함께 보여준다');
-  ok(/GitHub 푸시가 유일한 신호/.test(cards11()) || /푸시만 보여요/.test(cards11()), 'PC 는 실시간 신호가 아니라는 것을 밝힌다');
-  ok(D11.run('ghAgentCommit({msg:"Merge pull request #3 from s2ongrae/agent/ui-visibility-v3"})') === true, 'agent/* 머지 커밋은 에이전트 작업으로 본다');
-  ok(D11.run('ghAgentCommit({msg:"fix: 카테고리 자동완성"})') === false, '보통 커밋은 PC·직접 작업으로 본다');
-
-  // ④ 통합 이력 — 노트북 오더 + 회사 PC 커밋을 시간순으로
-  const evs11 = D11.get('monEvents()');
-  ok(evs11.length >= 7, '오더와 커밋이 한 목록에 모인다');
-  ok(evs11.every((e, i) => i === 0 || evs11[i - 1].at >= e.at), '최신이 위(시간 내림차순)');
-  ok(evs11.some(e => e.who === 'hub') && evs11.some(e => e.who === 'pc'), '노트북·회사 PC·에이전트 세 갈래가 다 보인다');
-  ok((cards11().match(/class="mon-dev/g) || []).length === 6, '카드가 6개(직접·허브·회사PC·피원·피투·오더 큐)다');
-  ok(/🤖 피원/.test(cards11()) && /🤖 피투/.test(cards11()) && /📋 오더 큐/.test(cards11()), '피원(pi1)·피투(pi2)·오더 큐 카드가 함께 보인다');
-  D11.run('AGENT_DATA = {direct: null}');
-  ok(/기록 없음/.test(D11.run('monDevDirect()')) && /free로 작업하면/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 기록이 없으면 free 안내');
-  D11.run('AGENT_DATA = {direct: {state: "working", project: "portal", task: "포털 관제", started_at: new Date().toISOString(), updated_at: new Date().toISOString()}}');
-  ok(/작업 중/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 작업 중이면 상태를 보여준다');
-  D11.run('AGENT_DATA = {direct: {state: "working", project: "portal", task: "포털 관제", started_at: new Date(Date.now() - 30 * 60000).toISOString(), updated_at: new Date(Date.now() - 30 * 60000).toISOString()}}');
-  ok(/미확인/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 25분 넘게 신호가 없으면 미확인');
-  D11.run('AGENT_DATA = {direct: {state: "idle", project: "portal", task: "포털 관제", updated_at: new Date().toISOString()}}');
-  ok(/쉬는 중/.test(D11.run('monDevDirect()')), '⌨️ 직접 카드: 쉬는 중이면 회색 상태');
-
-  // ③-2 💻 회사 PC 비트(agent_beat target=pc) — 비공개 레포·커밋 전 작업까지
-  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "상품 상세페이지 수정", started_at: new Date().toISOString(), updated_at: new Date().toISOString(), source: "manual", stale_min: 30}}');
-  ok(/작업 중/.test(D11.run('monDevPc()')) && /상품 상세페이지 수정/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: PC 비트가 있으면 작업 중·작업명을 보여준다');
-  ok(/🛒|묘한살림/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: 프로젝트 이름으로 묶어 보여준다');
-  ok(/직접 표시/.test(D11.run('monDevPc()')) && /ord-elapsed/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: 출처와 경과 시간을 보여준다');
-  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "커밋", started_at: ' + JSON.stringify(at(nowMs - 90 * 60000)) + ', updated_at: ' + JSON.stringify(at(nowMs - 90 * 60000)) + ', source: "commit", stale_min: 120}}');
-  ok(/작업 중/.test(D11.run('monDevPc()')) && !/미확인/.test(D11.run('monDevPc()')), '💻 커밋 알림은 90분이 지나도 미확인이 아니다(커밋 간격)');
-  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "커밋", started_at: ' + JSON.stringify(at(nowMs - 130 * 60000)) + ', updated_at: ' + JSON.stringify(at(nowMs - 130 * 60000)) + ', source: "commit", stale_min: 120}}');
-  ok(/미확인/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: stale_min(120분)을 넘으면 미확인');
-  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "x", started_at: new Date().toISOString(), updated_at: new Date(Date.now() - 40 * 60000).toISOString(), stale_min: 30}}');
-  ok(/미확인/.test(D11.run('monDevPc()')), '💻 직접 표시는 30분이 지나면 미확인');
-  ok(/pcbeat done/.test(D11.run('monDevPc()')), '💻 미확인이면 무엇을 하면 되는지 알려준다');
-  D11.run('AGENT_DATA = {pc: {state: "idle", project: "smartstore", task: "상품 등록", updated_at: new Date().toISOString()}}');
-  ok(/쉬는 중/.test(D11.run('monDevPc()')) && /pcbeat start/.test(D11.run('monDevPc()')), '💻 회사 PC 카드: 쉬는 중이면 마지막 작업과 다음 방법');
-  D11.run('AGENT_DATA = {pc: {state: "working", project: "smartstore", task: "상품 등록", started_at: new Date().toISOString(), updated_at: new Date().toISOString()}}');
-  ok(D11.run('monEvents().filter(e => e.who === "pc").length') >= 1, '통합 이력에 회사 PC 비트가 들어간다');
-  D11.run('AGENT_DATA = {direct: {state: "working", project: "portal", task: "포털 관제", started_at: new Date().toISOString(), updated_at: new Date().toISOString()}}');
-  ok(D11.run('monEvents().filter(e => e.who === "nd").length') >= 1, '통합 이력에 노트북 직접 작업 비트도 들어간다');
-  D11.run('AGENT_DATA = {}; monRender(true)');
-  ok(D11.run('(function(){ const g = GH_DATA; GH_DATA = null; const h = monDevPc(); GH_DATA = g; return /회사 PC 신호가 아직 없어요/.test(h) && /GitHub 기록을 아직 못 읽었어요/.test(h); })()'), '💻 비트도 커밋도 없으면 솔직하게 안내');
-  ok(D11.run('(function(){ const a = AGENT_DATA; AGENT_DATA = {}; const t = pcBeatHowText(); AGENT_DATA = a; return t; })()').indexOf('재배포') >= 0, '서버가 예전 배포면 재배포하고 알려준다');
-  ok(D11.run('(function(){ const a = AGENT_DATA; AGENT_DATA = {beat_targets: ["direct", "pc"]}; const t = pcBeatHowText(); AGENT_DATA = a; return t; })()').indexOf('pcbeat') >= 0, '서버가 pc 를 알면 pcbeat 를 켜라고 알려준다');
-  ok(/대기 \d+ · 승인 \d+ · 실행 \d+ · 오늘 완료 \d+/.test(D11.run('monDevNotebook()')) && /#order-card/.test(D11.run('monDevNotebook()')), '🏠 허브 카드 끝에 오더 요약과 오더함 이동 링크');
-  ok(/🏠 노트북/.test(feed11()) && /💻 회사 PC/.test(feed11()), '이력에 출처가 붙는다');
-  D11.run('monFilter({dataset:{f:"pc"}})');
-  ok(D11.run('MON_FILTER') === 'pc' && /💻 회사 PC/.test(feed11()) && !/🏠 노트북/.test(feed11()), '갈래를 고르면 그 출처만 남는다');
-  D11.run('monFilter({dataset:{f:"all"}})');
-  ok(D11.run('MON_FILTER') === 'all', '전체로 되돌린다');
-  const xss11 = JSON.stringify(D11.get('monFeedHtml()'));
-  ok(xss11.indexOf('<img') < 0, '이력 글은 그대로 그리지 않는다');
-
-  // ⑤ 값이 그대로면 다시 그리지 않고, ⟳ 면 새로 그린다
-  D11.el('mon-cards').innerHTML = '<i>그대로</i>';
-  D11.run('monRender()');
-  ok(D11.el('mon-cards').innerHTML === '<i>그대로</i>', '같은 값이면 관제 화면을 다시 그리지 않는다(깜빡임 방지)');
-  D11.run('monRender(true)');
-  ok(D11.el('mon-cards').innerHTML !== '<i>그대로</i>', '강제로 그리면 새로 그린다');
-  ok(/mon-card/.test(html) && /🖥️ 작업 관제/.test(html), '관제 카드가 포털 맨 위 오더함 앞에 있다');
-  ok(html.indexOf('id="mon-card"') < html.indexOf('id="order-card"') && html.indexOf('id="mon-card"') > 0, '모니터링이 오더함보다 위');
-}
-
-console.log('U) 🤖 피클 상태·프로젝트 묶음 — 3주체 현황과 프로젝트 필터');
-{
-  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
-    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
-    'approval_by','approval_at','approval_note','approval_hash'];
-  const S12 = mk();
-  const nowMs = Date.now();
-  const at = ms => new Date(ms).toISOString();
-  const row = (id, created, status, x) => {
-    const r = [id, created, 'phone', 'git_pull', 'gaegyebu', '{}', status, 0, '', '', ''];
-    while (r.length < HEAD.length) r.push('');
-    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
-    return r;
-  };
-  S12.props.QUEUE_SHEET_ID = 'SHEETidAgentProj0001';
-  S12.addSheet('SHEETidAgentProj0001', {'Command_Queue': [HEAD.slice(0)].concat([
-    row('Q-a1', at(nowMs - 5 * 60000), 'RUNNING', {type: 'claude_prompt', workspace: 'content-hub',
-      claimed_at: at(nowMs - 4 * 60000), claimed_by: 'notebook', payload: JSON.stringify({prompt: '카피 다듬기', mode: 'ask'})}),
-    row('Q-a2', at(nowMs - 8 * 60000), 'PENDING', {type: 'claude_prompt', workspace: 'smartstore-hub',
-      payload: JSON.stringify({prompt: '상세페이지 점검', mode: 'ask'})}),
-    row('Q-a3', at(nowMs - 20 * 60000), 'DONE', {type: 'toss_sync', finished_at: at(nowMs - 19 * 60000), duration_ms: 9000, result: '완료'}),
-    row('Q-a4', at(nowMs - 30 * 60000), 'WAITING_APPROVAL', {type: 'claude_prompt', workspace: 'insurance-manager',
-      payload: JSON.stringify({prompt: '표 정리', mode: 'edit'}), risk_level: 'HIGH', approval_expires_at: at(nowMs + 5 * 60000)})
-  ])});
-  const D12 = makeDevice(S12);
-  D12.config();
-  await D12.run('refreshQueueStatus(true)');
-  await D12.run('loadOrders()');
-
-  // ① 프로젝트 묶음 — 작업 위치·토스·GitHub 저장소가 같은 이름으로
-  ok(D12.run('ordProject({type:"claude_prompt",workspace:"content-hub"})') === 'content', '콘텐츠 허브 오더 → 콘텐츠허브');
-  ok(D12.run('ordProject({type:"claude_prompt",workspace:"smartstore-hub"})') === 'smartstore', '스마트스토어 오더 → 묘한살림');
-  ok(D12.run('ordProject({type:"toss_sync",workspace:""})') === 'gaegyebu', '토스 동기화 → 가계부');
-  ok(D12.run('ordProject({type:"claude_prompt",workspace:""})') === 'life', '위치가 없으면 생활·행정');
-  const ps = D12.get('projStats()');
-  ok(ps.content.run === 1 && ps.smartstore.pend === 1 && ps.gaegyebu.done === 1 && ps.insurance.wait === 1, '프로젝트별 진행·예정·승인·오늘 끝남을 센다', ps);
-  D12.run('monRender(true)');
-  const chips = D12.el('mon-proj').innerHTML;
-  ['묘한살림', '콘텐츠허브', '가계부', '보험관리툴', '포털·연동', '생활·행정'].forEach(n => ok(chips.indexOf(n) >= 0, `프로젝트 칩: ${n}`));
-  ok(/data-p="content"/.test(chips) && /진행 1/.test(chips), '칩에 프로젝트별 진행 건수가 붙는다');
-
-  // ② 프로젝트를 고르면 그 프로젝트 이력만
-  ok(D12.run('monEvents().filter(e => e.proj === "content").length') >= 1, '이벤트마다 프로젝트가 붙는다');
-  D12.run('monProjFilter({dataset:{p:"content"}})');
-  ok(D12.run('MON_PROJ') === 'content', '프로젝트 필터가 걸린다');
-  const f12 = D12.el('mon-feed').innerHTML;
-  ok(/콘텐츠 허브/.test(f12) && !/가계부/.test(f12), '고른 프로젝트 이력만 남는다');
-  D12.run('monProjFilter({dataset:{p:"all"}})');
-  ok(D12.run('MON_PROJ') === 'all', '전체로 되돌린다');
-
-  // ③ 🤖 피클 카드 — 진행 중 / 대기 / 정체 / 기록 없음
-  ok(/🤖 피원/.test(D12.run('monDevPickle()')), '피원(pi1) 카드가 있다');
-  D12.run('AGENT_DATA = {updated_at: "' + at(nowMs) + '", agent: {state: "working", task: "포털 관제 개선", project: "portal", started_at: "' + at(nowMs - 20 * 60000) + '", id: "t1"}, tasks: []}');
-  const pkRun = D12.run('monDevPickle()');
-  ok(/작업 중/.test(pkRun) && /포털 관제 개선/.test(pkRun) && /data-since="\d{13}"/.test(pkRun), '피클이 하는 일과 경과 시간이 보인다');
-  D12.run('AGENT_DATA = {updated_at: "' + at(nowMs - 45 * 60000) + '", agent: {state: "working", task: "오래 걸리는 일", project: "portal", started_at: "' + at(nowMs - 90 * 60000) + '"}, tasks: []}');
-  ok(/응답 없음/.test(D12.run('monDevPickle()')) && /30분/.test(D12.run('monDevPickle()')), '30분 넘게 소식이 없으면 멈춘 것 같다고 알린다');
-  D12.run('AGENT_DATA = {updated_at: "' + at(nowMs) + '", agent: {state: "idle"}, tasks: [' +
-    '{id:"t1", project: "portal", title: "포털 관제 개선", state: "done", started_at: "' + at(nowMs - 60 * 60000) + '", ended_at: "' + at(nowMs - 5 * 60000) + '", result: "배포 완료"}]}');
-  ok(/쉴 준비/.test(D12.run('monDevPickle()')) && /배포 완료/.test(D12.run('monDevPickle()')), '쉬는 중이면 마지막으로 끝낸 일을 보여준다');
-
-  // ④ 피클 이력이 통합 이력에 합쳐지고, 갈래 필터가 된다
-  const pe = D12.get('agentEvents()');
-  ok(pe.length === 1 && pe[0].who === 'pk' && pe[0].proj === 'portal', '피클 작업이 이벤트로 바뀐다');
-  D12.run('monRender(true)');
-  ok(/🤖 피원/.test(D12.el('mon-feed').innerHTML) && /포털 관제 개선/.test(D12.el('mon-feed').innerHTML), '통합 이력에 피원이 함께 보인다');
-  D12.run('monFilter({dataset:{f:"pk"}})');
-  ok(D12.run('MON_FILTER') === 'pk' && /🤖 피원/.test(D12.el('mon-feed').innerHTML) && !/💻 회사 PC/.test(D12.el('mon-feed').innerHTML), '🤖 피원 갈래만 고를 수 있다');
-  D12.run('monFilter({dataset:{f:"all"}})');
-
-  // ⑤ 피클 기록이 없으면 솔직하게, 테스트 환경에서는 파일을 부르지 않는다
-  D12.run('AGENT_DATA = null; MON_FILTER = "all"');
-  ok(/기록 없음/.test(D12.run('monDevPickle()')), '기록이 없으면 없다고 보여준다');
-  ok(D12.run('agentCanFetch()') === false, '테스트 환경(https 아님)에서는 status/agent.json 을 부르지 않는다');
-  ok(D12.calls.every(c => c.opts.method === 'POST' && JSON.parse(c.opts.body).action), '피클 상태도 POST 한 갈래로만 요청한다');
-  D12.run('AGENT_DATA = {updated_at: "' + at(nowMs) + '", agent: null, tasks: [{id:"x", project:"content", title: "<img src=x onerror=alert(1)>", state: "done", ended_at: "' + at(nowMs) + '"}]}');
-  ok(JSON.stringify(D12.get('monFeedHtml()')).indexOf('<img') < 0, '피클이 남긴 글도 그대로 그리지 않는다');
-}
+console.log('T) 🗑️ 작업 관제 카드 제거(2026-11-27) — 브리핑·지금 작업 중과 겹치고, GitHub API 호출이 시간당 한도(403)에 걸렸다');
+ok(!/id="mon-card"/.test(html) && !/api\.github\.com/.test(html), '관제 카드와 GitHub API 호출이 없다(페이지가 가벼워짐)');
+ok(/id="approval-card"/.test(html) && /id="brief-card"/.test(html) && /id="room-live"/.test(html), '대신 승인함·브리핑·지금 작업 중이 그 일을 한다');
 
 console.log('V) 💬 비서 통합 회의실 — 카톡 타임라인·@멘션·사용량·비서 슬롯');
 {
@@ -918,7 +675,7 @@ console.log('V) 💬 비서 통합 회의실 — 카톡 타임라인·@멘션·�
   ok(/id="room-use"/.test(html) && /📊 비서 사용량/.test(html) && /<details class="room-use"/.test(html), '📊 비서 사용량이 접기/펼치기 패널로 있다');
   ok(/id="ord-presets"/.test(html) && /id="ord-mentions"/.test(html) && /id="ord-mode"/.test(html) && /id="ord-who"/.test(html),
     '하단 입력바에 프리셋·대상 칩·모드·발신 선택이 있다');
-  ok(/class="order-card room-card"/.test(html) && html.indexOf('id="mon-card"') < html.indexOf('id="order-card"'), '관제 카드 아래에 회의실이 이어진다');
+  ok(/class="order-card room-card"/.test(html) && !/id="mon-card"/.test(html), '회의실이 있다(관제 카드는 2026-11-27 제거)');
   ok((D13.el('room-people').textContent || '').indexOf('명') >= 0, '참여 비서 수가 머리말에 보인다');
   let sum = D13.el('use-sum').innerHTML;
   ok(/위험/.test(sum) && /임박/.test(sum) && /정상/.test(sum) && /미확인/.test(sum), '사용량 요약(위험·임박·정상·미확인)');
@@ -2192,6 +1949,58 @@ console.log('AJ) 🔔 승인함 — 모으기 · 결정 · 타임라인 표시 �
   const DN = makeDevice(SP);
   await DN.run('apprLoad(true)');
   ok(DN.calls.length === 0 && /서버를 연결하면/.test(DN.el('appr-list').innerHTML), '서버 설정 전엔 요청 없이 안내만');
+}
+
+console.log('AK) 🌿 입력칸 어사이드 · 🧹 자동 정리 (2026-11-27)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SK = mk();
+  SK.props.QUEUE_SHEET_ID = 'SHEETidAsideUi01';
+  SK.addSheet('SHEETidAsideUi01', {'Command_Queue': [HEAD.slice(0)]});
+  const DK = makeDevice(SK);
+  DK.config();
+  const enqs = () => DK.calls.map(c => JSON.parse(c.opts.body)).filter(b => b.action === 'queue_enqueue');
+  // ① 입력칸에 「🌿어사이드 네이버」 — 버튼과 같은 길(노트북·대화·한 줄)로, 답장 인용은 붙이지 않는다
+  DK.run("ORD_REPLY_TO='Q-old'; ORD_REPLY_ID='Q-old'; ORD_TARGET='all';");
+  DK.el('ord-inp').value = '🌿어사이드 네이버';
+  await DK.run('sendOrder()');
+  let e = enqs();
+  ok(e.length === 1 && e[0].payload.target === 'notebook' && e[0].payload.kind === 'chat' && e[0].payload.prompt === '🌿어사이드 네이버', '입력칸 어사이드도 노트북 앞 한 줄 명령으로 간다(대상이 @전체로 새지 않는다)');
+  ok(!e[0].payload.reply_to && DK.run('ORD_REPLY_ID') === '', '답장 인용·reply_to 를 붙이지 않는다(노트북이 명령으로 알아보게)');
+  ok(DK.el('ord-inp').value === '', '보내고 입력칸을 비운다');
+  // 별칭(한글 낱말)도 알아본다
+  DK.el('ord-inp').value = '🌿 어사이드 확인';
+  await DK.run('sendOrder()');
+  e = enqs();
+  ok(e.length === 2 && e[1].payload.prompt === '🌿어사이드 상태', '별칭(확인) → 상태 확인 작업으로');
+  ok(DK.run("asideJobByWord('알리익스프레스').id") === 'ali' && DK.run("asideJobByWord('퀴즈').id") === 'quiz' && DK.run("asideJobByWord('네이버').id") === 'naver', '한글 낱말·별칭으로 작업을 찾는다');
+  // 모르는 낱말 — 보내지 않고 가능한 작업을 알려 준다
+  DK.el('ord-inp').value = '🌿어사이드 쿠팡';
+  await DK.run('sendOrder()');
+  ok(enqs().length === 2, '없는 작업은 보내지 않는다');
+  ok(DK.run("asideJobByWord('쿠팡')") === null, '모르는 낱말 → null');
+  // 한 줄 명령이 아닌 말은 보통 대화로
+  DK.run("ORD_TARGET='cue';");
+  DK.el('ord-inp').value = '🌿어사이드 네이버 돌리고 결과 알려줘';
+  await DK.run('sendOrder()');
+  e = enqs();
+  ok(e.length === 3 && e[2].payload.target === 'cue', '한 줄 명령이 아니면 어사이드가 아니다(보통 대화)');
+
+  // ② 자동 정리 — 6시간에 한 번만, 설정 전엔 부르지 않는다
+  const sweeps = () => DK.calls.map(c => JSON.parse(c.opts.body)).filter(b => b.action === 'queue_sweep');
+  DK.store.delete('portal_autosweep_at');
+  await DK.run('autoSweep()');
+  ok(sweeps().length === 1 && sweeps()[0].auto === true, '자동 정리는 auto:true 로 부른다');
+  await DK.run('autoSweep()');
+  ok(sweeps().length === 1, '6시간 안에는 다시 부르지 않는다(이 기기 기록)');
+  DK.store.set('portal_autosweep_at', String(Date.now() - 7 * 3600000));
+  await DK.run('autoSweep()');
+  ok(sweeps().length === 2, '6시간이 지나면 다시 부른다');
+  const DN = makeDevice(SK);
+  await DN.run('autoSweep()');
+  ok(DN.calls.length === 0, '서버 설정 전엔 부르지 않는다');
 }
 
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);

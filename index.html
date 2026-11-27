@@ -705,59 +705,9 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .ord-pause{display:none;font-size:10.5px;color:var(--hint);margin-bottom:6px}
 
 /* ── 🖥️ 작업 관제 (2026-11-17) — 노트북 · 회사 PC · 오더 큐를 관제 화면처럼 ── */
-.mon-card{background:var(--surface);border-radius:14px;padding:20px;box-shadow:var(--shadow);min-width:0}
-.mon-card .section-title{white-space:nowrap}
-.mon-card .ord-head-right{flex:0 0 auto}
-.mon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:12px}
-.mon-dev{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:11px 12px;min-width:0;transition:background .2s,border-color .2s}
-.mon-dev.run{background:var(--purple-l);border-color:#DDD6FE}
-.mon-dev.ok{background:var(--green-l);border-color:#BBF7D0}
-.mon-dev.wait{background:var(--gold-l);border-color:#FDE68A}
-.mon-dev.bad{background:var(--red-l);border-color:#FECACA}
-.mon-top{display:flex;align-items:center;gap:6px;min-width:0}
-.mon-name{font-size:11.5px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mon-dot{width:8px;height:8px;border-radius:50%;background:var(--hint);flex-shrink:0}
-.mon-dot.run{background:var(--purple);animation:monPulse 1.6s ease-in-out infinite}
-.mon-dot.ok{background:var(--green)}
-.mon-dot.wait{background:var(--gold)}
-.mon-dot.bad{background:var(--red);animation:monPulse 1.6s ease-in-out infinite}
-.mon-state{margin-left:auto;font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap;flex-shrink:0}
-.mon-dev.run .mon-state{color:#5B21B6}.mon-dev.ok .mon-state{color:#047857}
-.mon-dev.wait .mon-state{color:#92400E}.mon-dev.bad .mon-state{color:#991B1B}
-.mon-main{font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:6px;overflow-wrap:anywhere;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.mon-main b{color:var(--text);font-weight:700}
-.mon-sub{font-size:10px;color:var(--hint);line-height:1.5;margin-top:4px;overflow-wrap:anywhere}
-.mon-bar{height:4px;border-radius:999px;background:#E2E8F0;overflow:hidden;margin-top:7px}
-.mon-bar i{display:block;height:100%;width:38%;border-radius:999px;background:var(--purple);animation:monSlide 1.5s ease-in-out infinite}
 @keyframes monSlide{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
 @keyframes monPulse{0%,100%{opacity:1}50%{opacity:.3}}
-.mon-filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:2px 0 6px}
-.mon-filters-h{font-size:10.5px;font-weight:700;color:var(--muted);margin-right:2px}
-.mon-f{border:1px solid var(--border);background:#fff;border-radius:999px;padding:4px 11px;font-size:10.5px;
-  color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap}
-.mon-f:hover{border-color:var(--blue);color:var(--blue-d)}
-.mon-f.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);font-weight:700}
-.mon-feed{display:flex;flex-direction:column;max-height:360px;overflow-y:auto;min-width:0}
-.mon-ev{display:flex;gap:8px;align-items:flex-start;padding:7px 2px;border-bottom:1px solid var(--bg)}
-.mon-ev:last-child{border-bottom:none}
-.mon-t{flex:0 0 46px;font-size:10px;color:var(--hint);font-variant-numeric:tabular-nums;padding-top:1px}
-.mon-w{flex:0 0 auto;font-size:10px;font-weight:700;white-space:nowrap;padding-top:1px}
-.mon-w.nb{color:#5B21B6}.mon-w.pc{color:var(--blue-d)}.mon-w.ag{color:#047857}.mon-w.q{color:#92400E}.mon-w.pk{color:#B45309}.mon-w.hub{color:#5B21B6}.mon-w.nd{color:#0E7490}.mon-w.web{color:#0369A1}.mon-w.etc{color:var(--muted)}
-.mon-tx{flex:1;min-width:0;font-size:11.5px;color:var(--text2);line-height:1.45;overflow-wrap:anywhere}
-.mon-tx b{color:var(--text)}
-.mon-tx em{font-style:normal;color:var(--hint)}
-.mon-note{font-size:10.5px;color:var(--hint);line-height:1.55;margin-top:8px}
 /* 💻 회사 PC 1줄 연결 — 관제에서 바로 복사하는 안내 */
-.mon-pc-help{margin-top:6px;font-size:10.5px;color:var(--hint)}
-.mon-pc-help summary{cursor:pointer;color:var(--blue-d);font-weight:700;list-style:none}
-.mon-pc-help summary::-webkit-details-marker{display:none}
-.mon-pc-body{border:1px solid var(--border);border-radius:10px;padding:9px 11px;margin-top:6px;background:#fff;line-height:1.6}
-.mon-pc-body p{margin:0 0 5px}
-.mon-pc-body p:last-child{margin-bottom:0}
-.mon-code{display:block;margin:5px 0;padding:7px 9px;background:var(--bg);border-radius:8px;font-size:10px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-all;color:var(--text2);user-select:all}
-.mon-pc-body code{background:var(--bg);border-radius:5px;padding:0 4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
 /* 오더 생애주기 — 뭘 할 거다(예정) → 하는 중 → 끝냈다 */
 .ord-steps{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-top:6px}
 .ord-stp{font-size:9.5px;border:1px solid var(--border);border-radius:999px;padding:1px 7px;background:#fff;color:var(--hint);white-space:nowrap}
@@ -820,11 +770,6 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .ord-list{max-height:none}
   .ord-refresh{width:34px;height:34px}
   /* 관제: 폰은 기기 카드를 2x2 로, 이력은 스크롤 없이 */
-  .mon-grid{grid-template-columns:1fr 1fr}
-  .mon-dev{padding:9px 10px}
-  .mon-main{-webkit-line-clamp:2}
-  .mon-sub{display:none}
-  .mon-feed{max-height:none}
   .use-grid{grid-template-columns:1fr 1fr}
   .use-pct{font-size:17px}
   .room-feed{max-height:none}
@@ -832,8 +777,6 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
   .room-body{padding:12px}
   .room-head{padding:11px 12px}
   .room-inp-row .ord-inp{font-size:13px}
-  #mon-note{display:none}          /* 확인 시각은 카드 안에 있어요 — 제목이 두 줄로 깨지지 않게 */
-  .mon-card .section-title{white-space:nowrap}
   /* 상태등은 폰에서 한 줄로 (넘치면 옆으로 밀어서) — 헤더가 화면을 먹지 않게 */
   .statusbar{margin-top:7px;padding-top:7px;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
   .statusbar::-webkit-scrollbar{display:none}
@@ -841,7 +784,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 @media(max-width:349px){.brand{display:none}}
 @media(max-width:600px){.page{padding:14px 12px calc(40px + env(safe-area-inset-bottom))}
   .task-grid{grid-template-columns:minmax(0,1fr)}
-  .tasks-section,.cal-card,.memo-panel,.order-card,.mon-card{padding:16px}
+  .tasks-section,.cal-card,.memo-panel,.order-card{padding:16px}
   .task-cb{width:20px;height:20px}
   .del-btn{font-size:17px;padding:5px 6px}
   .cal-nav,.cal-today{padding:8px 14px;min-height:36px}
@@ -958,12 +901,12 @@ body{
 .stat{background:#F8F9FC;border-color:#E7EBF2}
 .stat.ok .dot,.stat.warn .dot,.stat.bad .dot{box-shadow:0 0 0 3px rgba(255,255,255,.9)}
 .page{max-width:1360px;gap:18px;padding-top:24px}
-.tasks-section,.cal-card,.memo-panel,.mon-card,.order-card:not(.room-card){
+.tasks-section,.cal-card,.memo-panel,.order-card:not(.room-card){
   border:1px solid rgba(220,226,237,.9);border-radius:18px;
   box-shadow:var(--shadow);transition:box-shadow .2s,border-color .2s
 }
-.tasks-section,.cal-card,.memo-panel,.mon-card,.order-card:not(.room-card){padding:22px}
-.tasks-section:hover,.cal-card:hover,.memo-panel:hover,.mon-card:hover,.order-card:not(.room-card):hover{
+.tasks-section,.cal-card,.memo-panel,.order-card:not(.room-card){padding:22px}
+.tasks-section:hover,.cal-card:hover,.memo-panel:hover,.order-card:not(.room-card):hover{
   border-color:#D7DFEF;box-shadow:0 4px 12px rgba(22,34,56,.05),0 16px 36px rgba(22,34,56,.06)
 }
 .section-head{margin-bottom:16px}
@@ -994,8 +937,6 @@ body{
 .memo-card:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(22,34,56,.09)}
 .memo-card-title{font-size:13.5px}
 .memo-card-body{font-size:12.5px;line-height:1.65}
-.mon-card .section-title{letter-spacing:-.01em}
-.mon-dev{border-radius:12px}
 .room-card.order-card{box-shadow:0 4px 12px rgba(22,34,56,.045),0 24px 54px -38px rgba(22,34,56,.42)}
 .room-card.order-card:hover{border-color:#D7DEF0}
 .room-feed{background-color:#F7F8FC;background-image:radial-gradient(rgba(91,124,250,.12) 1px,transparent 1px)}
@@ -1010,10 +951,10 @@ body{
 }
 @media(max-width:700px){
   .page{gap:14px;padding-top:14px}
-  .tasks-section,.cal-card,.memo-panel,.mon-card,.order-card:not(.room-card){padding:16px}
+  .tasks-section,.cal-card,.memo-panel,.order-card:not(.room-card){padding:16px}
   .section-head{margin-bottom:13px}
   .room-card.order-card{border-radius:17px}
-  .tasks-section,.cal-card,.memo-panel,.mon-card,.order-card:not(.room-card){border-radius:16px}
+  .tasks-section,.cal-card,.memo-panel,.order-card:not(.room-card){border-radius:16px}
 }
 @media(prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
@@ -1075,11 +1016,11 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
 .hero-card-front strong{display:block;margin-top:12px;color:#fff;font-size:38px;line-height:1;font-weight:800;letter-spacing:.08em}
 .hero-card-front i{display:block;margin-top:13px;color:#B8F36E;font-size:8px;font-style:normal;letter-spacing:.28em}
 .hero-spark{position:absolute;right:27px;bottom:13px;color:#C5F488;font-size:25px;text-shadow:0 0 20px rgba(197,244,136,.7)}
-.tasks-section,.cal-card,.memo-panel,.mon-card,.order-card:not(.room-card){
+.tasks-section,.cal-card,.memo-panel,.order-card:not(.room-card){
   padding:25px;border:1px solid #E1E6EF;border-radius:22px;background:#fff;
   box-shadow:var(--shadow);transition:transform .18s,border-color .18s,box-shadow .18s
 }
-.tasks-section:hover,.cal-card:hover,.memo-panel:hover,.mon-card:hover,.order-card:not(.room-card):hover{
+.tasks-section:hover,.cal-card:hover,.memo-panel:hover,.order-card:not(.room-card):hover{
   border-color:#CFD8E8;box-shadow:0 16px 36px rgba(24,37,64,.09),0 3px 10px rgba(24,37,64,.04)
 }
 .tasks-section{position:relative;overflow:hidden;border-top:4px solid #B8F36E;padding-top:22px}
@@ -1120,34 +1061,6 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
 .memo-card-body{font-size:12.5px;line-height:1.7}
 .memo-card-actions{opacity:1}
 .memo-icon-btn{background:rgba(255,255,255,.62);border:1px solid rgba(0,0,0,.07);border-radius:999px;padding:5px 10px}
-.mon-card{position:relative;isolation:isolate;overflow:hidden;background:#17213A!important;border-color:#243252!important;color:#fff;
-  box-shadow:0 20px 42px rgba(18,29,52,.18)!important}
-.mon-card::after{content:'';position:absolute;z-index:-1;right:-115px;top:-195px;width:400px;height:400px;border-radius:50%;
-  background:radial-gradient(circle,rgba(82,109,255,.23),transparent 68%);pointer-events:none}
-.mon-card .section-title{color:#F2F5FB}
-.mon-card .badge-blue{background:rgba(184,243,110,.12);border-color:rgba(184,243,110,.22);color:#D5F7A8}
-.mon-card .ord-hint,.mon-card .mon-note{color:#AAB6CB}
-.mon-card .ord-refresh{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#E2E8F4}
-.mon-card .ord-refresh:hover{background:rgba(255,255,255,.15);border-color:#91A4FF;color:#fff}
-.mon-grid{gap:12px;margin-bottom:16px}
-.mon-dev{border-radius:15px;box-shadow:0 5px 14px rgba(4,10,22,.12)}
-.mon-filters{gap:7px;margin:10px 0}
-.mon-filters-h{color:#C1CBDD}
-.mon-f{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.13);color:#D1D9E8;padding:6px 12px}
-.mon-f:hover{background:rgba(255,255,255,.12);border-color:#97A7FF;color:#fff}
-.mon-f.on{background:#B8F36E;border-color:#B8F36E;color:#1E2B19}
-.mon-feed{max-height:390px;padding:10px 14px;border:1px solid rgba(255,255,255,.1);border-radius:15px;background:#111A2E}
-.mon-ev{border-bottom-color:rgba(255,255,255,.08);padding:9px 3px}
-.mon-t{color:#8795AE}
-.mon-tx{color:#D5DDEC;font-size:12px}
-.mon-tx b{color:#fff}
-.mon-tx em{color:#8795AE}
-.mon-feed .ord-empty{color:#AAB6CB}
-.mon-pc-help{margin-top:12px}
-.mon-pc-help summary{color:#C6D1E4}
-.mon-pc-body{background:#202C46;border-color:#354360;color:#DDE4F0}
-.mon-pc-body code,.mon-code{background:#121B2F;color:#DAE3F5}
-.mon-pc-body b{color:#fff}
 .room-card.order-card{border:1px solid #DDE3F0;border-radius:22px;background:#F8F9FD;
   box-shadow:0 16px 38px rgba(24,37,64,.09)}
 .room-head{padding:21px 25px 18px;background:linear-gradient(112deg,#202B48,#303D67);border-bottom:1px solid rgba(255,255,255,.08)}
@@ -1183,7 +1096,7 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
   .portal-hero p{font-size:12.5px;margin-top:12px}
   .hero-art{flex-basis:210px;transform:scale(.82);transform-origin:center right;margin-left:-35px}
   .hero-break{display:none}
-  .tasks-section,.cal-card,.memo-panel,.mon-card,.order-card:not(.room-card){padding:18px;border-radius:18px}
+  .tasks-section,.cal-card,.memo-panel,.order-card:not(.room-card){padding:18px;border-radius:18px}
   .tasks-section{padding-top:16px}
   .section-title{font-size:16px}
   .mid-row{gap:15px}
@@ -1191,10 +1104,6 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
   .cal-day{min-height:58px;padding:4px 2px;gap:3px;align-items:center}
   .cal-day .dn{width:22px;height:22px;font-size:11.5px}
   .cal-dow{padding:7px 2px;font-size:10px}
-  .mon-card{padding:18px!important}
-  .mon-grid{gap:8px}
-  .mon-dev{padding:9px 10px}
-  .mon-feed{padding:8px 11px}
   .room-card.order-card{border-radius:19px}
   .room-head{padding:15px 15px 13px}
   .room-body{padding:13px}
@@ -1405,37 +1314,6 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
       <button class="memo-add-btn" onclick="openMemoModal()">＋ 새 메모</button>
       <div class="memo-list" id="memo-list"><div class="memo-empty">메모를 추가해보세요</div></div>
     </div>
-  </div>
-
-  <!-- ③ 🖥️ 작업 관제 — 집 노트북 · 회사 PC · 오더 큐를 한눈에 (모니터링 화면) -->
-  <div class="mon-card" id="mon-card">
-    <div class="section-head">
-      <div class="section-title">🖥️ 작업 관제 <span class="badge badge-blue" id="mon-badge"></span></div>
-      <div class="ord-head-right">
-        <span class="ord-hint" id="mon-note"></span>
-        <button class="ord-refresh" onclick="monRefresh(true)" title="노트북·회사 PC·오더 상태를 지금 다시 확인" aria-label="관제 새로고침">⟳</button>
-      </div>
-    </div>
-    <div class="mon-grid" id="mon-cards"></div>
-    <div class="mon-filters" id="mon-filters">
-      <span class="mon-filters-h">🕒 통합 이력</span>
-      <button class="mon-f on" data-f="all" onclick="monFilter(this)">전체</button>
-      <button class="mon-f" data-f="pk" onclick="monFilter(this)">🤖 피원</button>
-      <button class="mon-f" data-f="hub" onclick="monFilter(this)">🏠 허브</button>
-      <button class="mon-f" data-f="nd" onclick="monFilter(this)">⌨️ 직접</button>
-      <button class="mon-f" data-f="pc" onclick="monFilter(this)">💻 회사 PC</button></div>
-    <div class="mon-filters" id="mon-proj"></div>
-    <div class="mon-feed" id="mon-feed"><div class="ord-empty">오더를 한 번 불러오면 노트북·회사 PC 가 한 일이 여기 시간순으로 쌓여요</div></div>
-    <details class="mon-pc-help" id="mon-pc-help">
-      <summary>💻 회사 PC 연결 — 파워셸에 1줄</summary>
-      <div class="mon-pc-body">
-        <p>회사 PC <b>파워셸</b>에서 아래 한 줄을 붙여넣고 주소·키를 넣으면, 그 PC의 작업(비공개 레포 <b>smartstore-hub</b>·커밋 전 작업 포함)이 위 카드에 실시간으로 떠요.</p>
-        <span class="mon-code">irm https://s2ongrae.github.io/tools/pc-beat.ps1 -OutFile "$env:LOCALAPPDATA\pc-beat.ps1"; powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\pc-beat.ps1" setup</span>
-        <p>키는 그 PC 사용자 폴더(<code>%USERPROFILE%\.portal-beat.json</code>)에만 저장되고 레포·커밋에는 남지 않아요.</p>
-        <p>그다음부터: <code>pcbeat start "작업명"</code> · <code>pcbeat done</code> · <code>pcbeat hook</code>(그 폴더에서 커밋할 때마다 자동)</p>
-      </div>
-    </details>
-    <div class="mon-note" id="mon-foot"></div>
   </div>
 
   <!-- ④ 💬 비서 통합 회의실 — 오더(CommandQueue)를 카톡처럼 주고받는 한 창구 -->
@@ -1845,7 +1723,6 @@ function renderQueueStatus(st){
     `<button class="stat ${esc(b.cls)}" title="${esc(b.title)}" onclick="refreshQueueStatus(true)">` +
     `<span class="dot"></span><span class="k">${esc(b.label)}</span><span class="v">${esc(b.val)}</span></button>`
   ).join('') + `<span class="stat-note">${esc(stamp)}</span>`;
-  monRender();
 }
 async function refreshQueueStatus(force){
   if(QSTAT_BUSY) return null;
@@ -2320,6 +2197,14 @@ const ASIDE_JOBS = [
   {id: 'ali',     word: '알리',  label: '알리 출첵',    icon: '🔴', note: '알리 출첵을 실행해요'}
 ];
 function asideJobOf(id){ return ASIDE_JOBS.find(j => j.id === String(id || '').toLowerCase()) || null; }
+/** 입력칸에 적은 낱말(한글·별칭·id) → 작업. 노트북 aside.js 의 별칭과 같은 낱말을 받는다(2026-11-27) */
+const ASIDE_ALIASES = {status: ['상태', '확인', '점검', 'health', '헬스'], quiz: ['퀴즈', '공공퀴즈'], ali: ['알리', '알리익스프레스'],
+  naver: ['네이버'], kakao: ['카카오'], musinsa: ['무신사']};
+function asideJobByWord(w){
+  const k = String(w || '').trim().toLowerCase();
+  if(!k) return null;
+  return asideJobOf(k) || ASIDE_JOBS.find(j => j.word === k || (ASIDE_ALIASES[j.id] || []).indexOf(k) >= 0) || null;
+}
 /** 어사이드 오더의 본문 — 노트북 parseCommand 와 같은 모양(마커 + 작업 한 낱말) */
 function asidePrompt(job){ const j = asideJobOf(job); return j ? '🌿어사이드 ' + j.word : ''; }
 const ORD_PRESETS = [
@@ -2554,7 +2439,6 @@ function ordPollSchedule(){
     await loadOrders({silent: true});
     ordPollSchedule();
   }, ORD_POLL_MS);
-  monRender();
 }
 function ordSig(items){
   // 2026-11-25: 발신자·답장자가 바뀌면 말풍선 색·이름이 바뀐다 — 그 값들도 서명에 넣어 즉시 다시 그린다.
@@ -2584,7 +2468,6 @@ function renderOrderHead(){
   }
   if(stt) stt.textContent = ORD_AT ? ('최근 확인 ' + clockText(ORD_AT) + (ordActive() ? ' · 자동 갱신 중' : '')) : '';
   renderRoom();
-  monRender();
 }
 /* ══════════════════════════════════════════════════════════
  * 💬 비서 통합 회의실 — 발신·대상·사용량·채팅 타임라인 (2026-11-25)
@@ -3173,11 +3056,6 @@ function ordFilterRender(){
 function ordSenderSupported(){
   if(!ORD_ITEMS.length) return null;
   return ORD_ITEMS.some(i => typeof i.source === 'string' && i.source !== '');
-}
-function ordSenderCounts(){
-  const c = {pi1: 0, pi2: 0, portal: 0, notebook: 0, telegram: 0, phone: 0};
-  ORD_ITEMS.forEach(it => { const k = ordSenderKey(it); c[k] = (c[k] || 0) + 1; });
-  return c;
 }
 function ordWhoRender(){
   const sel = document.getElementById('ord-who');
@@ -4021,7 +3899,6 @@ function ordExample(btn){
   sync((editBox && editBox.checked) ? '내용을 채웠어요 — 보내면 승인 대기로 접수돼요' : '내용을 채웠어요 — 보내기만 누르면 돼요', 3500);
 }
 function ordTypeName(t){ return ORD_TYPE_LABEL[t] || t || '오더'; }
-function ordIcon(t){ return ORD_TYPE_ICON[t] || '📦'; }
 function ordWs(){
   const sel = document.getElementById('ord-ws');
   const v = sel && typeof sel.value === 'string' ? sel.value : '';
@@ -4071,7 +3948,6 @@ function renderOrderNotice(msg){
   const cnt = document.getElementById('ord-count'); if(cnt) cnt.textContent = '';
   const stt = document.getElementById('ord-state'); if(stt) stt.textContent = '';
   renderRoom();
-  monRender();
 }
 function renderOrders(){
   const box = document.getElementById('ord-list');
@@ -4505,6 +4381,17 @@ async function sendOrder(){
   const inp = document.getElementById('ord-inp');
   let text = String((inp && inp.value) || '').trim();
   if(!text){ sync('보낼 말을 적어주세요', 3000); return; }
+  // 🌿 어사이드 한 줄 명령은 버튼과 같은 길로(2026-11-27) — 입력칸으로 보내면 대상이 @전체가 돼 아무도 실행하지 않았고,
+  //  답장 인용(↩)이 붙으면 노트북이 명령으로 알아보지 못했다. 외부 작업은 버튼처럼 한 번 묻는다.
+  const asideCmd = /^🌿\s*어사이드\s+(\S+)\s*$/.exec(text);
+  if(asideCmd){
+    const job = asideJobByWord(asideCmd[1]);
+    if(!job){ sync('어사이드에 「' + asideCmd[1] + '」 작업은 없어요 — ' + ASIDE_JOBS.map(j => j.label).join(' · '), 5000); return; }
+    if(inp) inp.value = '';
+    ORD_REPLY_TO = ''; ORD_REPLY_ID = ''; ordQuoteRender(); ordTyped();
+    await quickAside(job.id);
+    return;
+  }
   if(ORD_REPLY_TO){ text = '↩ ' + ORD_REPLY_TO + '\n' + text; }
   if(text.length > ORD_PROMPT_MAX){ sync('글이 너무 길어요 — ' + text.length + '자 (2,000자 안으로 줄여주세요)', 5000); ordTyped(); return; }
   if(!serverConfigured()){ sync('⚙️ 서버 설정을 먼저 해주세요', 3500); return; }
@@ -4567,8 +4454,7 @@ function ordOnShow(){
   if(ordActive()) loadOrders({silent: true});
   const c = qstatCached();
   if(serverConfigured() && !qstatFresh(c)) refreshQueueStatus();   // 5분 캐시가 지났을 때만 (호출 아껴요)
-  if(ghCanFetch()) ghRefresh(false).then(() => monRender()).catch(() => {});   // 캐시가 5분 지났을 때만 실제 호출
-  agentLoad(false).then(() => monRender()).catch(() => {});
+  agentLoad(false).then(() => renderRoom()).catch(() => {});
 }
 if(typeof document !== 'undefined' && document.addEventListener){
   document.addEventListener('visibilitychange', () => { if(!ordHidden()) ordOnShow(); });
@@ -4590,36 +4476,12 @@ function ordKey(e){
 // ══════════════════════════════════════════
 const MON_STALE_WARN = 20 * 60000;      // 워커가 이 시간이면 회수해야 해요(hub-agent CQ.STALE_MS)
 const MON_STALE_BAD = 60 * 60000;       // 1시간을 넘기면 '멈춘 것 같아요'
-const MON_HB_DEAD_MIN = 10;             // 하트비트가 10분 넘게 끊기면 '응답 없음'
-const MON_FEED_MAX = 24;
-const GH_OWNER = 's2ongrae';
-const GH_REPOS = [
-  {id: 'gaegyebu', name: '가계부'},
-  {id: 'content-hub', name: '콘텐츠 허브'},
-  {id: 'insurance-manager', name: '보험관리툴'},
-  {id: 's2ongrae.github.io', name: '포털'}
-];
-const GH_KEY = 'portal_gh_cache';
-const GH_TTL = 5 * 60000;               // 커밋은 5분
-const GH_RUN_TTL = 15 * 60000;          // CI 는 15분 — 로그인 없이 시간당 60회라 아껴요
 const AGENT_JSON = './status/agent.json';   // 피원(pi1)이 작업 시작·종료 때 덮어쓰는 공개 상태 파일(개인정보 없음)
 const AGENT_JSON_PI2 = './status/pi2.json'; // 피투(pi2)가 같은 모양으로 남기는 파일(없으면 조용히 넘어감)
 const AGENT_TTL = 60 * 1000;
 const AGENT_STALE_MIN = 30;             // 30분 넘게 갱신이 없으면 '응답 없음'
-// 진행 중인 프로젝트 — 오더 작업 위치·GitHub 저장소·피클 작업이 같은 이름으로 모여요
-const PROJ_LIST = [
-  {id: 'smartstore', name: '묘한살림', icon: '🛒'},
-  {id: 'content', name: '콘텐츠허브', icon: '🎬'},
-  {id: 'gaegyebu', name: '가계부', icon: '📒'},
-  {id: 'insurance', name: '보험관리툴', icon: '🏦'},
-  {id: 'portal', name: '포털·연동', icon: '🖥️'},
-  {id: 'life', name: '생활·행정', icon: '📋'}
-];
-const PROJ_OF_WS = {'smartstore-hub': 'smartstore', 'content-hub': 'content', 'gaegyebu': 'gaegyebu', 'insurance-manager': 'insurance'};
-const PROJ_OF_REPO = {'smartstore-hub': 'smartstore', 'content-hub': 'content', 'gaegyebu': 'gaegyebu',
-  'insurance-manager': 'insurance', 's2ongrae.github.io': 'portal', 'hub-agent': 'portal'};
-let GH_DATA = null, GH_BUSY = false, MON_FILTER = 'all', MON_SIG = '', QSTAT_DATA = null, ORD_SUM = null;
-let AGENT_DATA = null, AGENT_BUSY = false, MON_PROJ = 'all';
+let QSTAT_DATA = null, ORD_SUM = null;
+let AGENT_DATA = null, AGENT_BUSY = false;
 
 function monDur(ms){
   const n = numOf(ms);
@@ -4630,11 +4492,6 @@ function monDur(ms){
   if(m < 60) return m + '분' + (s % 60 ? ' ' + (s % 60) + '초' : '');
   const h = Math.floor(m / 60);
   return h + '시간' + (m % 60 ? ' ' + (m % 60) + '분' : '');
-}
-function monStamp(ms){
-  const t = numOf(ms);
-  if(t === null) return '';
-  return ordWhen(new Date(t).toISOString());
 }
 function monToday(){
   const d = new Date();
@@ -4797,89 +4654,9 @@ function ordStaleBadge(it){
 
 /* ── GitHub(공개 저장소) — 커밋·CI 를 브라우저에서 직접 읽어요 ── */
 /** https 페이지에서만 — http 페이지·파일로 열면 브라우저가 섞인 요청을 막아요 */
-function ghCanFetch(){
-  try { return typeof fetch === 'function' && typeof location !== 'undefined' && !!location && location.protocol === 'https:'; }
-  catch(e) { return false; }
-}
-function ghCached(){
-  if(GH_DATA) return GH_DATA;
-  try {
-    const c = JSON.parse(localStorage.getItem(GH_KEY) || 'null');
-    if(c && c.repos) return c;
-  } catch(e) {}
-  return null;
-}
-function ghSave(d){ GH_DATA = d; try { localStorage.setItem(GH_KEY, JSON.stringify(d)); } catch(e) {} }
-function ghCommit(c){
-  const cm = (c && c.commit) || {}, a = cm.author || {};
-  return {sha: String((c && c.sha) || '').slice(0, 7), msg: String(cm.message || '').split('\n')[0].slice(0, 140), at: String(a.date || ''), email: String((a.email || '')).toLowerCase()};
-}
-function ghErrText(e){
-  const s = e && e.status;
-  if(s === 403 || s === 429) return 'GitHub 호출 한도가 찼어요 (시간당 60회 · 잠시 뒤 다시)';
-  return 'GitHub 기록을 못 읽었어요' + (s ? ' (HTTP ' + s + ')' : '');
-}
-async function ghGet(path){
-  const r = await fetch('https://api.github.com' + path, {headers: {Accept: 'application/vnd.github+json'}});
-  if(!r || !r.ok){
-    const e = new Error('gh ' + (r && r.status));
-    e.status = r && r.status;
-    throw e;
-  }
-  return r.json();
-}
 /** 커밋 5분 · CI 15분 캐시. force 면 둘 다 새로 읽어요. */
-async function ghRefresh(force){
-  if(GH_BUSY || !ghCanFetch()) return null;
-  const c = ghCached(), now = Date.now();
-  const cAt = c && isFinite(Date.parse(c.at)) ? Date.parse(c.at) : 0;
-  const rAt = c && isFinite(Date.parse(c.runs_at)) ? Date.parse(c.runs_at) : 0;
-  const needC = !!force || !c || (now - cAt) > GH_TTL;
-  const needR = !!force || !c || (now - rAt) > GH_RUN_TTL;
-  if(!needC && !needR){ GH_DATA = c; return c; }
-  GH_BUSY = true;
-  const out = {at: (c && c.at) || '', runs_at: (c && c.runs_at) || '', repos: Object.assign({}, (c && c.repos) || {}), limited: false};
-  try{
-    await Promise.all(GH_REPOS.map(async repo => {
-      const slot = out.repos[repo.id] || (out.repos[repo.id] = {});
-      if(needC){
-        try{
-          const list = await ghGet('/repos/' + GH_OWNER + '/' + repo.id + '/commits?per_page=6');
-          slot.commits = (Array.isArray(list) ? list : []).map(ghCommit);
-          slot.c_err = '';
-        } catch(e){ slot.c_err = ghErrText(e); if(e && (e.status === 403 || e.status === 429)) out.limited = true; }
-      }
-      if(needR){
-        try{
-          const d = await ghGet('/repos/' + GH_OWNER + '/' + repo.id + '/actions/runs?per_page=1');
-          const r0 = d && Array.isArray(d.workflow_runs) ? d.workflow_runs[0] : null;
-          slot.run = r0 ? {name: String(r0.name || ''), status: String(r0.status || ''),
-            conclusion: String(r0.conclusion || ''), at: String(r0.updated_at || r0.created_at || ''),
-            branch: String(r0.head_branch || '')} : null;
-          slot.r_err = '';
-        } catch(e){ slot.r_err = ghErrText(e); if(e && (e.status === 403 || e.status === 429)) out.limited = true; }
-      }
-    }));
-    if(needC) out.at = new Date().toISOString();
-    if(needR) out.runs_at = new Date().toISOString();
-  } finally { GH_BUSY = false; }
-  ghSave(out);
-  return out;
-}
-function ghSlot(id){ return (GH_DATA && GH_DATA.repos && GH_DATA.repos[id]) || {}; }
 /** 공개 저장소 전체에서 가장 최근 커밋 하나 */
 /** agent/* 브랜치를 머지한 커밋 = 노트북·에이전트가 올린 것 */
-function ghAgentCommit(c){ return /^Merge pull request #\d+ from [\w.-]+\/agent\//i.test(String((c && c.msg) || '')); }
-function ghCiText(id){
-  const r = ghSlot(id).run;
-  if(!r) return '';
-  const st = String(r.status || ''), cc = String(r.conclusion || '');
-  if(st && st !== 'completed') return '⏳ CI 진행 중';
-  if(cc === 'success') return '✅ CI 통과';
-  if(cc === 'failure') return '❌ CI 실패';
-  if(cc === 'cancelled') return '⏹ CI 취소';
-  return '';
-}
 
 /* ── 🤖 피클(총괄 AI) 상태 — status/agent.json · 서버 agent_status ── */
 function agentCanFetch(){
@@ -4952,428 +4729,32 @@ async function agentLoad(force){
   return AGENT_DATA;
 }
 /** 피클이 남긴 작업들 — 진행 중인 것과 최근 끝난 것을 시간순 이벤트로 */
-function agentEvents(){
-  const d = AGENT_DATA;
-  const evs = [];
-  if(!d) return evs;
-  const seen = {};
-  const lab = {working: '작업 중', done: '끝냄', failed: '실패', planned: '예정'};
-  (Array.isArray(d.tasks) ? d.tasks : []).forEach(t => {
-    if(!t) return;
-    const st = String(t.state || '').toLowerCase();
-    const at = Date.parse(String(t.ended_at || t.started_at || ''));
-    if(!isFinite(at)) return;
-    if(t.id) seen[t.id] = true;
-    evs.push({at: at, who: 'pk', whoTxt: '🤖 피원', proj: t.project || 'life', ic: '🍋',
-      tx: `<b>${esc(t.title || '작업')}</b> · ${esc(lab[st] || st || '기록')}` +
-        (t.result ? ` <em>${esc(ordShort(t.result, 70))}</em>` : '')});
-  });
-  const cur = d.agent;
-  if(cur && String(cur.state || '').toLowerCase() === 'working' && !(cur.id && seen[cur.id])){
-    const at = Date.parse(String(cur.started_at || ''));
-    if(isFinite(at)) evs.push({at: at, who: 'pk', whoTxt: '🤖 피원', proj: cur.project || 'life', ic: '🍋',
-      tx: `<b>${esc(cur.task || '작업')}</b> · 작업 중`});
-  }
-  return evs;
-}
 
 /* ── 프로젝트(묶음) — 오더 작업 위치·GitHub 저장소·피클 작업을 같은 이름으로 묶어요 ── */
-function projOf(id){ return PROJ_LIST.filter(p => p.id === id)[0] || null; }
-function projLabel(id){ const p = projOf(id); return p ? (p.icon + ' ' + p.name) : '📋 기타'; }
 /** 오더 하나가 어느 프로젝트인가 — 토스 동기화는 가계부, 그 외는 작업 위치 */
-function ordProject(it){
-  if(!it) return 'life';
-  if(it.type === 'toss_sync') return 'gaegyebu';
-  return PROJ_OF_WS[it.workspace] || 'life';
-}
 /** 프로젝트별 진행·예정·승인 대기·오늘 끝남 */
-function projStats(){
-  const st = {};
-  PROJ_LIST.forEach(p => { st[p.id] = {run: 0, pend: 0, wait: 0, done: 0}; });
-  const today = monToday();
-  ORD_ITEMS.forEach(it => {
-    const p = ordProject(it);
-    if(!st[p]) return;
-    const s = String(it.status || '');
-    if(s === 'RUNNING') st[p].run++;
-    else if(s === 'PENDING') { if(!ordIsPlainReply(it)) st[p].pend++; }
-    else if(s === 'WAITING_APPROVAL') st[p].wait++;
-    else if(s === 'DONE' && String(it.finished_at || '').slice(0, 10) === today) st[p].done++;
-  });
-  return st;
-}
-function monCountText(c){
-  const parts = [];
-  if(c && c.run) parts.push('진행 ' + c.run);
-  if(c && c.wait) parts.push('승인 ' + c.wait);
-  if(c && c.pend) parts.push('예정 ' + c.pend);
-  return parts.length ? ' <b>' + parts.join(' · ') + '</b>' : '';
-}
-function monProjChips(){
-  const st = projStats();
-  const all = {run: 0, pend: 0, wait: 0};
-  PROJ_LIST.forEach(p => { all.run += st[p.id].run; all.pend += st[p.id].pend; all.wait += st[p.id].wait; });
-  const chip = (id, label, c) => `<button class="mon-f${MON_PROJ === id ? ' on' : ''}" data-p="${esc(id)}" onclick="monProjFilter(this)">${label}${monCountText(c)}</button>`;
-  return chip('all', '전체', all) + PROJ_LIST.map(p => chip(p.id, p.icon + ' ' + esc(p.name), st[p.id])).join('');
-}
-function monProjFilter(btn){
-  const p = btn && btn.dataset ? String(btn.dataset.p || 'all') : 'all';
-  MON_PROJ = (p === 'all' || projOf(p)) ? p : 'all';
-  monRender(true);
-}
 
 /* ── 기기 카드 3개 ── */
-function monDevDirect(){
-  const d = AGENT_DATA && AGENT_DATA.direct ? AGENT_DATA.direct : null;
-  if(!d){
-    return monCard({name: '⌨️ 노트북·직접', cls: 'wait', state: '기록 없음',
-      main: 'free로 작업하면 여기 나와요', sub: '노트북에서 free 를 켜면 상태를 보내요'});
-  }
-  const st = String(d.state || '').toLowerCase();
-  const up = Date.parse(String(d.updated_at || ''));
-  const ageMin = isFinite(up) ? Math.max(0, Math.round((Date.now() - up) / 60000)) : null;
-  const stale = st === 'working' && ageMin !== null && ageMin >= 25;
-  if(st === 'working'){
-    const since = Date.parse(String(d.started_at || ''));
-    return monCard({name: '⌨️ 노트북·직접', cls: stale ? 'bad' : 'run', state: stale ? '미확인' : '작업 중',
-      main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '작업 중')}`,
-      sub: (isFinite(since) ? '⏱ <span class="ord-elapsed" data-since="' + since + '">' + esc(monDur(Date.now() - since)) + '</span>째' : '') +
-        (ageMin === null ? '' : ' · 마지막 신호 ' + esc(agoText(ageMin) || '방금')),
-      bar: !stale,
-      extra: stale ? '<div class="ord-stale bad">⚠ 25분 넘게 신호가 없어요</div>' : ''});
-  }
-  return monCard({name: '⌨️ 노트북·직접', cls: '', state: '쉬는 중',
-    main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '마지막 작업')}`,
-    sub: ageMin === null ? '' : '마지막 신호 ' + esc(agoText(ageMin) || '방금') + ' · 다음 작업은 free 로'});
-}
 /** 비서(피원·피투) 카드 — status/agent.json · status/pi2.json · 서버 기기 비트를 한 모양으로 그린다 */
-function monAgentBody(name, d, tag){
-  const cur = d && d.agent ? d.agent : null;
-  const running = !!(cur && String(cur.state || '').toLowerCase() === 'working');
-  const upMs = Date.parse(String((d && d.updated_at) || ''));
-  const ageMin = isFinite(upMs) ? Math.max(0, Math.round((Date.now() - upMs) / 60000)) : null;
-  const stale = running && (cur.stale === true || (ageMin !== null && ageMin >= AGENT_STALE_MIN));
-  const file = tag === 'pi2' ? 'status/pi2.json' : 'status/agent.json';
-  if(!d){
-    return monCard({name: name, cls: 'wait', state: '기록 없음',
-      main: '한 일·하는 일이 여기 나와요',
-      sub: '작업을 시작할 때·끝낼 때 ' + file + ' 에 스스로 남기면 보여요'});
-  }
-  if(running){
-    const since = Date.parse(String(cur.started_at || ''));
-    const sub = (isFinite(since) ? '⏱ <span class="ord-elapsed" data-since="' + since + '">' + esc(monDur(Date.now() - since)) + '</span>째 · 시작 ' + esc(clockText(cur.started_at)) : '작업 중') +
-      (ageMin === null ? '' : ' · 마지막 기록 ' + esc(agoText(ageMin) || '방금'));
-    return monCard({name: name, cls: stale ? 'bad' : 'run', state: stale ? '응답 없음' : '작업 중',
-      main: `<b>${esc(projLabel(cur.project))}</b> · ${esc(cur.task || '작업 중')}`,
-      sub: stale ? ('마지막 기록 ' + esc(agoText(ageMin)) + ' — 오래 걸리면 멈춘 걸 수 있어요') : sub,
-      bar: !stale,
-      extra: stale ? '<div class="ord-stale bad">⚠ 30분 넘게 소식이 없어요</div>' : ''});
-  }
-  const last = (Array.isArray(d.tasks) ? d.tasks : []).filter(t => t && t.ended_at)
-    .sort((a, b) => (Date.parse(b.ended_at) || 0) - (Date.parse(a.ended_at) || 0))[0];
-  if(last){
-    const ok = !/fail/i.test(String(last.state || ''));
-    const at = Date.parse(String(last.ended_at)) || 0;
-    const min = at ? Math.max(0, Math.round((Date.now() - at) / 60000)) : null;
-    return monCard({name: name, cls: ok ? 'ok' : 'wait', state: ok ? '쉴 준비' : '실패 있음',
-      main: `<b>${esc(projLabel(last.project))}</b> · ${esc(last.title || '작업')}`,
-      sub: (min === null ? '' : esc(agoText(min) || '방금') + ' 끝냄 · ') + esc(ordShort(last.result || '', 60) || '결과 기록 없음')});
-  }
-  return monCard({name: name, cls: 'ok', state: '대기 중', main: '지금 하는 작업은 없어요',
-    sub: ageMin === null ? '다음에 맡길 일을 아래 회의실에 적어주세요' : '마지막 기록 ' + esc(agoText(ageMin) || '방금')});
-}
 /** 🤖 피원 (pi1) — 본계정 비서가 남기는 status/agent.json */
-function monDevPickle(){ return monAgentBody('🤖 피원', AGENT_DATA, 'pi1'); }
 /** 🤖 피투 (pi2) — 부계정 비서. status/pi2.json 또는 서버 agent_beat target=pi2 */
-function monDevPi2(){ return monAgentBody('🤖 피투', AGENT_DATA && AGENT_DATA.pi2, 'pi2'); }
 /** 📋 오더 큐 — 대기·승인·실행·오늘 완료 + 발신별 건수 */
-function monDevQueue(){
-  const p = ORD_ITEMS.filter(i => i.status === 'PENDING' && !ordIsPlainReply(i)).length;
-  const r = ORD_ITEMS.filter(i => i.status === 'RUNNING').length;
-  const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
-  const t = ORD_ITEMS.filter(i => i.status === 'TIMEOUT_REVIEW').length;
-  const done = ORD_ITEMS.filter(i => i.status === 'DONE' && String(i.finished_at || '').slice(0, 10) === monToday()).length;
-  if(!ORD_AT){
-    return monCard({name: '📋 오더 큐', cls: 'wait', state: !serverConfigured() ? '미연결' : '확인 중',
-      main: '아직 오더 목록을 못 읽었어요',
-      sub: serverConfigured() ? '⟳ 로 다시 읽어보세요' : '⚙️ 서버 설정을 하면 큐가 보여요'});
-  }
-  const c = ordSenderCounts();
-  const who = ['pi1', 'pi2', 'portal'].filter(k => c[k]).map(k => ordSenderLabel(k).name + ' ' + c[k]).join(' · ');
-  const cls = (w || t) ? 'wait' : (r ? 'run' : 'ok');
-  return monCard({name: '📋 오더 큐', cls: cls, state: w ? '승인 ' + w : (r ? '실행 중' : (p ? '대기 ' + p : '한가함')),
-    main: `대기 <b>${p}</b> · 승인 <b>${w}</b> · 실행 <b>${r}</b> · 오늘 완료 <b>${done}</b>`,
-    sub: (who ? '발신 ' + who + ' · ' : '') + (ORD_POLL.timer ? '자동 갱신 중' : '자동 갱신 꺼짐') +
-      (t ? ' · 확인 필요 ' + t : '')});
-}
-function monCard(o){
-  return `<div class="mon-dev ${o.cls || ''}">
-    <div class="mon-top"><span class="mon-dot ${o.cls || ''}"></span><span class="mon-name">${esc(o.name)}</span><span class="mon-state">${esc(o.state)}</span></div>
-    <div class="mon-main">${o.main || ''}</div>
-    ${o.bar ? '<div class="mon-bar"><i></i></div>' : ''}
-    ${o.sub ? `<div class="mon-sub">${o.sub}</div>` : ''}
-    ${o.extra || ''}
-  </div>`;
-}
-function monDevNotebookBody(){
-  const runs = ORD_ITEMS.filter(i => i.status === 'RUNNING');
-  const pend = ORD_ITEMS.filter(i => i.status === 'PENDING' && !ordIsPlainReply(i));
-  const hb = QSTAT_DATA && QSTAT_DATA.heartbeat ? QSTAT_DATA.heartbeat : null;
-  // 하트비트 파일이 없으면 서버가 state:'unknown'(source:'sheet')으로 답해요 — 살아 있는지 모르는 상태라
-  // 초록 카드·'마지막 응답'으로 쓰지 않고, 시트 활동은 '오더를 넣은 흔적'으로만 보여준다(2026-11-18).
-  const hbKnown = !!hb && !!hb.state && hb.state !== 'unknown';
-  const hbMin = hbKnown ? numOf(hb.min) : null;
-  const hbDead = hbMin !== null && hbMin >= MON_HB_DEAD_MIN;
-  const hbLine = hbMin === null ? '' : ` · 마지막 응답 ${esc(agoText(hbMin) || '방금')}`;
-  const queueTrace = (hb && hb.source === 'sheet' && numOf(hb.min) !== null)
-    ? '마지막 큐 활동 ' + (agoText(hb.min) || '방금') + '(대략 — 오더를 넣은 흔적)' : '';
-  if(runs.length){
-    const it = runs[0], stale = ordStale(it), ms = ordElapsedMs(it) || 0;
-    const cls = stale ? stale.lv : 'run';
-    const main = `<b>${esc(ordTypeName(it.type))}</b> · ${esc(ordWsName(it.workspace) || '공통')}` +
-      (it.summary ? ` — ${esc(ordShort(ordSumLine(it), 70))}` : '');
-    const sub = `⏱ <span class="ord-elapsed" data-since="${ordStartMs(it)}">${esc(monDur(ms))}</span>째 실행 중 · 시작 ${esc(ordWhen(it.started_at || it.claimed_at || it.created_at))}` +
-      ordBeatText(it) +
-      (runs.length > 1 ? ` · 실행 중 ${runs.length}건` : '') +
-      (pend.length ? ` · 다음 차례 ${pend.length}건` : '') + hbLine;
-    return monCard({name: '🏠 집 노트북', cls: cls, state: stale ? stale.t : '작업 중', main: main, sub: sub,
-      bar: !stale, extra: stale ? `<div class="ord-stale${stale.lv === 'bad' ? ' bad' : ''}">⚠ ${esc(stale.why)}</div>` : ''});
-  }
-  // 하트비트가 끊겼으면 그게 가장 중요해요(대기·승인 안내보다 먼저)
-  if(hbDead){
-    return monCard({name: '🏠 집 노트북', cls: 'bad', state: '응답 없음',
-      main: '노트북이 응답하지 않아요',
-      sub: `마지막 응답 ${esc(agoText(hbMin))}` + (pend.length ? ` · 대기 ${pend.length}건이 밀려 있어요` : '') + ' · 전원·인터넷·hub-agent 확인'});
-  }
-  // 승인을 기다리는 오더가 있으면 '할 일'이 예약돼 있는 상태예요
-  const waiting = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL');
-  if(waiting.length){
-    return monCard({name: '🏠 집 노트북', cls: 'wait', state: '승인 대기',
-      main: `승인을 기다리는 오더 <b>${waiting.length}</b>건`,
-      sub: '아래 오더함에서 [✅ 승인]을 누르면 실행돼요' + (pend.length ? ` · 대기 ${pend.length}건` : '') + hbLine});
-  }
-  // 서버가 하트비트의 '지금 작업'을 같이 넘겨주면(Code.gs 재배포 후) 오더 목록에 없어도 보여줘요
-  const cur = hb && hb.current ? String(hb.current) : '';
-  if(cur){
-    return monCard({name: '🏠 집 노트북', cls: 'run', state: '작업 중',
-      main: `<b>${esc(ordTypeName(hb.current_type) || '오더')}</b> · ${esc(cur)}`,
-      sub: '하트비트가 실행 중이라고 알려줘요' + (hbMin === null ? '' : ' · 마지막 응답 ' + esc(agoText(hbMin) || '방금')),
-      bar: true});
-  }
-  if(hbMin !== null){
-    return monCard({name: '🏠 집 노트북', cls: pend.length ? 'run' : 'ok', state: pend.length ? '오더 받음' : '대기 중',
-      main: pend.length ? `다음 차례를 기다리는 오더 <b>${pend.length}</b>건` : '오더를 기다리는 중이에요',
-      sub: `마지막 응답 ${esc(agoText(hbMin) || '방금')}` + (pend.length ? ' · 노트북이 다음 확인 때 실행해요' : '')});
-  }
-  if(pend.length){
-    return monCard({name: '🏠 집 노트북', cls: 'run', state: '오더 받음',
-      main: `다음 차례를 기다리는 오더 <b>${pend.length}</b>건`,
-      sub: (hbKnown ? '노트북이 다음 확인 때 집어가요 (60초마다 확인)'
-        : '아직 노트북 신호는 못 받았어요' + (queueTrace ? ' · ' + esc(queueTrace) : '') + ' — 노트북이 켜져 있으면 집어갑니다')});
-  }
-  // 아직 아무 신호도 없을 때 — 무엇을 하면 보이는지 정확히 알려줘요(서버가 예전 배포인 경우가 많아요)
-  const why = QSTAT_DATA && QSTAT_DATA.reason;
-  let sub = '⚙️ 서버 설정을 하면 노트북 상태가 보여요';
-  if(serverConfigured()){
-    if(!QSTAT_DATA) sub = '노트북 상태를 읽는 중이에요 — ⟳ 로 다시 확인';
-    else if(why === 'unsupported') sub = '서버가 아직 queue_status 를 모르는 배포예요 — Apps Script 를 재배포하면 켜져요';
-    else if(why === 'noconfig') sub = '스크립트 속성 QUEUE_SHEET_ID 를 넣으면 노트북 상태가 보여요';
-    else sub = '노트북이 스스로 남기는 하트비트가 없어 살아 있는지 알 수 없어요' +
-      (queueTrace ? ' · ' + queueTrace : '') + ' — 하트비트 파일(HEARTBEAT_FILE_ID)을 넣으면 켜져요';
-  }
-  return monCard({name: '🏠 집 노트북', cls: 'wait', state: !QSTAT_DATA && serverConfigured() ? '확인 중' : '상태 모름',
-    main: '노트북 신호가 아직 없어요', sub: sub});
-}
 /** 🏠 집 노트북 카드 — 어느 상태든 끝에 오더 요약과 오더함 이동 링크를 붙인다 */
-function monDevNotebook(){
-  const html = monDevNotebookBody();
-  const note = '<div class="mon-note" style="margin-top:4px"><a href="#order-card" style="color:inherit;text-decoration:none">'
-    + esc(ordSumText()) + ' →</a></div>';
-  return html.replace(/<\/div>$/, note + '</div>');
-}
 /** 회사 PC 표식 설정 안내 — 공개 저장소 검사에 걸리지 않게 주소를 조각으로 만든다 */
-function pcMailHint(){ return 'git config --global user.email "' + 's2ongrae' + '+work' + String.fromCharCode(64) + 'gmail.com"'; }
 /** 💻 회사 PC — PC 가 보낸 실시간 비트(agent_beat target=pc)가 있으면 그걸 먼저, 없으면 공개 저장소 커밋 */
-function monDevPc(){
-  const d = AGENT_DATA && AGENT_DATA.pc ? AGENT_DATA.pc : null;
-  if(d) return monDevPcBeat(d);
-  const L=[];
-  GH_REPOS.forEach(R=>{((ghSlot(R.id).commits)||[]).forEach(c=>{const t=Date.parse(String(c.at||''));if(isFinite(t)&&ghWho(c)==='pc')L.push({t:t,R:R,c:c});});});
-  L.sort((a,b)=>b.t-a.t);
-  const b=L[0];
-  const how = pcBeatHowText();
-  if(!b){
-    const s = GH_DATA && GH_DATA.limited;
-    const sub = !GH_DATA ? 'GitHub 기록을 아직 못 읽었어요'
-      : (s ? '잠시 뒤 ⟳ 로 다시 확인'
-        : (how || ('한 번만 설정: ' + pcMailHint())));
-    return monCard({name:'💻 회사 PC',cls:'wait',state:'표식 없음',
-      main: s ? 'GitHub 호출 한도가 찼어요' : '회사 PC 신호가 아직 없어요', sub: sub});
-  }
-  const m=Math.max(0,Math.round((Date.now()-b.t)/60000)),ci=ghCiText(b.R.id);
-  return monCard({name:'💻 회사 PC',cls:m<=10?'run':(m<=60?'ok':'wait'),state:m<=10?'방금 작업':(m<=60?'최근 작업':'조용함'),
-    main:`<b>${esc(b.R.name)}</b> · ${esc(ordShort(b.c.msg,80)||'(메시지 없음)')}`,
-    sub:`${esc(agoText(m)||'방금')} 푸시 · ${esc(String(b.c.sha||''))}`+(ci?' · '+esc(ci):''),
-    extra:'<div class="mon-note" style="margin-top:4px">푸시만 보여요 — pcbeat 한 줄을 켜면 커밋 전 작업과 비공개 레포 작업도 실시간으로 보여요</div>'});}
 /** PC 비트가 없을 때 무엇을 하면 보이는지 — 서버가 예전 배포인지도 구분 */
-function pcBeatHowText(){
-  if(!serverConfigured()) return '';
-  if(!AGENT_DATA || !Array.isArray(AGENT_DATA.beat_targets)) return 'Apps Script 재배포하면 PC 실시간 상태가 켜져요';
-  return 'PC에서 pcbeat 한 줄을 켜면 커밋 전 작업도 보여요';
-}
 /** PC 가 보낸 비트 하나로 카드를 그린다 — 작업 중·쉬는 중·미확인(무신호) */
-function monDevPcBeat(d){
-  const st = String(d.state || '').toLowerCase();
-  const up = Date.parse(String(d.updated_at || ''));
-  const ageMin = isFinite(up) ? Math.max(0, Math.round((Date.now() - up) / 60000)) : numOf(d.min);
-  const lim = numOf(d.stale_min) || 30;
-  const stale = st === 'working' && ageMin !== null && ageMin >= lim;
-  const src = String(d.source || '') === 'commit' ? '커밋 알림' : '직접 표시';
-  if(st === 'working'){
-    const since = Date.parse(String(d.started_at || ''));
-    return monCard({name:'💻 회사 PC', cls: stale ? 'bad' : 'run', state: stale ? '미확인' : '작업 중',
-      main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '작업 중')}`,
-      sub: (isFinite(since) ? '⏱ <span class="ord-elapsed" data-since="' + since + '">' + esc(monDur(Date.now() - since)) + '</span>째' : '') +
-        (ageMin === null ? '' : ' · 마지막 신호 ' + esc(agoText(ageMin) || '방금')) + ' · ' + esc(src),
-      bar: !stale,
-      extra: stale ? `<div class="ord-stale bad">⚠ ${esc(lim)}분 넘게 신호가 없어요 — 작업을 마쳤으면 PC에서 pcbeat done</div>` : ''});
-  }
-  return monCard({name:'💻 회사 PC', cls: '', state: '쉬는 중',
-    main: `<b>${esc(projLabel(d.project))}</b> · ${esc(d.task || '마지막 작업')}`,
-    sub: (ageMin === null ? '' : '마지막 신호 ' + esc(agoText(ageMin) || '방금') + ' · ') + esc(src) + ' · 다음 작업은 pcbeat start'});
-}
-function ordSumText(){
-  const p = ORD_ITEMS.filter(x => x.status === 'PENDING' && !ordIsPlainReply(x)).length;
-  const r = ORD_ITEMS.filter(x => x.status === 'RUNNING').length;
-  const w = ORD_ITEMS.filter(x => x.status === 'WAITING_APPROVAL').length;
-  const d = ORD_ITEMS.filter(x => x.status === 'DONE' && String(x.finished_at || '').slice(0, 10) === monToday()).length;
-  return '대기 ' + p + ' · 승인 ' + w + ' · 실행 ' + r + ' · 오늘 완료 ' + d;
-}
-function ghWho(c){const e=String((c&&c.email)||'').toLowerCase();if(ghAgentCommit(c))return 'hub';if(e.indexOf('+pickle@')>=0)return 'pk';if(e.indexOf('+work@')>=0||e.indexOf('@redwit.io')>=0)return 'pc';if(e.indexOf('+notebook@')>=0)return 'nd';if(e.indexOf('users.noreply.github.com')>=0)return 'web';return 'etc';}
-const GH_WHO_TXT={hub:'🏠 노트북·허브',pk:'🤖 피클',pc:'💻 회사 PC',nd:'⌨️ 노트북·직접',web:'🌐 웹',etc:'❓ 공용'};
 
 /* ── 통합 이력 (노트북 오더 + 회사 PC 커밋) ── */
-function monEvents(){
-  const evs = [];
-  ORD_ITEMS.forEach(it => {
-    if(!it || !it.id) return;
-    const st = String(it.status || '').toUpperCase();
-    const ended = st === 'DONE' || st === 'FAILED' || st === 'REJECTED' || st === 'EXPIRED' || st === 'TIMEOUT_REVIEW';
-    const at = (ended ? (ordEndMs(it) || ordStartMs(it)) : ordStartMs(it));
-    if(!at) return;
-    const lab = (ORD_STATUS[st] || {t: st || '오더'}).t;
-    const body = (st === 'DONE' ? (it.result || ordSumLine(it)) : (it.error || ordSumLine(it))) || '';
-    evs.push({at: at, who: 'hub', whoTxt: '🏠 노트북·허브', proj: ordProject(it), ic: ordIcon(it.type),
-      tx: `<b>${esc(ordTypeName(it.type))}</b> · ${esc(lab)}` +
-        (it.workspace ? ' · ' + esc(ordWsName(it.workspace)) : '') +
-        (body ? ` <em>${esc(ordShort(body, 70))}</em>` : '')});
-  });
-  GH_REPOS.forEach(R => {
-    ((ghSlot(R.id).commits) || []).forEach(c => {
-      const t = Date.parse(String(c.at || ''));
-      if(!isFinite(t)) return;
-      const w = ghWho(c);
-      evs.push({at: t, who: w, whoTxt: GH_WHO_TXT[w] || '❓ 공용', proj: PROJ_OF_REPO[R.id] || 'life', ic: '📤',
-        tx: `<b>${esc(R.name)}</b> · ${esc(ordShort(c.msg, 90) || '(메시지 없음)')} <em>${esc(String(c.sha || ''))}</em>`});
-    });
-  });
-  agentEvents().forEach(e => evs.push(e));
-  // ⌨️ 직접(free) · 💻 회사 PC 비트 — 마지막 신호를 이력에 한 줄(작업 중·쉬는 중)
-  [['direct', 'nd', '⌨️ 노트북·직접', '⌨️'], ['pc', 'pc', '💻 회사 PC', '💻']].forEach(k => {
-    const b = AGENT_DATA && AGENT_DATA[k[0]];
-    if(!b) return;
-    const t = Date.parse(String(b.updated_at || ''));
-    if(!isFinite(t)) return;
-    const working = String(b.state || '').toLowerCase() === 'working';
-    evs.push({at: t, who: k[1], whoTxt: k[2], proj: b.project || 'life', ic: k[3],
-      tx: `<b>${esc(projLabel(b.project))}</b> · ${esc(ordShort(b.task || '', 70) || (working ? '작업 중' : '마침'))} <em>${working ? '작업 중' : '마침'}</em>`});
-  });
-  evs.sort((a, b) => b.at - a.at);
-  return evs;
-}
-function monFeedHtml(){
-  const evs = monEvents().filter(e => (MON_FILTER === 'all' || e.who === MON_FILTER) &&
-    (MON_PROJ === 'all' || e.proj === MON_PROJ));
-  if(!evs.length){
-    const why = (MON_FILTER !== 'all' || MON_PROJ !== 'all');
-    return `<div class="ord-empty">${why ? '이 갈래에는 아직 이력이 없어요' : '아직 보여줄 이력이 없어요'}</div>`;
-  }
-  return evs.slice(0, MON_FEED_MAX).map(e =>
-    `<div class="mon-ev"><span class="mon-t">${esc(monStamp(e.at))}</span>` +
-    `<span class="mon-w ${e.who}">${esc(e.whoTxt)}</span>` +
-    `<span class="mon-tx">${e.ic} ${e.tx}</span></div>`).join('');
-}
-function monFootText(){
-  const bits = ['🍋 피원(pi1) = status/agent.json · 피투(pi2) = status/pi2.json(작업 시작·종료 때 기록)',
-    '🏠 노트북 = 오더함 시트(Command_Queue) + 하트비트',
-    '⌨️ 노트북·직접 · 💻 회사 PC = 기기 비트(agent_beat · 비공개 레포·커밋 전 작업 포함)',
-    '⚡ 에이전트 = agent/* 브랜치를 머지한 커밋'];
-  const add = [];
-  if(GH_DATA && GH_DATA.limited) add.push('GitHub 호출 한도가 찼어요 — 저장된 기록으로 보여줘요');
-  if(!ghCanFetch()) add.push('https 로 연 화면에서만 GitHub 기록을 읽어요');
-  if(GH_DATA && GH_DATA.at) add.push('GitHub 확인 ' + clockText(GH_DATA.at));
-  return bits.concat(add).join(' · ');
-}
-function monBadgeText(){
-  const w = ORD_ITEMS.filter(i => i.status === 'WAITING_APPROVAL').length;
-  const run = ORD_ITEMS.filter(i => i.status === 'RUNNING');
-  const stale = run.filter(i => ordStale(i)).length;
-  const parts = [];
-  if(stale) parts.push('정체 ' + stale);
-  if(run.length) parts.push('작업 중 ' + run.length);
-  if(w) parts.push('승인 ' + w);
-  return parts.join(' · ') || (ORD_AT ? '확인 ' + clockText(ORD_AT) : '');
-}
 /** 관제 화면 다시 그리기 — 값이 그대로면 건드리지 않아요(깜빡임 방지) */
-function monRender(force){
-  const cards = document.getElementById('mon-cards');
-  if(!cards) return;
-  const sig = ordSig(ORD_ITEMS) + '\u0003' + (ORD_AT || '') + '\u0003' + (ORD_SUM ? JSON.stringify(ORD_SUM) : '') +
-    '\u0003' + (GH_DATA ? (GH_DATA.at || '') + '|' + (GH_DATA.runs_at || '') + '|' + (GH_DATA.limited ? 1 : 0) : '') +
-    '\u0003' + (QSTAT_DATA ? (QSTAT_DATA.at || '') + JSON.stringify(QSTAT_DATA.heartbeat || {}) + (QSTAT_DATA.at ? '' : '') : '') +
-    '\u0003' + (AGENT_DATA ? (AGENT_DATA.updated_at || '') + '|' + JSON.stringify(AGENT_DATA.agent || {}) + '|' + (AGENT_DATA.tasks || []).length : '') +
-    '\u0003' + (AGENT_DATA && AGENT_DATA.pc ? JSON.stringify(AGENT_DATA.pc) : '') +
-    '\u0003' + (AGENT_DATA && AGENT_DATA.pi2 ? JSON.stringify(AGENT_DATA.pi2) : '') +
-    '\u0003' + (ORD_SENDER + '|' + ORD_TARGET + '|' + ORD_MODE + '|' + ORD_WHO + '|' + ORD_FILTER + '|' + USE_AT) +
-    '\u0003' + (AGENT_DATA && AGENT_DATA.direct ? JSON.stringify(AGENT_DATA.direct) : '') +
-    '\u0003' + MON_FILTER + '\u0003' + MON_PROJ + '\u0003' + (ORD_POLL.timer ? 1 : 0) + (ORD_POLL.paused ? 1 : 0);
-  if(!force && sig === MON_SIG) return;
-  MON_SIG = sig;
-  cards.innerHTML = [monDevDirect(), monDevNotebook(), monDevPc(), monDevPickle(), monDevPi2(), monDevQueue()].join('');
-  const proj = document.getElementById('mon-proj');
-  if(proj) proj.innerHTML = monProjChips();
-  const feed = document.getElementById('mon-feed');
-  if(feed) feed.innerHTML = monFeedHtml();
-  const badge = document.getElementById('mon-badge');
-  if(badge) badge.textContent = monBadgeText();
-  const note = document.getElementById('mon-note');
-  if(note) note.textContent = ORD_AT ? '최근 확인 ' + clockText(ORD_AT) + (ordActive() ? ' · 자동 갱신' : '') : '';
-  const foot = document.getElementById('mon-foot');
-  if(foot) foot.textContent = monFootText();
-  ordTickStart();
-}
-function monFilter(btn){
-  const f = btn && btn.dataset ? String(btn.dataset.f || 'all') : 'all';
-  MON_FILTER = ['all', 'hub', 'pk', 'pc', 'nd', 'web', 'etc'].indexOf(f) >= 0 ? f : 'all';
-  try {
-    if(document.querySelectorAll){
-      Array.prototype.forEach.call(document.querySelectorAll('#mon-filters .mon-f'), b => {
-        if(b.classList) b.classList[b.dataset && b.dataset.f === MON_FILTER ? 'add' : 'remove']('on');
-      });
-    }
-  } catch(e) {}
-  monRender(true);
-}
 /** 관제 ⟳ — 오더·상태등·GitHub 를 한 번에 새로 읽어요(캐시 무시) */
-async function monRefresh(force){
-  const jobs = [refreshQueueStatus(true)];
-  jobs.push(useServerGet());
+async function monRefresh(){
+  // 회의실 머리말 🔄 — 상태등·사용량·비서 신호·오더·브리핑·승인함을 한 번에 다시 읽는다(관제 카드는 2026-11-27 제거)
+  const jobs = [refreshQueueStatus(true), useServerGet(), agentLoad(true)];
   if(serverConfigured()){ jobs.push(loadOrders()); jobs.push(briefLoad(true)); jobs.push(apprLoad(true)); }
-  if(ghCanFetch()) jobs.push(ghRefresh(!!force));
-  jobs.push(agentLoad(true));
   try { await Promise.all(jobs); } catch(e) {}
-  monRender(true);
-  sync(ghCanFetch() ? '관제를 새로 읽었어요 ✓' : '오더·노트북 상태만 새로 읽었어요 (GitHub 은 https 화면에서)', 3500);
+  try { renderRoom(); } catch(e) {}
+  sync('새로 읽었어요 ✓', 3000);
 }
 
 // ══════════════════════════════════════════
@@ -5963,7 +5344,29 @@ async function restoreMemoCheckpoint(id){
   saveLocalMemos(); renderMemos(); closeSettings();
   await forcePushMemos('체크포인트 복원');
 }
-function bootData(){ loadCalEvents(); loadTaskLists(); loadMemos(); loadOrders(); briefLoad(); apprLoad(); }
+function bootData(){ loadCalEvents(); loadTaskLists(); loadMemos(); loadOrders(); briefLoad(); apprLoad(); autoSweep(); }
+/**
+ * 🧹 자동 정리(2026-11-27) — 포털을 열면 6시간에 한 번 서버 queue_sweep {auto:true} 를 부른다.
+ *  안전한 갈래만 닫는다: 답장 끝난 말 · 예전 @전체 공지·알림 · 접수(👀) 뒤 3일 방치 · 3일 넘은 보류 브랜치 기록.
+ *  비서가 안 읽은 일감(미접수)은 닫지 않는다 — '안 읽는 비서'를 숨기지 않으려고. 서버도 6시간에 한 번만 받는다.
+ */
+const AUTOSWEEP_KEY = 'portal_autosweep_at';
+const AUTOSWEEP_EVERY = 6 * 3600000;
+async function autoSweep(){
+  if(!serverConfigured()) return null;
+  let last = 0;
+  try { last = Number(localStorage.getItem(AUTOSWEEP_KEY) || 0); } catch(e) { last = 0; }
+  if(last && Date.now() - last < AUTOSWEEP_EVERY) return null;
+  try { localStorage.setItem(AUTOSWEEP_KEY, String(Date.now())); } catch(e) {}
+  try{
+    const d = await post({action: 'queue_sweep', auto: true});
+    if(d && d.ok && !d.skipped && numOf(d.applied) > 0){
+      sync('🧹 자동 정리 ' + d.applied + '건 — 끝난 말·공지·방치된 기록을 닫았어요', 4500);
+      try { briefLoad(true); } catch(e) {}
+    }
+    return d;
+  } catch(e){ return null; }
+}
 
 // 키보드 단축키
 document.addEventListener('keydown',e=>{
@@ -5986,11 +5389,8 @@ ordRecentLoad(); ordRecentRender(); ordTyped();
 ordModeRender(); renderUse(true); renderRoom();
 if(serverConfigured()) useServerGet().then(() => { renderUse(true); }).catch(() => {});
 if(serverConfigured()) agentServerGet().then(() => { renderRoom(); }).catch(() => {});
-GH_DATA = ghCached();                                    // 이 기기에 남은 GitHub 기록(5분 캐시)
 AGENT_DATA = agentCached();                              // 피클이 남긴 마지막 상태
-monRender();
-if(ghCanFetch()) ghRefresh(false).then(() => monRender()).catch(() => {});
-agentLoad(false).then(() => monRender()).catch(() => {});
+agentLoad(false).then(() => renderRoom()).catch(() => {});
 refreshQueueStatus();                                     // 캐시가 5분 안이면 서버를 부르지 않아요
 if(serverConfigured()){ bootData(); }
 else {
