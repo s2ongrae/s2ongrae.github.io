@@ -1390,8 +1390,8 @@ console.log('Y) 🌿 어사이드 — 포털 버튼이 노트북 한 줄 명령�
   await DY.run("quickAside('musinsa')");
   ok(rows().length === n0 + 1, '무신사 버튼 → 오더 1건 접수');
   ok(last()[3] === 'claude_prompt' && last()[2] === 'portal', '오더 타입은 claude_prompt · 발신 portal', last().slice(0, 4));
-  // 포털 서버는 target=notebook 을 싣지 않는다(기본값) — 비어 있으면 노트북 것이기도 하다.
-  ok(lastPayload().kind === 'chat' && (!lastPayload().target || lastPayload().target === 'notebook') && lastPayload().prompt === '🌿어사이드 무신사',
+  // 포털 서버는 target='notebook' 도 그대로 싣는다(2026-11-27) — 노트북이 이 값으로 대화를 집는다.
+  ok(lastPayload().kind === 'chat' && lastPayload().target === 'notebook' && lastPayload().prompt === '🌿어사이드 무신사',
     'payload = kind:chat · target:notebook · 🌿어사이드 무신사', lastPayload());
   ok(last()[6] === 'PENDING', '노트북이 집어 갈 수 있게 PENDING(전달 완료로 닫히지 않음)');
 

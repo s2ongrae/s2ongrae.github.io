@@ -1828,8 +1828,12 @@ function qqPayloadOf_(type, p) {
   // 2026-11-25 통합 회의실 — kind='chat' 이면 노트북이 코드가 아니라 '답장'을 만든다(같은 claude_prompt 큐).
   // target 은 @멘션(누구에게). 둘 다 노트북 lib/chat.js 가 읽는다. 모르는 값은 싣지 않는다.
   if (isObj(p) && String(p.kind || '').toLowerCase() === 'chat') out.kind = 'chat';
+  // 2026-11-27 — 'notebook' 도 그대로 싣는다(예전에는 기본값이라며 지웠다).
+  //  노트북은 kind='chat' 이면 target==='notebook' 인 줄만 집어 가므로(hub-agent CommandQueue.gs
+  //  cqForNotebook_ · lib/targets.js), 여기서 지우면 @노트북 대화·🌿어사이드가 점유되지 않고
+  //  PENDING 으로 남는다. 비-chat 오더는 target 이 비어 있어 동작이 같다.
   const target = qqTargetOf_(p) || qqMentionOf_(prompt);
-  if (target && target !== 'notebook') out.target = target;
+  if (target) out.target = target;
   // 답장 추적(2026-11-25 v27) — 어느 오더에 대한 답장인지(선택). 비서끼리 중복 답장을 막는다.
   const replyTo = String((isObj(p) && p.reply_to) || '').trim();
   if (replyTo) {

@@ -918,6 +918,17 @@ console.log('14) 💬 회의실 — 발신(source)·대상(target)·대화(kind)
     payload: {prompt: '보통 오더', mode: 'ask', kind: 'nope', target: 'NOPE!'}});
   ok(!r.item.kind && !r.item.target, '모르는 kind·target 은 싣지 않는다');
 
+  // ②' target=notebook — 기본값이라며 지우면 노트북이 그 대화를 영영 집지 않는다(2026-11-27 회귀)
+  //  노트북은 kind='chat' 이면 target='notebook' 인 줄만 집어 간다(hub-agent cqForNotebook_ · lib/targets.js).
+  r = post({action: 'queue_enqueue', key: K9, type: 'claude_prompt', workspace: 'gaegyebu',
+    payload: {prompt: '🌿어사이드 상태', mode: 'ask', kind: 'chat', target: 'notebook'}});
+  ok(r.ok === true && r.item.kind === 'chat' && r.item.target === 'notebook', '@노트북 대화는 목록에도 target=notebook 으로 돌아온다');
+  ok(JSON.parse(col(last(), 'payload')).target === 'notebook', 'payload 에 target:"notebook" 이 남는다(노트북이 이 값으로 집는다)');
+  //  본문에 @노트북 만 적은 대화도 같은 값으로 남는다
+  r = post({action: 'queue_enqueue', key: K9, type: 'claude_prompt', workspace: 'gaegyebu',
+    payload: {prompt: '@노트북 오늘 일정 정리해줘', mode: 'ask', kind: 'chat'}});
+  ok(JSON.parse(col(last(), 'payload')).target === 'notebook', '본문 @노트북 멘션도 target=notebook 으로 실린다');
+
   // ③ @멘션 필터 — 내 앞으로 온 말만
   const mine = post({action: 'queue_list', key: K9, target: 'pi2', limit: 20});
   ok(mine.items.every(x => x.target === 'pi2' || x.target === 'all'), 'target=pi2 로 부르면 내 멘션만 온다');
