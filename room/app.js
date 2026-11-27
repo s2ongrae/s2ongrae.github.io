@@ -1510,7 +1510,8 @@ function roomFilesHtml(it){
     $('to').innerHTML = '→ ' + roomMark(t.id, {mini: true}) + '<b>' + esc(t.label) + '</b>';
     $('to').querySelector('b').className = '';
     const n = text.length;
-    $('cnt').textContent = n + '/2000';
+    // 📎 붙인 파일 수를 같이 보여 준다 — 글을 안 적어도 보낼 수 있다는 걸 알 수 있게(2026-11-27)
+    $('cnt').textContent = n + '/2000' + (PEND.length ? ' · 📎 ' + PEND.length : '');
     $('cnt').classList.toggle('warn', n > 1900);
     const cur = roomTargetFromText(text);
     const map = roomMentionMap();
