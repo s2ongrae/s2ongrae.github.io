@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=13">
+<link rel="stylesheet" href="app.css?v=14">
 </head>
 <body>
 <div class="app" id="app">
@@ -64,13 +64,18 @@
   <button class="jump" id="jump" type="button">새 메시지 ↓</button>
 
   <!-- 입력바 — 빠른 멘션 칩 · 답장 배너 · 입력창 · 전송 -->
-  <footer class="cmp">
+  <footer class="cmp" id="cmp">
     <div class="rep" id="rep" hidden>
       <span class="rep-t"><b>↩ 답장</b> <span id="rep-who"></span> <span class="rep-q" id="rep-txt"></span></span>
       <button class="rep-x" id="rep-x" type="button" aria-label="답장 취소">✕</button>
     </div>
     <div class="chips" id="chips" role="toolbar" aria-label="빠른 멘션"></div>
+    <!-- 📎 붙인 파일 미리보기 (2026-11-27) — 보내기 전에 확인·지우기 -->
+    <div class="rfiles" id="rfiles" hidden></div>
+    <input type="file" id="finp" multiple hidden
+      accept="image/*,application/pdf,text/plain,text/csv,text/markdown,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/haansofthwp,application/haansofthwpx,application/x-hwp,application/x-hwpx">
     <div class="crow">
+      <button class="fbtn" id="fbtn" type="button" title="사진·파일 붙이기" aria-label="사진·파일 붙이기">📎</button>
       <textarea class="inp" id="inp" rows="1" maxlength="2000"
         placeholder="하고 싶은 말을 적으세요 (@노트북 …)"
         aria-label="메시지 입력" enterkeyhint="send"></textarea>
@@ -135,6 +140,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=13" defer></script>
+<script src="app.js?v=14" defer></script>
 </body>
 </html>

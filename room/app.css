@@ -540,3 +540,33 @@ input,textarea{font:inherit;color:inherit}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
 }
+
+/* ── 📎 파일·이미지 붙이기 (2026-11-27) ───────────────────────── */
+.fbtn{
+  flex:0 0 auto; width:44px; height:44px; border-radius:50%; border:1.5px solid var(--line2);
+  background:var(--card2); color:var(--txt); font-size:17px; line-height:1; cursor:pointer;
+  display:grid; place-items:center; transition:border-color .15s, background .15s;
+}
+.fbtn:active{background:var(--card)}
+.fbtn.on{border-color:var(--gold-d); background:rgba(242,193,74,.16)}
+.rfiles{display:flex; gap:7px; flex-wrap:wrap; align-items:center; padding:0 2px 2px}
+.rfiles[hidden]{display:none}
+.rf{position:relative; display:flex; align-items:center; gap:6px; max-width:190px;
+  padding:5px 24px 5px 5px; border:1px solid var(--line2); border-radius:12px; background:var(--card)}
+.rf img,.rf .ric{width:34px; height:34px; border-radius:8px; object-fit:cover; flex:0 0 auto; display:block}
+.rf .ric{display:grid; place-items:center; background:rgba(255,255,255,.06); font-size:15px}
+.rf b{display:block; font-size:11px; font-weight:800; color:var(--txt); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; max-width:110px}
+.rf i{display:block; font-size:9.5px; font-style:normal; color:var(--hint)}
+.rf .rx{position:absolute; top:-6px; right:-5px; width:19px; height:19px; border-radius:50%;
+  border:1px solid var(--line2); background:var(--card); color:var(--hint); font-size:10px;
+  line-height:1; padding:0; cursor:pointer}
+/* 말풍선 안의 첨부 */
+.bub .cfs{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
+.bub .cimg{max-width:min(230px,62vw); max-height:210px; border-radius:10px; display:block;
+  border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); min-width:56px; min-height:56px}
+.bub .cimg-b{border:none; background:transparent; padding:0; line-height:0; cursor:zoom-in; border-radius:10px}
+.bub .cfl{display:inline-flex; align-items:center; gap:6px; max-width:min(230px,62vw); padding:5px 9px;
+  border-radius:10px; border:1px solid var(--line2); background:rgba(255,255,255,.05);
+  color:var(--txt); font-size:11px; font-weight:700; text-align:left; cursor:pointer}
+.bub .cfl small{font-weight:600; color:var(--hint)}

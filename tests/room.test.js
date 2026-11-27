@@ -149,7 +149,8 @@ function coreTests() {
     'roomReportState', 'roomLateMin', 'roomReportChip', 'roomThreadRoot', 'roomThreadItems', 'roomThreadCount',
     'roomQuoteText', 'roomShort', 'roomQuoteAuthor', 'roomSearchHit', 'roomAgentHit', 'roomVisible',
     'ROOM_REP', 'ROOM_LATE_MIN', 'ROOM_REPORT_MIN',
-    'ROOM_RX_RANK', 'ROOM_RX_TXT', 'ROOM_RX_CLS', 'roomReactTop', 'roomReactHtml', 'roomIsChat', 'roomApprovalChip', 'roomApprovalBanner'];
+    'ROOM_RX_RANK', 'ROOM_RX_TXT', 'ROOM_RX_CLS', 'roomReactTop', 'roomReactHtml', 'roomIsChat', 'roomApprovalChip', 'roomApprovalBanner',
+    'ROOM_FILE_MAX', 'ROOM_FILE_BYTES', 'ROOM_FILE_MIME', 'roomFileSize', 'roomFileIcon', 'roomFileWhy', 'roomFilesHtml'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -494,6 +495,37 @@ function coreTests() {
     ok(/roomReactHtml\(it\)/.test(js) && /i\.reactions/.test(js), '말풍선이 칩을 그리고 다시 그리기 서명에 반응이 들어간다');
   }
 
+
+  console.log('N-5) 📎 파일·이미지 붙이기 (2026-11-27)');
+  {
+    // 규칙은 포털·서버와 같다 — 화면마다 다른 파일을 받으면 안 된다
+    ok(C.ROOM_FILE_MAX === 4 && C.ROOM_FILE_BYTES === 4 * 1024 * 1024, '한 말에 4개 · 한 개 4MB');
+    ok(C.roomFileWhy('image/jpeg', 1024, 0) === '' && C.roomFileWhy('application/pdf', 1024, 3) === '', '사진·PDF 는 붙는다');
+    ok(/종류/.test(C.roomFileWhy('application/x-msdownload', 10, 0)), '허용 목록 밖 종류는 이유를 말한다');
+    ok(/4MB/.test(C.roomFileWhy('image/png', 5 * 1024 * 1024, 0)), '4MB 를 넘으면 크기를 말한다');
+    ok(/4개/.test(C.roomFileWhy('image/png', 10, 4)), '이미 4개면 더 못 붙인다');
+    ok(C.roomFileSize(900) === '900B' && C.roomFileSize(2048) === '2KB' && C.roomFileSize(2 * 1048576) === '2MB', '크기 표시(B·KB·MB)');
+    ok(C.roomFileIcon('image/png') === '🖼️' && C.roomFileIcon('application/pdf') === '📕' && C.roomFileIcon('weird/x') === '📎', '종류 아이콘');
+    const it = {id: 'Q-f1', files: [
+      {id: '1AbCdEfGhIjKlMnOpQrStUvWxYz0123', n: '사진 <b>1</b>.jpg', s: 2048, m: 'image/jpeg'},
+      {id: '1AbCdEfGhIjKlMnOpQrStUvWxYz0456', n: '계약서.pdf', s: 120000, m: 'application/pdf'}]};
+    const h = C.roomFilesHtml(it);
+    ok(/class="cfs"/.test(h) && /class="cimg"/.test(h) && /data-fid="1AbCdEfGhIjKlMnOpQrStUvWxYz0123"/.test(h), '사진은 그림 자리(data-fid)로 그린다');
+    ok(/class="cfl"/.test(h) && /계약서\.pdf/.test(h) && /117KB/.test(h), '서류는 칩으로 — 이름·크기');
+    ok(/사진 &lt;b&gt;1&lt;\/b&gt;\.jpg/.test(h) && !/<b>1<\/b>/.test(h), '이름은 이스케이프한다');
+    ok(C.roomFilesHtml({id: 'Q-f2'}) === '' && C.roomFilesHtml({id: 'Q-f3', files: []}) === '' && C.roomFilesHtml({files: [{n: 'x'}]}) === '', '첨부가 없으면 아무것도 안 그린다');
+    // 화면 배선 — 버튼·입력·미리보기·붙여넣기·끌어다 놓기
+    ok(/id="fbtn"/.test(html) && /id="finp"/.test(html) && /id="rfiles"/.test(html) && /id="cmp"/.test(html), '📎 버튼 · 파일 입력 · 미리보기 자리');
+    ok(/type="file"[^>]*multiple/.test(html) && /accept="image\/\*/.test(html), '여러 개 · 사진 허용');
+    ok(/\$\('fbtn'\)\.onclick = filePick/.test(js) && /\$\('finp'\)\.onchange/.test(js), '📎 버튼·파일 입력이 app.js 에 연결된다');
+    ok(/addEventListener\('paste', onPaste\)/.test(js) && /addEventListener\('drop', onDrop\)/.test(js), '붙여넣기·끌어다 놓기');
+    ok(/fileAdd\(/.test(js) && /fileUploadAll\(/.test(js) && /api\('file_upload'/.test(js), '올리기는 file_upload 로');
+    ok(/payload\.files = ups/.test(js) && /if\(!ups\)/.test(js), '첨부를 올리고 files 로 싣는다 — 실패하면 보내지 않는다');
+    ok(/fileHydrate\(\)/.test(js) && /api\('file_get'/.test(js), '사진은 file_get 으로 받아 그린 뒤 채운다');
+    ok(/roomFilesHtml\(it\)/.test(js), '말풍선이 첨부를 그린다');
+    ok(/\.fbtn\{/.test(css) && /\.rfiles\{/.test(css) && /\.cimg\{/.test(css), '첨부 스타일(버튼·미리보기·사진)');
+  }
+
   console.log('N-2) ✅ 완료 보고 · 💬 스레드 · 🔎 히스토리 찾기 (2026-11-26)');
   {
     const now = new Date(2026, 10, 26, 12, 0).getTime();
@@ -578,7 +610,8 @@ function coreTests() {
     // 화면 곳곳이 같은 마크를 쓴다
     ok(/roomMark\(/.test(js) && (js.match(/roomMark\(/g) || []).length >= 8, '아바타·이름·칩·관제·서람이 모두 roomMark 를 쓴다');
     ok(/\.mk\{/.test(css) && /\.mk\.v2\{/.test(css) && /\.mk-pi2\{/.test(css) && /\.mk-key2\{/.test(css), '마크·테두리·계열 색 스타일');
-    ok(!/<img/.test(js) && !/cdn\.[a-z]/i.test(css), 'CDN 이미지에 기대지 않는다');
+    // 2026-11-27 — 첨부 사진은 <img> 로 그리지만 주소는 서버(file_get)가 준 data URL 뿐이다.
+    ok(!/<img[^>]+src=\\s*["']?https?:/i.test(js) && !/cdn\.[a-z]/i.test(css), '바깥 CDN 이미지에 기대지 않는다(첨부는 서버에서 받는다)');
   }
 
   console.log('O) 비밀값 하드코딩 없음 (공개 저장소)');

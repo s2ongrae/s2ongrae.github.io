@@ -913,6 +913,67 @@ function roomReactHtml(it){
     return '<span class="rxc rx-' + ROOM_RX_CLS[x.e] + '" title="' + esc(nm + ' · ' + ROOM_RX_TXT[x.e]) + '">' + esc(x.e) + '<i>' + esc(nm) + '</i></span>';
   }).join('') + '</div>';
 }
+/* ── 📎 파일·이미지 공유 (2026-11-27) — 순수 부분 ─────────────────────────────
+ *  포털과 같은 규칙: 파일은 서버(Drive 의 포털_공유 폴더)에 올리고 말에는 {id,n,s,m} 만.
+ *  여기에는 DOM 없이 셀 수 있는 것만 둔다(검사·표시 문구·말풍선 HTML).
+ */
+const ROOM_FILE_MAX = 4;
+const ROOM_FILE_BYTES = 4 * 1024 * 1024;
+const ROOM_FILE_MIME = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/heic': 'heic',
+  'application/pdf': 'pdf', 'text/plain': 'txt', 'text/csv': 'csv', 'text/markdown': 'md',
+  'application/zip': 'zip', 'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'application/haansofthwp': 'hwp', 'application/x-hwp': 'hwp',
+  'application/haansofthwpx': 'hwpx', 'application/x-hwpx': 'hwpx', 'application/vnd.hancom.hwp': 'hwp'
+};
+function roomFileSize(n){
+  const v = Math.max(0, roomNum(n) || 0);
+  if (v < 1024) return v + 'B';
+  if (v < 1048576) return Math.round(v / 1024) + 'KB';
+  return (Math.round(v / 104857.6) / 10) + 'MB';
+}
+function roomFileIcon(mime){
+  const m = String(mime == null ? '' : mime).toLowerCase();
+  if (/^image\//.test(m)) return '🖼️';
+  if (/pdf$/.test(m)) return '📕';
+  if (/hwp/.test(m)) return '📝';
+  if (/sheet|excel|csv/.test(m)) return '📊';
+  if (/word|document|text/.test(m)) return '📄';
+  if (/presentation|powerpoint/.test(m)) return '📽️';
+  if (/zip/.test(m)) return '🗜️';
+  return '📎';
+}
+/** 못 붙이는 이유(없으면 '') — 포털·서버와 같은 규칙 */
+function roomFileWhy(mime, size, count){
+  const m = String(mime == null ? '' : mime).toLowerCase().split(';')[0].trim();
+  if (!ROOM_FILE_MIME[m]) return '이 종류는 못 붙여요 — 사진·PDF·문서·압축 파일만 돼요';
+  if ((roomNum(size) || 0) > ROOM_FILE_BYTES) return '한 개 ' + roomFileSize(ROOM_FILE_BYTES) + ' 까지예요(' + roomFileSize(size) + ')';
+  if ((roomNum(count) || 0) >= ROOM_FILE_MAX) return '한 번에 ' + ROOM_FILE_MAX + '개까지 붙일 수 있어요';
+  return '';
+}
+/** 말풍선 안의 첨부 — 사진은 그림(그린 뒤에 채운다) · 서류는 칩(누르면 내려받기) */
+function roomFilesHtml(it){
+  const list = Array.isArray(it && it.files) ? it.files : [];
+  if (!list.length) return '';
+  const rows = list.map(f => {
+    const id = String((f && f.id) || '');
+    if (!id) return '';
+    const name = String((f && f.n) || '파일'), size = roomFileSize(f && f.s), mime = String((f && f.m) || '');
+    const d = ' data-file="' + esc(id) + '" data-fname="' + esc(name) + '"';
+    if (/^image\//i.test(mime)) {
+      return '<button type="button" class="cimg-b"' + d + ' title="' + esc(name + ' · ' + size + ' — 눌러서 크게 보기') + '">' +
+        '<img class="cimg" data-fid="' + esc(id) + '" data-fname="' + esc(name) + '" alt="' + esc(name) + '"></button>';
+    }
+    return '<button type="button" class="cfl"' + d + ' title="' + esc(name + ' — 눌러서 열기') + '">' +
+      '<span>' + esc(roomFileIcon(mime)) + '</span><span>' + esc(name) + '</span><small>' + esc(size) + '</small></button>';
+  }).join('');
+  return rows ? '<div class="cfs">' + rows + '</div>' : '';
+}
 // </ROOM_CORE>
 
 /* ─────────────────────────────────────────────────────────
@@ -1070,7 +1131,7 @@ function roomReactHtml(it){
     const aid = String((it && it.id) || '');
     return '<div class="msg ' + (mine ? 'me' : 'them') + '"' + (aid ? ' id="m-' + esc(aid) + '"' : '') + '>' + av +
       '<div class="bwrap ' + agentCls(key) + '"><div class="meta">' + meta + '</div>' +
-      '<div class="bub">' + quoteBox(it) + '<div class="txt">' + roomMd(body) + '</div></div>' +
+      '<div class="bub">' + quoteBox(it) + '<div class="txt">' + roomMd(body) + '</div>' + roomFilesHtml(it) + '</div>' +
       roomReactHtml(it) + bubbleActs(it) + '</div></div>';
   }
   function bubbleReply(it){
@@ -1161,6 +1222,7 @@ function roomReactHtml(it){
     });
     html += '<div style="height:6px"></div>';
     box.innerHTML = html;
+    try { fileHydrate(); } catch(e) {}                        // 📎 사진은 그린 뒤에 채운다(비밀 키 POST)
     if(!S.painted || near){ box.scrollTop = box.scrollHeight; S.painted = true; jumpOff(); }
     else { box.scrollTop = keep; jumpOn(); }
   }
@@ -1459,8 +1521,10 @@ function roomReactHtml(it){
   async function send(){
     if(S.sending) return;
     const inp = $('inp');
-    const text = String(inp.value || '').trim();
+    let text = String(inp.value || '').trim();
     if(!configured()){ openSheet(); return; }
+    // 📎 첨부만 보내도 된다 — 글이 없으면 첨부 줄로 채운다(서버는 빈 글을 거절한다)
+    if(!text && PEND.length) text = '📎 첨부 ' + PEND.length + '개 보냅니다';
     if(!text){ toast('보낼 말을 적어주세요'); return; }
     if(text.length > 2000){ toast('2,000자 안으로 줄여주세요'); return; }
     S.sending = true;
@@ -1472,10 +1536,17 @@ function roomReactHtml(it){
       const payload = {prompt: text, mode: 'ask', kind: 'chat', target: target};
       // 답장이면 어느 말에 대한 답장인지 함께 보낸다 — 서버가 오더를 이어 붙이고 화면이 인용 박스를 그린다(2026-11-26)
       if(REPLY && REPLY.id && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/.test(REPLY.id)) payload.reply_to = REPLY.id;
+      // 📎 첨부 — 먼저 Drive(포털_공유)로 올리고 id 만 싣는다. 실패하면 말을 보내지 않는다.
+      if(PEND.length){
+        const ups = await fileUploadAll();
+        if(!ups){ toast('첨부를 올리지 못해 보내지 않았어요 — 다시 눌러주세요'); return; }
+        if(ups.length) payload.files = ups;
+      }
       const ws = roomWsPick(S.wss, S.ws) || 'hub-agent';
       const d = await api('queue_enqueue', {type: 'claude_prompt', workspace: ws, payload: payload, source: 'portal', client_id: 'portal'});
       if(!d || d.ok !== true){ toast('접수 실패 — ' + ((d && (d.error || d.code)) || '서버 확인')); return; }
       inp.value = '';
+      if(PEND.length) fileClear();
       clearReply();
       onInput();
       pinned = true;
@@ -1488,6 +1559,205 @@ function roomReactHtml(it){
       btn.disabled = false;
       btn.innerHTML = SEND_ICON;
     }
+  }
+
+  /* ── 📎 파일·이미지 붙이기 (2026-11-27) ───────────────────────────
+   *  포털과 같은 길: 사진은 올리기 전에 줄이고(긴 변 1,600px·JPEG .82),
+   *  file_upload 로 Drive 「포털_공유」에 올린 뒤 말에는 {id,n,s,m} 만 싣는다.
+   *  올리지 못하면 **말을 보내지 않는다**(첨부가 조용히 빠진 말이 가면 안 된다).
+   */
+  const FMAX = ROOM_FILE_MAX;
+  let PEND = [];                                  // [{name,size,mime,dataUrl}]
+  const FCACHE = {};                              // 파일 id → data URL
+  let FBUSY = false;
+
+  function fileSize(n){ return roomFileSize(n); }
+  function fileRead(blob){
+    return new Promise((res, rej) => {
+      try{
+        if(typeof FileReader === 'undefined') return rej(new Error('nofilereader'));
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result || ''));
+        fr.onerror = () => rej(new Error('read'));
+        fr.readAsDataURL(blob);
+      }catch(e){ rej(e); }
+    });
+  }
+  function fileShrink(file){
+    return new Promise(res => {
+      const give = v => res(v || file);
+      try{
+        const m = String((file && file.type) || '').toLowerCase();
+        if(!/^image\//.test(m) || /gif|svg|heic/.test(m)) return give(file);
+        if(typeof FileReader === 'undefined' || typeof Image === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) return give(file);
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          try{
+            const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+            const big = Math.max(w, h);
+            if(!(big > 0)){ try{ URL.revokeObjectURL(url); }catch(_){} return give(file); }
+            if(big <= 1600 && (file.size || 0) <= 900 * 1024){ try{ URL.revokeObjectURL(url); }catch(_){} return give(file); }
+            const k = Math.min(1, 1600 / big);
+            const cv = document.createElement('canvas');
+            cv.width = Math.max(1, Math.round(w * k));
+            cv.height = Math.max(1, Math.round(h * k));
+            const g2 = cv.getContext('2d');
+            if(!g2){ try{ URL.revokeObjectURL(url); }catch(_){} return give(file); }
+            g2.drawImage(img, 0, 0, cv.width, cv.height);
+            cv.toBlob(b => {
+              try{ URL.revokeObjectURL(url); }catch(_){}
+              if(!b || b.size >= (file.size || 0)) return give(file);
+              const nm = String(file.name || '사진').replace(/\.[^.]*$/, '') + '.jpg';
+              try { give(new File([b], nm, {type: 'image/jpeg'})); }
+              catch(_) { give({name: nm, size: b.size, type: 'image/jpeg'}); }
+            }, 'image/jpeg', 0.82);
+          }catch(e){ try{ URL.revokeObjectURL(url); }catch(_){} give(file); }
+        };
+        img.onerror = () => { try{ URL.revokeObjectURL(url); }catch(_){} give(file); };
+        img.src = url;
+      }catch(e){ give(file); }
+    });
+  }
+  async function fileAdd(list){
+    const arr = [];
+    try{ for(let i = 0; i < (list ? list.length : 0); i++){ if(list[i]) arr.push(list[i]); } }catch(_){}
+    if(!arr.length) return PEND.slice();
+    const skip = [];
+    for(let i = 0; i < arr.length; i++){
+      let g = arr[i];
+      try { g = await fileShrink(g); } catch(_) { g = arr[i]; }
+      const why = roomFileWhy(g && g.type, g && g.size, PEND.length);
+      if(why){ skip.push(String((g && g.name) || '파일') + ' — ' + why); continue; }
+      let dataUrl = '';
+      try { dataUrl = await fileRead(g); }
+      catch(_){ skip.push(String((g && g.name) || '파일') + ' — 내용을 읽지 못했어요'); continue; }
+      if(!dataUrl){ skip.push(String((g && g.name) || '파일') + ' — 내용이 비어 있어요'); continue; }
+      PEND.push({ name: String((g && g.name) || '파일'), size: roomNum(g && g.size) || 0,
+        mime: String((g && g.type) || '').toLowerCase().split(';')[0].trim(), dataUrl: dataUrl });
+    }
+    fileRender();
+    if(skip.length) toast('못 붙인 파일: ' + skip.join(' / '));
+    else if(arr.length) toast('첨부 ' + PEND.length + '개 — 보낼 때 함께 올라가요');
+    return PEND.slice();
+  }
+  function fileRender(){
+    const box = $('rfiles'), btn = $('fbtn');
+    if(btn) btn.classList[PEND.length ? 'add' : 'remove']('on');
+    if(!box) return;
+    if(!PEND.length){ box.innerHTML = ''; box.hidden = true; return; }
+    box.innerHTML = PEND.map((f, i) => {
+      const img = /^image\//.test(f.mime);
+      const th = img ? '<img src="' + esc(f.dataUrl) + '" alt="">' : '<span class="ric">' + esc(roomFileIcon(f.mime)) + '</span>';
+      return '<div class="rf" title="' + esc(f.name + ' · ' + fileSize(f.size)) + '">' + th +
+        '<span><b>' + esc(f.name) + '</b><i>' + esc(fileSize(f.size)) + '</i></span>' +
+        '<button class="rx" type="button" data-fr="' + i + '" aria-label="첨부 빼기" title="첨부 빼기">✕</button></div>';
+    }).join('');
+    box.hidden = false;
+  }
+  function fileRemove(i){
+    const n = roomNum(i);
+    if(n === null || n < 0 || n >= PEND.length) return;
+    PEND.splice(n, 1);
+    fileRender();
+  }
+  function fileClear(){ PEND = []; fileRender(); }
+  function filePick(){
+    const el = $('finp');
+    if(el && el.click) el.click();
+  }
+  async function fileUploadAll(){
+    const out = [];
+    for(let i = 0; i < PEND.length; i++){
+      const f = PEND[i];
+      showStrip('📎 올리는 중 ' + (i + 1) + '/' + PEND.length + ' — ' + f.name);
+      let d = null;
+      try { d = await api('file_upload', {name: f.name, mime: f.mime, size: f.size, data: f.dataUrl}); }
+      catch(e){ d = null; }
+      if(!d || d.ok !== true || !d.file || !d.file.id){
+        const why = (d && /알 수 없는 요청/.test(String(d.error || '')))
+          ? '서버 재배포가 필요해요(Code.gs)'
+          : ((d && (d.error || d.code)) || '연결 확인');
+        showStrip('📎 ' + f.name + ' 을(를) 올리지 못했어요 — ' + why + ' · 첨부는 그대로 두었어요', true);
+        return null;
+      }
+      out.push({ id: String(d.file.id), n: String(d.file.n || f.name),
+        s: (roomNum(d.file.s) !== null ? d.file.s : f.size), m: String(d.file.m || f.mime) });
+    }
+    hideStrip();
+    return out;
+  }
+  async function fileData(id){
+    const k = String(id || '');
+    if(!k) return '';
+    if(FCACHE[k]) return FCACHE[k];
+    if(!configured()) return '';
+    let d = null;
+    try { d = await api('file_get', {id: k}); } catch(e){ d = null; }
+    if(!d || d.ok !== true || !d.data) return '';
+    const url = 'data:' + String(d.m || 'application/octet-stream') + ';base64,' + String(d.data);
+    FCACHE[k] = url;
+    return url;
+  }
+  function fileHydrate(){
+    try{
+      const box = $('feed');
+      if(!box || !box.querySelectorAll) return;
+      box.querySelectorAll('img.cimg[data-fid]').forEach(img => {
+        const id = String(img.getAttribute('data-fid') || '');
+        if(!id) return;
+        if(FCACHE[id]){ img.src = FCACHE[id]; return; }
+        if(img.getAttribute('data-busy') === '1') return;
+        img.setAttribute('data-busy', '1');
+        fileData(id).then(url => {
+          if(url) img.src = url;
+          else img.title = String(img.getAttribute('data-fname') || '사진') + ' — 불러오지 못했어요';
+          img.removeAttribute('data-busy');
+        }).catch(() => { img.removeAttribute('data-busy'); });
+      });
+    }catch(_){}
+  }
+  async function fileOpen(id, name){
+    const k = String(id || '');
+    if(!k) return;
+    if(!FCACHE[k]){
+      toast('📎 여는 중…');
+      const got = await fileData(k);
+      if(!got){ toast('📎 파일을 열지 못했어요 — Drive 에서 지웠거나 연결을 확인해 주세요'); return; }
+    }
+    const url = FCACHE[k], nm = String(name || 'file');
+    try{
+      const a = document.createElement('a');
+      a.href = url; a.download = nm;
+      document.body.appendChild(a); a.click();
+      if(a.remove) a.remove();
+      return;
+    }catch(_){}
+    try{ window.open(url, '_blank'); }catch(_){}
+  }
+  function onPaste(e){
+    try{
+      const dt = e && e.clipboardData;
+      if(!dt) return;
+      const got = [];
+      if(dt.files && dt.files.length){ for(let i = 0; i < dt.files.length; i++) got.push(dt.files[i]); }
+      if(!got.length && dt.items){
+        for(let i = 0; i < dt.items.length; i++){
+          const it = dt.items[i];
+          if(it && it.kind === 'file' && it.getAsFile){ const f = it.getAsFile(); if(f) got.push(f); }
+        }
+      }
+      if(!got.length) return;
+      if(e.preventDefault) e.preventDefault();
+      fileAdd(got);
+    }catch(_){}
+  }
+  function onDrop(e){
+    try{
+      if(e && e.preventDefault) e.preventDefault();
+      const dt = e && e.dataTransfer;
+      if(dt && dt.files && dt.files.length) fileAdd(dt.files);
+    }catch(_){}
   }
 
   /* ── 설정 시트 ── */
@@ -1703,13 +1973,31 @@ function roomReactHtml(it){
     });
     $('feed').addEventListener('click', e => {
       const t = e && e.target;
-      const b = (t && t.closest) ? t.closest('[data-rep],[data-th],[data-go]') : null;
+      const b = (t && t.closest) ? t.closest('[data-rep],[data-th],[data-go],[data-file]') : null;
       if(!b) return;
       const id = b.getAttribute('data-rep') || b.getAttribute('data-th') || b.getAttribute('data-go');
-      if(b.hasAttribute('data-rep')) setReply(id);
+      if(b.hasAttribute('data-file')) fileOpen(b.getAttribute('data-file'), b.getAttribute('data-fname'));
+      else if(b.hasAttribute('data-rep')) setReply(id);
       else if(b.hasAttribute('data-th')) openThread(id);
       else jumpToMsg(id);
     });
+    // 📎 사진·파일 — 버튼 · 붙여넣기 · 끼어다 놓기 (2026-11-27)
+    if($('fbtn')) $('fbtn').onclick = filePick;
+    if($('finp')) $('finp').onchange = e => { const el = e && e.target; const f = el && el.files; if(el) el.value = ''; fileAdd(f); };
+    const rfBox = $('rfiles');
+    if(rfBox && rfBox.addEventListener){
+      rfBox.addEventListener('click', e => {
+        const t = e && e.target;
+        const b = (t && t.closest) ? t.closest('[data-fr]') : null;
+        if(b) fileRemove(b.getAttribute('data-fr'));
+      });
+    }
+    if($('inp')) $('inp').addEventListener('paste', onPaste);
+    const cmp = $('cmp');
+    if(cmp && cmp.addEventListener){
+      cmp.addEventListener('dragover', e => { if(e && e.preventDefault) e.preventDefault(); });
+      cmp.addEventListener('drop', onDrop);
+    }
     const fb = $('fchips');
     if(fb && fb.addEventListener){
       fb.addEventListener('click', e => {

@@ -489,7 +489,7 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .chat-av{width:30px;height:30px;border-radius:10px;background:none;border:none;color:var(--rink2);
   display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 .chat-av .mk{width:100%;height:100%;border-radius:10px;vertical-align:0;box-shadow:0 2px 6px -3px rgba(16,24,40,.35)}
-.chat-bubble{max-width:min(82%,560px);background:#fff;border:1px solid var(--rl);border-radius:16px;
+.chat-bubble{max-width:min(82%,560px);background:#fff;border:1px solid var(--rl);border-radius:16px;word-break:break-word;
   padding:9px 12px 10px;min-width:0;box-shadow:0 1px 2px rgba(16,24,40,.04)}
 .chat-row.out .chat-bubble{background:var(--rgrad);border-color:transparent;border-bottom-right-radius:6px;
   color:#fff;box-shadow:0 10px 22px -14px rgba(79,107,255,.85)}
@@ -619,6 +619,35 @@ body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);colo
 .room-compose .ord-rec{border:1px solid var(--rl);background:#fff;border-radius:999px;padding:4px 9px;font-size:10.5px;color:#5A6480}
 .room-compose .ord-rec:hover{border-color:#C9D6FF;color:var(--racc-d);background:#F5F8FF}
 .room-compose .ord-chars{font-size:10px;color:var(--rhint)}
+/* ── 📎 파일·이미지 붙이기 (2026-11-27) ── */
+.room-file{flex:0 0 auto;width:46px;height:46px;border-radius:14px;border:1px solid var(--rl);background:#fff;
+  font-size:17px;line-height:1;cursor:pointer;font-family:inherit;color:#5A6480;transition:all .15s}
+.room-file:hover{border-color:#C9D6FF;background:#F5F8FF}
+.room-file.on{border-color:#8FA6FF;background:#EEF3FF}
+.room-compose.drop{border-color:#8FA6FF;box-shadow:0 0 0 4px rgba(91,124,250,.12)}
+.room-files{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:2px 2px 0;min-width:0}
+.room-files[hidden]{display:none}
+.rf{position:relative;display:flex;align-items:center;gap:7px;max-width:220px;padding:6px 26px 6px 6px;
+  border:1px solid var(--rl);border-radius:12px;background:#fff;min-width:0}
+.rf img,.rf .rf-ic{width:38px;height:38px;border-radius:8px;object-fit:cover;flex:0 0 auto;display:block}
+.rf .rf-ic{display:flex;align-items:center;justify-content:center;background:#F1F5FF;font-size:16px}
+.rf-name{font-size:11px;font-weight:700;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.rf-size{font-size:10px;color:var(--hint);white-space:nowrap}
+.rf-x{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:1px solid var(--rl);
+  background:#fff;color:#6B768F;font-size:11px;line-height:1;cursor:pointer;font-family:inherit;padding:0}
+.rf-x:hover{background:var(--red-l);color:var(--red);border-color:#FAC7CB}
+.rf-err{font-size:10px;font-weight:700;color:var(--red);margin-left:4px}
+/* 말풍선 안의 첨부 */
+.chat-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.chat-img-btn{border:none;background:transparent;padding:0;cursor:zoom-in;display:block;border-radius:10px;line-height:0}
+.chat-img{max-width:min(260px,64vw);max-height:240px;border-radius:10px;display:block;border:1px solid rgba(16,24,40,.10);background:#F1F5FF;min-width:64px;min-height:64px}
+.chat-file{display:inline-flex;align-items:center;gap:6px;max-width:min(260px,64vw);padding:6px 10px;border-radius:10px;
+  border:1px solid var(--rl);background:#fff;font-size:11px;font-weight:700;color:var(--text2);cursor:pointer;font-family:inherit;text-align:left}
+.chat-file:hover{border-color:#C9D6FF;background:#F5F8FF}
+.chat-file small{font-weight:600;color:var(--hint)}
+.chat-row.out .chat-file{background:rgba(255,255,255,.94);border-color:rgba(255,255,255,.6)}
+.chat-file.miss{color:var(--hint);cursor:default;border-style:dashed}
+@media (max-width:700px){ .room-file{width:42px;height:42px} .chat-img{max-width:70vw} }
 .room-card :is(button,select,textarea,input,summary):focus-visible{outline:2px solid #7C93FF;outline-offset:2px}
 
 /* ── 🤖 노트북 오더함 ── */
@@ -1434,18 +1463,25 @@ body{background:#F1F3F7;color:#17213A;line-height:1.55;letter-spacing:-.01em}
       <div class="room-feed ord-list" id="ord-list"><div class="ord-empty">첫 말을 걸면 여기에 카톡처럼 쌓여요</div></div>
       <div class="ord-pause" id="ord-paused"></div>
 
-      <div class="room-compose">
+      <div class="room-compose" id="room-compose" ondragover="ordDragOver(event)" ondragleave="ordDragLeave(event)" ondrop="ordDragDrop(event)">
         <div class="room-tools" id="room-tools">
           <div class="ord-recent" id="ord-recent" style="display:none"></div>
           <div class="room-presets" id="ord-presets"></div>
           <div class="room-mentions" id="ord-mentions"></div>
         </div>
         <div id="ord-quote"></div>
+        <!-- 📎 붙인 파일 미리보기 (2026-11-27) — 보내기 전에 여기서 확인·지우기 -->
+        <div class="room-files" id="ord-files" hidden></div>
+        <input type="file" id="ord-file-inp" multiple hidden
+          accept="image/*,application/pdf,text/plain,text/csv,text/markdown,application/zip,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/haansofthwp,application/haansofthwpx,application/x-hwp,application/x-hwpx"
+          onchange="ordFileChoose(this)">
         <div class="room-inp-row">
           <button class="room-plus" type="button" id="room-plus" onclick="roomToolsToggle()"
             aria-label="빠른 오더·대상 열기" aria-expanded="false" title="빠른 오더 · 대상 열기">＋</button>
+          <button class="room-file" type="button" id="ord-file-btn" onclick="ordFilePick()"
+            title="사진·파일 붙이기 — 끌어다 놓기 · 붙여넣기(Ctrl+V)도 돼요" aria-label="사진·파일 붙이기">📎</button>
           <textarea class="ord-inp" id="ord-inp" rows="1" placeholder="하고 싶은 말을 적으세요"
-            onkeydown="ordKey(event)" oninput="ordTyped()"></textarea>
+            onkeydown="ordKey(event)" oninput="ordTyped()" onpaste="ordPaste(event)"></textarea>
           <button class="room-send" id="ord-send" onclick="sendOrder()" title="보내기 (Enter)" aria-label="보내기">↑</button>
         </div>
         <div class="ord-foot">
@@ -2740,6 +2776,7 @@ function ordThreadRow(it){
     (b ? `<span class="ord-chip ${b.c}">${esc(b.t)}</span>` : '') +
     `<span class="ord-when">${esc(ordWhen(it.created_at))}</span></div>` +
     `<div class="th-txt">${ordMentionHtml(esc(body))}</div>` +
+    ordFilesHtml(it) +
     (res && res !== body ? `<div class="th-res">${ordMentionHtml(esc(res))}</div>` : '') +
     `<div class="th-acts"><button class="chat-a" onclick="ordThreadJump('${esc(it.id)}')">↗ 타임라인에서</button>` +
     `<button class="chat-a" onclick="ordReplyById('${esc(it.id)}')">↩ 답장</button></div></div>`;
@@ -2753,6 +2790,7 @@ function ordThreadRender(){
   const items = ordThreadItems(ORD_THREAD);
   if(n) n.textContent = items.length + '개 말';
   list.innerHTML = items.map(ordThreadRow).join('') || '<div class="ord-empty">이어진 말이 없어요</div>';
+  try { ordFileHydrate(list); } catch(e) {}
   if(box.classList) box.classList.add('on');
   if(box.setAttribute) box.setAttribute('aria-hidden', 'false');
 }
@@ -3764,6 +3802,7 @@ function chatOut(it, left){
     `<span class="ord-when">${esc(ordWhen(it.created_at))}</span></div>` +
     qb +
     `<div class="chat-text">${ordMentionHtml(esc(body))}</div>` +
+    ordFilesHtml(it) +
     (ordIsChat(it) ? '' : `<div class="ord-sub">${esc([ordTypeName(it.type), (it.workspace ? ordWsName(it.workspace) : ''), (it.id || '')].filter(Boolean).join(' · '))}</div>`) +
     ordReactHtml(it) +
     acts +
@@ -3978,6 +4017,7 @@ function renderOrders(){
     html += chatOut(it, !ordIsMine(it)) + (ordShowReply(it) ? chatIn(it) : '') + ordMissCard(it);
   });
   box.innerHTML = html;
+  try { ordFileHydrate(box); } catch(e) {}                    // 📎 사진은 그린 뒤에 채운다(비밀 키 POST)
   try { if(box.scrollTop !== undefined) box.scrollTop = nearBottom ? (numOf(box.scrollHeight) || 0) : keepTop; } catch(e) {}
   ordTickStart();
 }
@@ -4386,9 +4426,324 @@ async function quickOrder(type){
  *  · 발신(source)·대상(payload.target)을 함께 실어 보내 피원(pi1)·피투(pi2)·포털을 구분한다.
  *    (예전 서버는 source·target 을 무시하고 portal·노트북으로 처리한다)
  */
+/* ── 📎 파일·이미지 공유 (2026-11-27, 레이 님 "여기서 파일이나 이미지도 공유할 수 있게") ────────
+ *  · 시트 한 줄에는 사진을 실을 수 없다 — payload 상한이 4,000자다(서버 QQ_MAX_PAYLOAD).
+ *    그래서 **파일은 먼저 서버(file_upload)로 Drive 「김성래포털/포털_공유」에 올리고**,
+ *    말에는 {id,n,s,m} 네 칸만 싣는다. 사진 본체는 시트에 남지 않는다.
+ *  · 공개 링크를 만들지 않는다 — file_get(비밀 키 POST)으로 받아 data URL 로 그린다.
+ *    한 번 받은 파일은 이 화면이 기억한다(ORD_FILE_CACHE) — 60초마다 다시 그려도 재요청 없음.
+ *  · 붙이는 길 3가지: 📎 버튼 · 끌어다 놓기 · 붙여넣기(Ctrl+V, 스크린샷 포함).
+ *  · 사진은 올리기 전에 긴 변 1,600px·JPEG 0.82 로 줄인다(폰 사진 6MB → 300~600KB).
+ */
+const ORD_FILE_MAX = 4;                        // 서버 QQ_FILE_MAX 와 같은 값
+const ORD_FILE_BYTES = 4 * 1024 * 1024;        // 서버 QQ_FILE_BYTES 와 같은 값
+const ORD_FILE_IMG_PX = 1600;                  // 사진 긴 변 상한
+const ORD_FILE_MIME = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/heic': 'heic',
+  'application/pdf': 'pdf', 'text/plain': 'txt', 'text/csv': 'csv', 'text/markdown': 'md',
+  'application/zip': 'zip', 'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'application/haansofthwp': 'hwp', 'application/x-hwp': 'hwp',
+  'application/haansofthwpx': 'hwpx', 'application/x-hwpx': 'hwpx', 'application/vnd.hancom.hwp': 'hwp'
+};
+let ORD_PEND = [];                             // 아직 안 보낸 첨부 [{name,size,mime,dataUrl}]
+let ORD_FILE_BUSY = false;
+const ORD_FILE_CACHE = {};                     // 파일 id → data URL
+const ORD_FILE_NAME = {};                      // 파일 id → 이름 (버튼이 이름을 **코드**로 품지 않게 — 이름은 남이 정할 수 있다)
+/** 사람이 읽는 크기 — 240KB · 1.2MB */
+function ordFileSize(n){
+  const v = Math.max(0, numOf(n) || 0);
+  if(v < 1024) return v + 'B';
+  if(v < 1048576) return Math.round(v / 1024) + 'KB';
+  return (Math.round(v / 104857.6) / 10) + 'MB';
+}
+/** 붙일 수 없는 이유(없으면 '') — 화면과 서버가 같은 규칙을 본다 */
+function ordFileWhy(mime, size, count){
+  const m = String(mime == null ? '' : mime).toLowerCase().split(';')[0].trim();
+  if(!ORD_FILE_MIME[m]) return '이 종류는 못 붙여요 — 사진·PDF·문서·압축 파일만 돼요';
+  if((numOf(size) || 0) > ORD_FILE_BYTES) return '한 개 ' + ordFileSize(ORD_FILE_BYTES) + ' 까지예요(' + ordFileSize(size) + ')';
+  if((numOf(count) || 0) >= ORD_FILE_MAX) return '한 번에 ' + ORD_FILE_MAX + '개까지 붙일 수 있어요';
+  return '';
+}
+/** 파일 종류 아이콘 — 말풍선·미리보기에서 쓴다 */
+function ordFileIcon(mime){
+  const m = String(mime == null ? '' : mime).toLowerCase();
+  if(/^image\//.test(m)) return '🖼️';
+  if(/pdf$/.test(m)) return '📕';
+  if(/hwp/.test(m)) return '📝';
+  if(/sheet|excel|csv/.test(m)) return '📊';
+  if(/word|document|text/.test(m)) return '📄';
+  if(/presentation|powerpoint/.test(m)) return '📽️';
+  if(/zip/.test(m)) return '🗜️';
+  return '📎';
+}
+/** 📎 버튼 — 숨은 파일 입력을 연다 */
+function ordFilePick(){
+  try{
+    const inp = document.getElementById('ord-file-inp');
+    if(inp && inp.click) inp.click();
+  }catch(e){ sync('이 브라우저에서는 파일을 못 붙여요', 3500); }
+}
+/** 파일을 골랐을 때(입력) */
+function ordFileChoose(el){
+  try{ ordFileAdd(el && el.files); }catch(e){}
+  try{ if(el) el.value = ''; }catch(e){}
+}
+/** 끌어다 놓기 */
+function ordDragOver(e){
+  try{
+    if(e && e.preventDefault) e.preventDefault();
+    const box = document.getElementById('room-compose');
+    if(box && box.classList) box.classList.add('drop');
+  }catch(_){}
+}
+function ordDragLeave(e){
+  try{
+    const box = document.getElementById('room-compose');
+    if(box && box.classList) box.classList.remove('drop');
+  }catch(_){}
+}
+function ordDragDrop(e){
+  try{
+    if(e && e.preventDefault) e.preventDefault();
+    const box = document.getElementById('room-compose');
+    if(box && box.classList) box.classList.remove('drop');
+    const dt = e && e.dataTransfer;
+    if(dt && dt.files && dt.files.length) ordFileAdd(dt.files);
+  }catch(_){}
+}
+/** 붙여넣기 — 글은 그대로 두고, 파일(스크린샷 포함)만 첨부로 받는다 */
+function ordPaste(e){
+  try{
+    const dt = e && e.clipboardData;
+    if(!dt) return;
+    const got = [];
+    if(dt.files && dt.files.length){ for(let i = 0; i < dt.files.length; i++) got.push(dt.files[i]); }
+    if(!got.length && dt.items){
+      for(let i = 0; i < dt.items.length; i++){
+        const it = dt.items[i];
+        if(it && it.kind === 'file' && it.getAsFile){ const f = it.getAsFile(); if(f) got.push(f); }
+      }
+    }
+    if(!got.length) return;                       // 글만 붙였으면 브라우저에 맡긴다
+    if(e.preventDefault) e.preventDefault();
+    ordFileAdd(got);
+  }catch(_){}
+}
+/** 파일 → 미리보기용 data URL */
+ function ordReadB64(blob){
+  return new Promise((res, rej) => {
+    try{
+      if(typeof FileReader === 'undefined') return rej(new Error('nofilereader'));
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result || ''));
+      fr.onerror = () => rej(new Error('read'));
+      fr.readAsDataURL(blob);
+    }catch(e){ rej(e); }
+  });
+}
+/** 사진이면 올리기 전에 줄인다 — 긴 변 1,600px · JPEG 0.82 (못 하면 원본 그대로) */
+function ordShrinkImg(file){
+  return new Promise(res => {
+    const give = v => res(v || file);
+    try{
+      const m = String(file && file.type || '').toLowerCase();
+      if(!/^image\//.test(m) || /gif|svg|heic/.test(m)) return give(file);
+      if(typeof Image === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) return give(file);
+      if(typeof document === 'undefined' || !document.createElement) return give(file);
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        try{
+          const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+          const big = Math.max(w, h);
+          if(!(big > 0)) { try{ URL.revokeObjectURL(url); }catch(_){} return give(file); }
+          if(big <= ORD_FILE_IMG_PX && (numOf(file.size) || 0) <= 900 * 1024){ try{ URL.revokeObjectURL(url); }catch(_){} return give(file); }
+          const k = Math.min(1, ORD_FILE_IMG_PX / big);
+          const cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(w * k));
+          cv.height = Math.max(1, Math.round(h * k));
+          const g2 = cv.getContext('2d');
+          if(!g2) { try{ URL.revokeObjectURL(url); }catch(_){} return give(file); }
+          g2.drawImage(img, 0, 0, cv.width, cv.height);
+          cv.toBlob(b => {
+            try{ URL.revokeObjectURL(url); }catch(_){}
+            if(!b || b.size >= (numOf(file.size) || 0)) return give(file);
+            const nm = String(file.name || '사진').replace(/\.[^.]*$/, '') + '.jpg';
+            try { give(new File([b], nm, {type: 'image/jpeg'})); }
+            catch(_) { give({name: nm, size: b.size, type: 'image/jpeg', __blob: b}); }
+          }, 'image/jpeg', 0.82);
+        }catch(e){ try{ URL.revokeObjectURL(url); }catch(_){} give(file); }
+      };
+      img.onerror = () => { try{ URL.revokeObjectURL(url); }catch(_){} give(file); };
+      img.src = url;
+    }catch(e){ give(file); }
+  });
+}
+/** 붙인 파일들을 목록에 넣는다 — 못 붙인 것은 이유를 알려 준다(조용히 사라지면 안 된다) **/
+async function ordFileAdd(list){
+  const arr = [];
+  try{ for(let i = 0; i < (list ? list.length : 0); i++){ if(list[i]) arr.push(list[i]); } }catch(_){}
+  if(!arr.length) return [];
+  const skip = [];
+  for(let i = 0; i < arr.length; i++){
+    let g = arr[i];
+    try { g = await ordShrinkImg(g); } catch(_) { g = arr[i]; }
+    let blob = g;
+    if(g && g.__blob && !(g instanceof Blob)) blob = g.__blob;
+    const why = ordFileWhy(g && g.type, g && g.size, ORD_PEND.length);
+    if(why){ skip.push(String((g && g.name) || '파일') + ' — ' + why); continue; }
+    let dataUrl = '';
+    try { dataUrl = await ordReadB64(blob); }
+    catch(_){ skip.push(String((g && g.name) || '파일') + ' — 내용을 읽지 못했어요'); continue; }
+    if(!dataUrl){ skip.push(String((g && g.name) || '파일') + ' — 내용이 비어 있어요'); continue; }
+    ORD_PEND.push({ name: String((g && g.name) || '파일'), size: numOf(g && g.size) || 0,
+      mime: String((g && g.type) || '').toLowerCase().split(';')[0].trim(), dataUrl: dataUrl });
+  }
+  ordFilesRender();
+  const added = arr.length - skip.length;
+  if(skip.length) sync('못 붙인 파일: ' + skip.join(' / '), 6500);
+  else if(added) sync('첨부 ' + ORD_PEND.length + '개 — 보낼 때 함께 올라가요', 3000);
+  return ORD_PEND.slice();
+}
+/** 붙인 파일 미리보기 줄 */
+function ordFilesRender(){
+  const box = document.getElementById('ord-files');
+  const btn = document.getElementById('ord-file-btn');
+  if(btn && btn.classList) btn.classList[ORD_PEND.length ? 'add' : 'remove']('on');
+  if(!box) return;
+  if(!ORD_PEND.length){ try{ box.innerHTML = ''; box.hidden = true; }catch(_){} return; }
+  box.innerHTML = ORD_PEND.map((f, i) => {
+    const img = /^image\//.test(f.mime);
+    const thumb = img
+      ? '<img src="' + esc(f.dataUrl) + '" alt="">'
+      : '<span class="rf-ic">' + esc(ordFileIcon(f.mime)) + '</span>';
+    return '<div class="rf" title="' + esc(f.name + ' · ' + ordFileSize(f.size)) + '">' + thumb +
+      '<div><div class="rf-name">' + esc(f.name) + '</div><div class="rf-size">' + esc(ordFileSize(f.size)) + '</div></div>' +
+      '<button class="rf-x" type="button" onclick="ordFileRemove(' + i + ')" aria-label="첨부 빼기" title="첨부 빼기">✕</button></div>';
+  }).join('');
+  try{ box.hidden = false; }catch(_){}
+}
+function ordFileRemove(i){
+  const n = numOf(i);
+  if(n === null || n < 0 || n >= ORD_PEND.length) return;
+  ORD_PEND.splice(n, 1);
+  ordFilesRender();
+}
+function ordFilesClear(){ ORD_PEND = []; ordFilesRender(); }
+/** 붙인 파일을 서버(Drive 포털_공유)로 올린다 — 실패하면 null(말은 안 보낸다) */
+async function ordUploadAll(){
+  const out = [];
+  for(let i = 0; i < ORD_PEND.length; i++){
+    const f = ORD_PEND[i];
+    sync('📎 올리는 중 ' + (i + 1) + '/' + ORD_PEND.length + ' — ' + f.name, 0);
+    let d = null;
+    try{
+      d = await post({action: 'file_upload', name: f.name, mime: f.mime, size: f.size, data: f.dataUrl});
+    }catch(e){ d = null; }
+    if(!d || d.ok !== true || !d.file || !d.file.id){
+      // 예전 배포는 file_upload 를 모른다 — '알 수 없는 요청'을 그대로 보이면 원인을 알 수 없다
+      const why = (d && /알 수 없는 요청/.test(String(d.error || '')))
+        ? '서버가 아직 첨부를 모르는 배포예요 — apps-script/Code.gs 를 다시 배포하면 켜져요'
+        : ordErr(d);
+      sync('📎 ' + f.name + ' 을(를) 올리지 못했어요 — ' + why + ' · 첨부를 그대로 두었으니 다시 보내주세요', 8000);
+      return null;
+    }
+    out.push({ id: String(d.file.id), n: String(d.file.n || f.name), s: numOf(d.file.s) !== null ? d.file.s : f.size,
+      m: String(d.file.m || f.mime) });
+  }
+  return out;
+}
+/** 말풍선 안의 첨부 — 사진은 그림으로, 서류는 칩으로(누르면 내려받기) */
+function ordFilesHtml(it){
+  const list = Array.isArray(it && it.files) ? it.files : [];
+  if(!list.length) return '';
+  const rows = list.map(f => {
+    const id = String((f && f.id) || '');
+    if(!id) return '';
+    const name = String((f && f.n) || '파일'), size = ordFileSize(f && f.s), mime = String((f && f.m) || '');
+    // 이름은 onclick 문자열에 넣지 않는다 — esc() 는 HTML 만 막고, 따옴표가 풀리면 그대로 코드가 된다.
+    //  버튼에는 서버가 검증한 id(/^[A-Za-z0-9_-]{10,80}$/)만 넣고 이름은 표에서 찾는다.
+    ORD_FILE_NAME[id] = name;
+    const open = 'ordFileOpen(\'' + esc(id) + '\')';
+    if(/^image\//i.test(mime)){
+      return '<button class="chat-img-btn" type="button" onclick="' + open + '" title="' + esc(name + ' · ' + size + ' — 눌러서 크게 보기') + '">' +
+        '<img class="chat-img" data-fid="' + esc(id) + '" data-fname="' + esc(name) + '" alt="' + esc(name) + '"></button>';
+    }
+    return '<button class="chat-file" type="button" onclick="' + open + '" title="' + esc(name + ' — 눌러서 열기') + '">' +
+      '<span>' + esc(ordFileIcon(mime)) + '</span><span>' + esc(name) + '</span><small>' + esc(size) + '</small></button>';
+  }).join('');
+  return rows ? '<div class="chat-files">' + rows + '</div>' : '';
+}
+/** 파일 바이트 받기(한 번 받으면 기억한다) */
+async function ordFileData(id){
+  const k = String(id || '');
+  if(!k) return '';
+  if(ORD_FILE_CACHE[k]) return ORD_FILE_CACHE[k];
+  if(!serverConfigured()) return '';
+  let d = null;
+  try { d = await post({action: 'file_get', id: k}); } catch(e){ d = null; }
+  if(!d || d.ok !== true || !d.data) return '';
+  const url = 'data:' + String(d.m || 'application/octet-stream') + ';base64,' + String(d.data);
+  ORD_FILE_CACHE[k] = url;
+  return url;
+}
+/** 그려진 말풍선의 사진을 채운다 — 새로 그릴 때마다 부른다 */
+function ordFileHydrate(root){
+  try{
+    const box = root || document.getElementById('ord-list');
+    if(!box || !box.querySelectorAll) return;
+    const imgs = box.querySelectorAll('img.chat-img[data-fid]');
+    for(let i = 0; i < imgs.length; i++){
+      const img = imgs[i];
+      if(!img || !img.getAttribute) continue;
+      const id = String(img.getAttribute('data-fid') || '');
+      if(!id) continue;
+      if(ORD_FILE_CACHE[id]){
+        try{ img.src = ORD_FILE_CACHE[id]; }catch(_){}
+        continue;
+      }
+      if(img.getAttribute('data-busy') === '1') continue;
+      try{ img.setAttribute('data-busy', '1'); }catch(_){}
+      ordFileData(id).then(url => {
+        try{
+          if(url) img.src = url;
+          else img.title = String(img.getAttribute('data-fname') || '사진') + ' — 불러오지 못했어요(Drive 에서 지웠거나 연결 확인)';
+          img.removeAttribute('data-busy');
+        }catch(_){}
+      }).catch(() => { try{ img.removeAttribute('data-busy'); }catch(_){} });
+    }
+  }catch(_){}
+}
+/** 첨부 열기 — 그림은 새 탭, 서류는 내려받기(공개 링크 없이 바이트로) */
+async function ordFileOpen(id){
+  const k = String(id || '');
+  if(!k) return;
+  const name = ORD_FILE_NAME[k] || 'file';
+  if(!ORD_FILE_CACHE[k]){
+    sync('📎 여는 중…', 0);
+    const got = await ordFileData(k);
+    if(!got){ sync('📎 파일을 열지 못했어요 — Drive 에서 지웠거나 연결을 확인해 주세요', 5000); return; }
+  }
+  const url = ORD_FILE_CACHE[k];
+  try{
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = String(name || 'file');
+    if(document.body && document.body.appendChild){ document.body.appendChild(a); a.click(); if(a.remove) a.remove(); return; }
+  }catch(_){}
+  try{ if(typeof window !== 'undefined' && window.open) window.open(url, '_blank'); }catch(_){}
+}
+
 async function sendOrder(){
   const inp = document.getElementById('ord-inp');
   let text = String((inp && inp.value) || '').trim();
+  // 📎 첨부만 보내도 된다 — 글이 없으면 첨부 줄로 채운다(서버는 빈 글을 거절한다).
+  if(!text && ORD_PEND.length) text = '📎 첨부 ' + ORD_PEND.length + '개 보냅니다';
   if(!text){ sync('보낼 말을 적어주세요', 3000); return; }
   // 🌿 어사이드 한 줄 명령은 버튼과 같은 길로(2026-11-27) — 입력칸으로 보내면 대상이 @전체가 돼 아무도 실행하지 않았고,
   //  답장 인용(↩)이 붙으면 노트북이 명령으로 알아보지 못했다. 외부 작업은 버튼처럼 한 번 묻는다.
@@ -4397,6 +4752,7 @@ async function sendOrder(){
     const job = asideJobByWord(asideCmd[1]);
     if(!job){ sync('어사이드에 「' + asideCmd[1] + '」 작업은 없어요 — ' + ASIDE_JOBS.map(j => j.label).join(' · '), 5000); return; }
     if(inp) inp.value = '';
+    if(ORD_PEND.length) sync('📎 첨부는 어사이드 한 줄 명령과 함께 못 보내요 — 그대로 두었어요', 5000);
     ORD_REPLY_TO = ''; ORD_REPLY_ID = ''; ordQuoteRender(); ordTyped();
     await quickAside(job.id);
     return;
@@ -4420,11 +4776,19 @@ async function sendOrder(){
     if(ORD_REPLY_ID && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/.test(ORD_REPLY_ID)) payload.reply_to = ORD_REPLY_ID;
     // auto 는 서버에 보내지 않는다(기본값) — 예전 서버에서도 오더 모양이 그대로다.
     if(engine !== 'auto') payload.engine = engine;
+    // 📎 첨부 — 보내기 전에 Drive(포털_공유)로 올리고 id 만 싣는다.
+    //  실패하면 **말을 보내지 않는다**: 첨부가 조용히 빠진 말이 가면 상대는 파일이 온 줄 안다.
+    if(ORD_PEND.length){
+      const ups = await ordUploadAll();
+      if(!ups) { sync(String(ORD_PEND.length) + '개 첨부는 그대로 두었어요 — 다시 눌러 보내주세요', 5000); return; }
+      if(ups.length) payload.files = ups;
+    }
     ORD_EPOCH++;
     const d = await post({action: 'queue_enqueue', type: 'claude_prompt', workspace: ordWs(), payload: payload,
       source: ORD_SENDER, client_id: ORD_SENDER});
     if(!d || !d.ok){ sync('접수 실패 — ' + ordErr(d), 4500); return; }
     if(inp && inp.value.trim() === text) inp.value = '';
+    if(ORD_PEND.length) ordFilesClear();                        // 올라간 첨부는 미리보기에서 지운다
     const editBox = document.getElementById('ord-edit-mode');
     if(editBox && editBox.checked) editBox.checked = false;
     if(mode === 'edit') ordModeSet('chat');
