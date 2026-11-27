@@ -2180,6 +2180,10 @@ console.log('AJ) 🔔 승인함 — 모으기 · 결정 · 타임라인 표시 �
   ok(DP.run("ordShowReply({kind:'approval', status:'DONE', source:'keyring2', target:'portal', result:'✅ 승인'})") === false, '결정 결과를 요청자 이름의 두 번째 말풍선으로 그리지 않는다');
   ok(/승인함에서 결정/.test(DP.run("chatOut({id:'Q-z', kind:'approval', source:'vooy', target:'portal', status:'PENDING', needs_decision:true, summary:'결제 승인 부탁'}, true)")), '결정 대기 말풍선에 「승인함에서 결정」 버튼');
 
+  // 승인 요청은 '지금 작업 중'·대기 건수에 안 들어간다(레이 님 결정 대기 — 승인함에만)
+  ok(DP.run("ordNeedsWorker({kind:'approval', source:'zzz', target:'portal', status:'PENDING'})") === false, '승인 요청은 실행할 비서가 없다(명부에 없는 발신자여도)');
+  DP.run("ORD_ITEMS=[{id:'Q-l1', kind:'approval', source:'zzz', target:'portal', status:'PENDING', created_at:new Date().toISOString()},{id:'Q-l2', kind:'chat', source:'portal', target:'cue', status:'PENDING', created_at:new Date().toISOString()}]");
+  ok(DP.run("ordLiveList().map(x=>x.it.id).join()") === 'Q-l2', '지금 작업 중 목록에서 승인 요청은 빠진다');
   // ④ 예전 배포 — approval_list 모르면 실행 승인 대기만(어림이라고 밝힌다)
   ok(DP.run("apprFromItems([{id:'a', status:'WAITING_APPROVAL'},{id:'b', status:'PENDING', kind:'approval'}]).items.map(x=>x.id).join()") === 'a', '예전 배포: 지금 목록의 실행 승인 대기만');
   DP.run("APPR_MODE='local'; APPR=apprFromItems([]); renderAppr();");

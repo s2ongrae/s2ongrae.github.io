@@ -472,6 +472,7 @@ function coreTests() {
     ok(/키투 · 블로그 임시저장 수정/.test(b) && /실행 승인 · 포털 코드 고쳐/.test(b) && !/보류한 것/.test(b), '위 3건 제목 — 보류는 빼고, 실행 승인은 그렇게 표시');
     ok(!/<b>2건<\/b>/.test(b) && /&lt;b&gt;2건/.test(b), '제목은 이스케이프한다');
     ok(C.roomApprovalBanner({count: 0, items: []}) === '' && C.roomApprovalBanner(null) === '', '없으면 아무것도 안 그린다(배너 숨김)');
+    ok(C.roomLiveItems([{id: 'A', kind: 'approval', source: 'zzz', target: 'portal', status: 'PENDING'}, {id: 'B', kind: 'chat', source: 'portal', target: 'cue', status: 'PENDING'}]).map(x => x.it.id).join() === 'B', '작업 리스트에서 승인 요청은 빠진다');
     ok(/id="apprb"/.test(html) && /href="\.\.\/#approval-card"/.test(html) && /loadApprovals\(\)/.test(js), '앱 배너 자리와 포털 승인함 링크 · 불러오기 연결');
   }
 

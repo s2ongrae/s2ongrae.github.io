@@ -2660,6 +2660,7 @@ function ordReplyWhoKey(it){
  */
 function ordNeedsWorker(it){
   if(!it) return false;
+  if(ordIsApproval(it)) return false;           // 승인 요청은 레이 님 결정 대기 — 실행할 비서가 없다(대기 건수에 안 센다)
   const tg = ordTargetKey(it);
   if(tg === 'notebook') return true;
   if(tg === 'all') return !ordIsChat(it);      // @전체 대화는 노트북 몫이 아니다(토큰 절약)
@@ -3279,7 +3280,8 @@ function ordLiveList(){
   const out = [];
   (Array.isArray(ORD_ITEMS) ? ORD_ITEMS : []).forEach(it => {
     const st = String((it && it.status) || '').toUpperCase();
-    if(!it || !ORD_LIVE[st] || ordIsPlainReply(it)) return;
+    // 🔔 승인 요청은 누가 실행할 일이 아니라 레이 님 결정 대기 — 승인함에만 보인다(2026-11-27)
+    if(!it || !ORD_LIVE[st] || ordIsPlainReply(it) || ordIsApproval(it)) return;
     out.push({it: it, st: st, owner: ordLiveOwner(it)});
   });
   out.sort((a, b) => (ORD_LIVE_RANK[a.st] - ORD_LIVE_RANK[b.st]) ||

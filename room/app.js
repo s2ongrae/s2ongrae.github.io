@@ -678,7 +678,8 @@ function roomLiveItems(items){
   const out = [];
   (Array.isArray(items) ? items : []).forEach(it => {
     const st = String((it && it.status) || '').toUpperCase();
-    if(!it || !ROOM_LIVE_ST[st] || roomIsPlainReply(it)) return;
+    // 🔔 승인 요청은 레이 님 결정 대기 — 작업 리스트가 아니라 승인 배너로(2026-11-27)
+    if(!it || !ROOM_LIVE_ST[st] || roomIsPlainReply(it) || String(it.kind || '').toLowerCase() === 'approval') return;
     out.push({it: it, state: st, owner: roomLiveOwner(it)});
   });
   out.sort((a, b) => (ROOM_LIVE_RANK[a.state] - ROOM_LIVE_RANK[b.state]) ||
