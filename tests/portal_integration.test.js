@@ -198,9 +198,9 @@ console.log('Q) 상단 링크·상태등');
   bar = D3.el('statusbar').innerHTML;
   ok(D3.calls.length===1 && r3 && r3.reason==='unsupported', '예전 배포: 요청 1건·실패로 취급하지 않음');
   ok((bar.match(/미연결 \(세팅 대기\)/g)||[]).length===3 && /재배포/.test(bar), '예전 배포: 미연결 + 재배포 안내');
-  ok(!!D3.store.get('portal_qstatus_cache'), '예전 배포도 5분 캐시에 담아 반복 호출을 막음');
+  ok(!D3.store.get('portal_qstatus_cache'), '예전 배포(안 되는 요청)는 5분 캐시에 담지 않음 — 재배포되면 바로 알아챈다');
   let n0 = D3.calls.length; await D3.run('refreshQueueStatus()');
-  ok(D3.calls.length===n0, '5분 안에는 다시 부르지 않음(캐시)');
+  ok(D3.calls.length===n0+1, '세팅 대기 응답은 캐시로 굳히지 않고 다시 확인');
 
   // ③ 실제 연결 — 노트북 초록 · 밀린 명령 노랑 · 토스 초록
   const S4 = mk(), fakeNow = S4.run('Date.now()');
@@ -234,6 +234,37 @@ console.log('Q) 상단 링크·상태등');
   D4.store.set('portal_qstatus_cache', JSON.stringify({at: new Date(Date.now()-6*60000).toISOString(), data: r4}));
   await D4.run('refreshQueueStatus()');
   ok(D4.calls.length>calls, '5분이 지나면 다시 조회');
+
+  // ④-1 회귀(2026-11-27): 일시 실패를 5분 캐시에 담아 '미연결 (세팅 대기)'로 5분간 굳던 버그
+  const S5 = mk(), fakeNow5 = S5.run('Date.now()');
+  const iso5 = m => new Date(fakeNow5 - m*60000).toISOString();
+  S5.props.QUEUE_SHEET_ID = 'SHEETidForTest0005';
+  S5.addSheet('SHEETidForTest0005', {'Command_Queue': [
+    ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by','finished_at'],
+    ['c1', iso5(3), 'phone','git_pull','gaegyebu','{}','PENDING',0,'','',''],
+  ]});
+  const D5 = makeDevice(S5); D5.config();
+  const realDoPost = S5.sb.doPost; let failOnce = true;
+  S5.sb.doPost = e => {                       // 첫 queue_status 만 '연결 실패' (일시 타임아웃·오류 흉내)
+    try { if(failOnce && JSON.parse(e.postData.contents).action === 'queue_status'){
+      failOnce = false; return { getContent: () => JSON.stringify({ok:false, error:'연결 실패'}) }; } } catch(_) {}
+    return realDoPost(e);
+  };
+  let c5 = D5.calls.length;
+  const r5a = await D5.run('refreshQueueStatus()');
+  bar = D5.el('statusbar').innerHTML;
+  ok(D5.calls.length===c5+1 && r5a && r5a.connected===false, '일시 실패: 그 순간은 미연결로 보인다');
+  ok(!D5.store.get('portal_qstatus_cache'), '일시 실패는 5분 캐시에 남기지 않음');
+  ok(r5a && r5a.reason==='error' && !/재배포/.test(bar), "일시 오류를 '예전 배포 — 재배포'라고 잘못 안내하지 않음");
+  const r5b = await D5.run('refreshQueueStatus()');   // force 없이, 5분 안이어도
+  ok(D5.calls.length===c5+2 && r5b && r5b.connected===true, '5분 안이라도 서버가 살아나면 다시 받아 연결됨');
+  ok(/대기 1/.test(D5.el('statusbar').innerHTML), '화면도 미연결에서 벗어나 실제 상태를 보여 줌');
+  ok(!!D5.store.get('portal_qstatus_cache'), '연결된 응답은 5분 캐시에 담음');
+  const c5b = D5.calls.length; await D5.run('refreshQueueStatus()');
+  ok(D5.calls.length===c5b, '연결된 뒤에는 5분 캐시로 호출을 아낀다');
+  D5.store.set('portal_qstatus_cache', JSON.stringify({at: new Date().toISOString(), data:{ok:false, connected:false, reason:'unsupported'}}));
+  const c5c = D5.calls.length; const r5c = await D5.run('refreshQueueStatus()');
+  ok(D5.calls.length===c5c+1 && r5c && r5c.connected===true, '예전 버전이 남긴 실패 캐시는 무시하고 새로 받아옴');
 
   // ⑤ 서버가 준 글자도 이스케이프
   D4.run(`renderQueueStatus({ok:true, connected:true, at:new Date().toISOString(), heartbeat:{state:'ok',min:1,source:'sheet'}, queue:{state:'ok',pending:0,waiting:0,timeout:0,oldest_min:null}, toss:{state:'warn',date:'<b>x</b>',days:2}})`);

@@ -57,7 +57,9 @@
 - 헤더 링크는 **5개 고정 순서**: 가계부 · 보험관리툴 · 사전진단툴 · 🎬 콘텐츠 허브(`s2ongrae.github.io/content-hub/`) · 🛍️ 스마트스토어.
 - **스마트스토어는 주소를 넣기 전엔 열리지 않는다**: `localStorage.portal_store_url`(https 만) → 없으면 `.off` 점선 + 클릭 시 "⚙️ 설정에 넣어주세요" 안내만. 주소는 ⚙️ 창의 "이 링크만 저장"으로 저장한다(서버 연결 테스트와 무관).
 - **상태등 3개** = 노트북 응답 · 밀린 명령 · 토스 동기화. 서버 `queue_status` 한 번으로 읽고 **이 기기에 5분 캐시**(`portal_qstatus_cache`). 배지 클릭 = 강제 새로고침.
-- **빨간 에러를 보여 주지 않는 경우**: ① 서버 설정 전(`reason:'noconfig'`) ② 서버가 아직 `queue_status` 를 모르는 예전 배포(`reason:'unsupported'`) → 셋 다 `미연결 (세팅 대기)` + 무엇을 하면 되는지 title 로 안내. 실패도 5분 캐시에 담아 반복 호출을 막는다.
+- **빨간 에러를 보여 주지 않는 경우**: ① 서버 설정 전(`reason:'noconfig'`) ② 서버가 아직 `queue_status` 를 모르는 예전 배포(`reason:'unsupported'`) → 셋 다 `미연결 (세팅 대기)` + 무엇을 하면 되는지 title 로 안내.
+- **연결된 응답만 5분 캐시(2026-11-27 고침)**: 예전엔 실패(`connected:false`)도 `portal_qstatus_cache` 에 담아 5분간 반복 호출을 막았는데, **한 번의 일시 타임아웃·오류가 5분 동안 `미연결 (세팅 대기)` 로 굳었다**. 지금은 `data.ok && data.connected === true` 일 때만 담고, `qstatFresh` 도 `connected === true` 인 캐시만 신선하다고 본다(예전 버전이 남긴 실패 캐시는 무시하고 즉시 다시 받아옴). 실패는 캐시하지 않으므로 탭 복귀·새로고침·배지 클릭 때마다 서버를 다시 부른다 — 서버가 다시 살아나면 바로 초록이 된다.
+- **실패 이유를 구분해 안내한다(2026-11-27)**: `unsupported`(예전 배포 → 재배포 안내) · `auth`(키 오류 → ⚙️ 키 다시 입력) · `error`(일시 오류 → 눌러서 다시 확인) · `noconfig`(설정 전). 일시 오류를 '예전 배포 — 재배포'라고 잘못 말하지 않는다.
 - 임계값(Code.gs): 노트북 초록 5분 이내 / 노랑 1시간 이내 / 빨강 그 뒤. 밀린 명령은 TIMEOUT_REVIEW 1건 이상, PENDING 15분 초과 = 빨강, PENDING 2건 이상·승인 대기 1건 이상 = 노랑. 토스는 1일 이내 초록 / 3일까지 노랑 / 4일+ 빨강.
 - **시트 시각은 '노트북 생존'의 근거가 아니다(2026-11-18 개정)**: 노트북 `heartbeat.json` 은 노트북 디스크에만 있어서, `HEARTBEAT_FILE_ID` 가 없으면 `queue_status` 는 `heartbeat:{state:'unknown', source:'sheet', approx:true, reason:'no_heartbeat', min, at}` 로 답한다. 화면은 노트북 배지를 **회색 '신호 없음'** 으로 두고 시트 활동을 '오더를 넣은 흔적'으로만 title·보조줄에 적는다. 피클이 오더를 넣기만 해도 초록이 되던 거짓 안심을 없앴다(실전점검 2026-11-18 P0).
 - **검토 필요(REVIEW_NEEDED) 카드**: 차단 사유·변경 요약·바뀐 파일·브랜치와 compare 링크에 더해 `[⧉ 병합 1줄 복사]` 버튼(`ordMergeCmd` → `git fetch && git merge origin/auto-review/<id>`)을 둔다. 브랜치 칸이 비면 오더 id 로 만들고, `main` 같은 다른 브랜치는 받지 않는다. 클립보드는 https 에서만 동작하므로 실패하면 임시 입력칸 선택 복사 → 안내 순서로 떨어진다.
@@ -318,7 +320,7 @@
 
 - `tests/lib/portal_fake_server.js`: 가짜 CalendarApp·Tasks·DriveApp 위에서 실제 Code.gs 실행.
 - `portal_integration.test.js` 는 포털 스크립트 전체를 가짜 브라우저에서 돌린다. 시간대 Asia/Seoul 고정.
-- 테스트 종류: `portal_server`, `portal_merge`(메모 병합 규칙), `portal_integration`, `prediag`, `memo-safety`, `pwa`(홈 화면 아이콘). `queue_status`·상태등은 `portal_server` 8)절과 `portal_integration` Q)절이, 오더함은 `portal_server` 9)절과 `portal_integration` R)절이 검증한다(가짜 시트·가짜 heartbeat·가짜 스냅샷).
+- 테스트 종류: `portal_server`, `portal_merge`(메모 병합 규칙), `portal_integration`, `prediag`, `memo-safety`, `pwa`(홈 화면 아이콘). `queue_status`·상태등은 `portal_server` 8)절과 `portal_integration` Q)절이, 오더함은 `portal_server` 9)절과 `portal_integration` R)절이 검증한다(가짜 시트·가짜 heartbeat·가짜 스냅샷). **Q④-1 은 일시 실패를 5분 캐시에 담지 않는 회귀 테스트** — 실패를 캐시하도록 되돌리면 7건이 깨진다.
 - `tests/lib/portal_fake_server.js` 의 가짜 스프레드시트는 `getRange().getValues/setValues`·`appendRow`·`insertSheet` 까지 흉내 낸다 — 오더함 쓰기를 실제 Code.gs 로 돌려 시트 배열을 직접 확인한다.
 
 
