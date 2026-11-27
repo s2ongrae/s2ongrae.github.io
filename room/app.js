@@ -180,7 +180,32 @@ function roomSenderKey(it){
 }
 /** 나(레이 님)가 보낸 말인가 — 포털·폰·텔레그램은 오른쪽 */
 function roomIsMine(it){ const k = roomSenderKey(it); return k === 'portal' || k === 'phone' || k === 'telegram'; }
-function roomIsChat(it){ return String((it && it.kind) || '').toLowerCase() === 'chat'; }
+function roomIsChat(it){ const k = String((it && it.kind) || '').toLowerCase(); return k === 'chat' || k === 'approval'; }
+/** 🔔 승인 요청 표시 — 결정 대기 / ✅ 승인됨 / ⏸ 보류 / 🚫 거절됨 (포털 ordApprovalChip 과 같은 말) */
+function roomApprovalChip(it){
+  const a = it && it.approval;
+  const isReq = String((it && it.kind) || '').toLowerCase() === 'approval';
+  if(!isReq && !(a && a.decision)) return null;
+  const d = a && a.decision;
+  if(d === 'approve') return {t: '✅ 승인됨', c: 'ok'};
+  if(d === 'reject') return {t: '🚫 거절됨', c: 'bad'};
+  if(d === 'hold') return {t: '⏸ 보류', c: ''};
+  return {t: '🔔 승인 요청 · 결정 대기', c: 'warn'};
+}
+/** 머리 아래 배너 — 승인 대기 N건 + 위 3건 제목. 결정은 포털 승인함에서(앱은 대화 전용) */
+function roomApprovalBanner(d){
+  const items = d && Array.isArray(d.items) ? d.items.filter(x => x && !x.held) : [];
+  const n = d && typeof d.count === 'number' ? d.count : items.length;
+  if(!n) return '';
+  const top = items.slice(0, 3).map(x => {
+    const src = String(x.source || '').toLowerCase();
+    const a = roomAgentById(src);
+    const who = x.approval_kind === 'order' ? '실행 승인' : (a ? a.name : src || '비서');
+    const t = (x.approval && x.approval.title) || String(x.summary || '').split('\n')[0];
+    return '<li>' + esc(who + ' · ' + roomShort(t, 46)) + '</li>';
+  }).join('');
+  return '<b>🔔 승인 대기 ' + n + '건</b><span class="apprb-go">포털 승인함에서 결정 ↗</span>' + (top ? '<ul>' + top + '</ul>' : '');
+}
 /** 대상 — all · 비서 id · portal */
 function roomTargetKey(it){
   const t = String((it && it.target) || '').toLowerCase().trim();
@@ -1036,6 +1061,7 @@ function roomReactHtml(it){
       (mine && tg.id === 'portal') ? '' : '<span class="to">→ ' + esc(tg.label) + '</span>',
       plain ? '' : '<span class="chip ' + st.c + '">' + esc(st.t) + '</span>',
       rep ? '<span class="chip ' + rep.c + '">' + esc(rep.t) + '</span>' : '',
+      (function(){ const ac = roomApprovalChip(it); return ac ? '<span class="chip ' + ac.c + '">' + esc(ac.t) + '</span>' : ''; })(),
       it.auto_approved ? '<span class="chip">자동(위임)</span>' : '',
       '<span class="tm">' + esc(roomWhen(it.created_at)) + '</span>'
     ].join('');
@@ -1146,7 +1172,7 @@ function roomReactHtml(it){
     const btn = (k, v, on, inner) => '<button type="button" class="fchip' + (on ? ' on' : '') + '" data-fk="' + k + '" data-fv="' + esc(v) + '">' + inner + '</button>';
     box.innerHTML =
       '<span class="fh">상태</span>' + stC.map(x => btn('st', x[0], F.st === x[0], esc(x[1]))).join('') +
-      '<span class="fh">비서</span>' + who.map(a => btn('who', a.id, F.who === a.id, roomMark(a.id, {mini: true}) + esc(a.name))).join('');
+      '<span class="fbr" aria-hidden="true"></span><span class="fh">비서</span>' + who.map(a => btn('who', a.id, F.who === a.id, roomMark(a.id, {mini: true}) + esc(a.name))).join('');
     if(cnt){
       const shown = S.items.filter(it => roomVisible(it, F, S.items, Date.now())).length;
       const miss = S.items.filter(it => roomReportState(it, S.items) === 'miss').length;
@@ -1501,6 +1527,22 @@ function roomReactHtml(it){
     }
   }
 
+  /* ── 🔔 승인 대기 배너 (2026-11-27) — 1분에 한 번만 읽는다. 예전 서버면 조용히 숨긴다 ── */
+  async function loadApprovals(){
+    const el = $('apprb');
+    if(!el || S.apprBusy) return;
+    if(S.apprAt && Date.now() - S.apprAt < 60000) return;
+    S.apprBusy = true;
+    try{
+      const d = await api('approval_list', {});
+      S.apprAt = Date.now();
+      const html = (d && d.ok === true) ? roomApprovalBanner(d) : '';
+      el.innerHTML = html;
+      el.hidden = !html;
+    } catch(e){ el.hidden = true; }
+    finally { S.apprBusy = false; }
+  }
+
   /* ── 불러오기 ── */
   async function load(kind){
     if(S.busy) return;
@@ -1520,6 +1562,7 @@ function roomReactHtml(it){
         if(Array.isArray(d.workspaces) && d.workspaces.length) S.wss = d.workspaces.map(String).slice(0, 20);
         S.err = '';
         hideStrip();
+        loadApprovals();
       } else {
         const code = d && d.code;
         S.err = code === 'unauthorized' ? '비밀 키 오류'

@@ -2118,5 +2118,77 @@ console.log('AI) 👀 이모지 반응 — 말풍선 칩 · 대기 문구 · 브
   ok(/안 읽음 2/.test(DR.run("briefRow({id:'cue', unread:2, handled_today:0})")) && !/미전달/.test(DR.run("briefRow({id:'cue', unread:2, handled_today:0})")), '예전 서버 응답은 안 읽음으로 그린다');
 }
 
+console.log('AJ) 🔔 승인함 — 모으기 · 결정 · 타임라인 표시 · 예전 배포 (2026-11-27)');
+{
+  const HEAD = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const SP = mk();
+  const nowMs = SP.sb.Date.now();
+  const at = ms => new Date(ms).toISOString();
+  const row = (id, agoMin, source, status, payload, x) => {
+    const r = [id, at(nowMs - agoMin * 60000), source, 'claude_prompt', 'gaegyebu', JSON.stringify(payload), status, 0, '', '', ''];
+    while (r.length < HEAD.length) r.push('');
+    Object.keys(x || {}).forEach(k => { const i = HEAD.indexOf(k); if (i >= 0) r[i] = x[k]; });
+    return r;
+  };
+  SP.props.QUEUE_SHEET_ID = 'SHEETidApprUi01';
+  SP.addSheet('SHEETidApprUi01', {'Command_Queue': [HEAD.slice(0),
+    row('Q-p1', 30, 'keyring2', 'PENDING', { prompt: '블로그 임시저장 2건 수정 <img src=x onerror=alert(1)>\n발행은 안 함', mode: 'ask', kind: 'approval', target: 'portal', title: '블로그 임시저장 <b>2건</b> 수정', risk: '외부 계정', due: '오늘 18시' }),
+    row('Q-p2', 20, 'vooy2', 'PENDING', { prompt: '상품명 1안으로 진행해도 될까요?', mode: 'ask', kind: 'chat', target: 'portal' }),
+    row('Q-p3', 10, 'portal', 'WAITING_APPROVAL', { prompt: '포털 코드 고쳐', mode: 'edit' }, { risk_level: 'HIGH', approval_expires_at: at(nowMs + 10 * 60000) })
+  ]});
+  const DP = makeDevice(SP);
+  DP.config();
+  await DP.run('loadOrders()');
+  await DP.run('apprLoad(true)');
+  const L = () => DP.el('appr-list').innerHTML;
+
+  // ① 모으기 — 요청 · 승인 묻는 말 · 실행 승인
+  ok(DP.run('APPR_MODE') === 'server' && DP.calls.some(c => JSON.parse(c.opts.body).action === 'approval_list'), '서버 approval_list 로 읽는다(POST·키)');
+  ok(/data-appr="Q-p1"/.test(L()) && /data-appr="Q-p2"/.test(L()) && /data-appr="Q-p3"/.test(L()), '세 갈래가 다 보인다');
+  ok(/k-request/.test(L()) && /k-suggested/.test(L()) && /k-order/.test(L()), '갈래별 모양(요청·자동 감지·실행 승인)');
+  ok(/승인 묻는 말 · 자동 감지/.test(L()), '자동 감지는 확실하지 않다고 표시');
+  ok(/외부 계정/.test(L()) && /기한 오늘 18시/.test(L()), '위험 종류·기한 표시');
+  ok(!/<img src=x/.test(L()) && !/<b>2건<\/b>/.test(L()) && /&lt;b&gt;2건/.test(L()), '제목·본문 이스케이프(XSS)');
+  ok(DP.el('appr-badge').textContent === '결정 3', '제목 배지 = 결정할 수');
+  ok(!/data-id="Q-p3" onclick="apprDecide\(this\.dataset\.id,'hold'\)"/.test(L()) && /data-id="Q-p1" onclick="apprDecide\(this\.dataset\.id,'hold'\)"/.test(L()), '실행 승인에는 보류 버튼이 없다');
+  ok(/placeholder="메모\(선택\)/.test(L()), '메모 칸');
+
+  // ② 결정 — 승인(메모 포함) → 서버 기록 + 요청한 비서에게 답장 + 승인함에서 빠진다
+  DP.el('appr-memo-Q-p1').value = '발행은 절대 금지';
+  await DP.run("apprDecide('Q-p1','approve')");
+  const dec = DP.calls.map(c => JSON.parse(c.opts.body)).filter(b => b.action === 'approval_decide');
+  ok(dec.length === 1 && dec[0].id === 'Q-p1' && dec[0].decision === 'approve' && dec[0].note === '발행은 절대 금지', 'approval_decide 로 결정과 메모를 보낸다');
+  const sheet = SP.books['SHEETidApprUi01']['Command_Queue'];
+  const p1 = sheet.find(r => r[0] === 'Q-p1');
+  ok(p1[HEAD.indexOf('status')] === 'DONE' && /^✅ 승인 — 발행은 절대 금지/.test(p1[HEAD.indexOf('approval_note')]), '시트에 결정이 남는다');
+  ok(sheet.some(r => { try { const q = JSON.parse(r[HEAD.indexOf('payload')]); return q.target === 'keyring2' && q.reply_to === 'Q-p1'; } catch (e) { return false; } }), '키투에게 결과 답장이 간다');
+  ok(!/data-appr="Q-p1"/.test(L()) && DP.el('appr-badge').textContent === '결정 2', '결정한 건 승인함에서 빠진다');
+  // 보류 → 맨 뒤 '보류 중'
+  await DP.run("apprDecide('Q-p2','hold')");
+  ok(/class="appr-row k-suggested held"|held/.test(L()) || !/data-appr="Q-p2"/.test(L()), '보류 처리(대화형 질문은 기록만 하고 빠질 수 있다)');
+  // 실행 승인 → queue_decide 와 같은 길(서버가 위임)
+  await DP.run("apprDecide('Q-p3','approve')");
+  ok(sheet.find(r => r[0] === 'Q-p3')[HEAD.indexOf('status')] === 'PENDING', '실행 승인 → 노트북 실행 차례(PENDING)');
+  ok(DP.el('appr-list').innerHTML.indexOf('결정할 것이 없어요') >= 0 && /appr-card empty/.test(DP.el('approval-card').className), '다 결정하면 한 줄로 접힌다');
+
+  // ③ 타임라인 — 승인 요청은 대화처럼, 표시만 붙인다
+  ok(DP.run("ordIsChat({kind:'approval'}) && ordIsApproval({kind:'approval'}) && !ordIsApproval({kind:'chat'})") === true, '승인 요청은 대화로 그린다');
+  ok(/결정 대기/.test(DP.run("ordApprovalChip({kind:'approval'})")) && /✅ 승인됨/.test(DP.run("ordApprovalChip({kind:'approval', approval:{decision:'approve'}})")) && /⏸ 보류/.test(DP.run("ordApprovalChip({kind:'chat', approval:{decision:'hold'}})")), '표시: 결정 대기·승인됨·보류');
+  ok(DP.run("ordApprovalChip({kind:'chat'})") === '', '보통 대화엔 표시 없음');
+  ok(DP.run("ordShowReply({kind:'approval', status:'DONE', source:'keyring2', target:'portal', result:'✅ 승인'})") === false, '결정 결과를 요청자 이름의 두 번째 말풍선으로 그리지 않는다');
+  ok(/승인함에서 결정/.test(DP.run("chatOut({id:'Q-z', kind:'approval', source:'vooy', target:'portal', status:'PENDING', needs_decision:true, summary:'결제 승인 부탁'}, true)")), '결정 대기 말풍선에 「승인함에서 결정」 버튼');
+
+  // ④ 예전 배포 — approval_list 모르면 실행 승인 대기만(어림이라고 밝힌다)
+  ok(DP.run("apprFromItems([{id:'a', status:'WAITING_APPROVAL'},{id:'b', status:'PENDING', kind:'approval'}]).items.map(x=>x.id).join()") === 'a', '예전 배포: 지금 목록의 실행 승인 대기만');
+  DP.run("APPR_MODE='local'; APPR=apprFromItems([]); renderAppr();");
+  ok(/재배포/.test(DP.el('appr-note').textContent), '예전 배포면 안내줄에 밝힌다');
+  // ⑤ 설정 전엔 요청 없이 안내만
+  const DN = makeDevice(SP);
+  await DN.run('apprLoad(true)');
+  ok(DN.calls.length === 0 && /서버를 연결하면/.test(DN.el('appr-list').innerHTML), '서버 설정 전엔 요청 없이 안내만');
+}
+
 console.log(`\n포털 통합 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail?1:0);
 })();

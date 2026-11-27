@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=10">
+<link rel="stylesheet" href="app.css?v=12">
 </head>
 <body>
 <div class="app" id="app">
@@ -37,6 +37,9 @@
     <span id="strip-t"></span>
     <button type="button" id="strip-b">설정</button>
   </div>
+
+  <!-- 🔔 승인 대기 — 레이 님이 결정할 것이 있으면만 보인다(결정은 포털 승인함에서) -->
+  <a class="apprb" id="apprb" href="../#approval-card" target="_blank" rel="noopener" hidden></a>
 
   <!-- 🔴 지금 작업 중 — 누가 무슨 일을 하는지(작업 리스트 · 가동 상태). app.js renderLive() 가 그림 -->
   <section class="live" id="live" aria-label="지금 작업 중" hidden></section>
@@ -132,6 +135,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=10" defer></script>
+<script src="app.js?v=12" defer></script>
 </body>
 </html>

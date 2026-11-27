@@ -28,10 +28,10 @@ const MEMO_COLORS   = ['mc-yellow', 'mc-blue', 'mc-green', 'mc-pink', 'mc-purple
 //          쓰기 액션은 GET 으로 절대 받지 않는다(링크 미리보기·로그에 키가 남는 위험을 줄이기 위해
 //          읽기만 열고, 키는 여전히 64자 전체 비교다).
 //          `?action=queue_head` 는 **최신 1건의 id·시각·대상만** 돌려주는 초경량 확인용이다.
-const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
+const GET_ACTIONS = ['ping', 'queue_status', 'queue_list', 'queue_head', 'queue_brief', 'queue_inbox', 'approval_list', 'usage_get', 'agents_get', 'webhook_last', 'auth_link'];
 // 2026-11-26 — 지금 깔린 배포가 어느 코드인지 화면·비서가 알 수 있게. 배포할 때마다 올린다(날짜-순번).
 //  "재배포가 필요해요"가 많은데 배포 여부를 확인할 길이 없었다 — ping 이 이 값을 돌려준다.
-const SERVER_VERSION = '2026-11-27.brief7';
+const SERVER_VERSION = '2026-11-27.brief8';
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const action = String(p.action || '').trim();
@@ -50,6 +50,7 @@ function doGet(e) {
       case 'queue_list':   return out(queueList({ target: p.target, limit: p.limit }));
       case 'queue_head':   return out(queueHead({ target: p.target }));
       case 'queue_brief':  return out(queueBrief({}));
+      case 'approval_list': return out(approvalList({}));
       case 'queue_inbox':  return out(queueInbox({ as: p.as || p.target, since: p.since }));
       case 'usage_get':    return out(usageGet());
       case 'agents_get':   return out(agentListGet());
@@ -98,6 +99,8 @@ function doPost(e) {
       case 'queue_inbox':       return out(queueInbox(body));     // 📥 내 받은편지함 — 지금 처리할 말만(주기 확인형 비서용)
       case 'queue_react':       return out(queueReact(body));     // 👀 이모지 반응 — 확인 답장 대신(접수·진행 중·완료·내 일 아님)
       case 'queue_sweep':       return out(queueSweep(body));     // 🧹 묵은 대화 정리 — 기본은 미리보기(apply:true 일 때만 닫는다)
+      case 'approval_list':     return out(approvalList(body));   // 🔔 승인함 — 레이 님이 결정할 것만(읽기)
+      case 'approval_decide':   return out(approvalDecide(body)); // 🔔 승인·보류·거절 → 요청한 비서에게 답장
       case 'webhook_last':      return out(queueWebhookLast());   // 🔔 웹훅 발사 결과(읽기 전용 — 주소 없음)
       case 'queue_enqueue':     return out(queueEnqueue(body));   // 🤖 오더함 — 오더 접수
       case 'webhook_set':       return out(queueWebhookSet(body)); // 🔔 외부 비서 웹훅 주소 등록(ScriptProperties)
@@ -1714,7 +1717,7 @@ function qqSummary_(type, p) {
     const kind = String(p.kind || '').toLowerCase();
     // 큐가 붙인 [워커 규칙] 은 실행 규칙이지 사람이 읽을 내용이 아니다 — 요약에서는 뗀다(2026-11-25).
     const raw = qqStripWorkerNote_(p.prompt);
-    if (kind === 'chat') {
+    if (kind === 'chat' || kind === 'approval') {
       // 대화는 '클로드: ' 접두사도, 160자 컷도, 공백 뭉개기도 없다. 원문 그대로(줄바꿈 보존).
       return qqMask_(raw.replace(/\r\n?/g, '\n'), QQ_CELL_MAX);
     }
@@ -1794,7 +1797,19 @@ function qqItem_(r) {
       return clip(by, 20);
     })(),
     summary: qqSummary_(type, p),
-    needs_decision: st === 'WAITING_APPROVAL'
+    // 🔔 레이 님이 결정해야 하는가 — 실행 승인 대기 + 아직 결정 안 한 승인 요청(2026-11-27)
+    needs_decision: st === 'WAITING_APPROVAL' ||
+      (String(p.kind || '').toLowerCase() === 'approval' && st === 'PENDING'),
+    approval: (function () {
+      const isReq = String(p.kind || '').toLowerCase() === 'approval';
+      const note = String(r.approval_note == null ? '' : r.approval_note);
+      const dec = qqDecisionOf_(r);
+      if (!isReq && !dec) return null;
+      return { request: isReq, title: clip(String(p.title == null ? '' : p.title), QQ_APPROVAL_TITLE_MAX),
+        risk: clip(String(p.risk == null ? '' : p.risk), 20), ref: clip(String(p.ref == null ? '' : p.ref), 60),
+        due: clip(String(p.due == null ? '' : p.due), 40), decision: dec,
+        decided_at: clip(r.approval_at, 40), note: qqMask_(note.replace(/^[✅⏸🚫]\S*\s*(승인|보류|거절)\s*(—\s*)?/, ''), 300) };
+    })()
   };
 }
 
@@ -1828,11 +1843,27 @@ function qqPayloadOf_(type, p) {
   // 2026-11-25 통합 회의실 — kind='chat' 이면 노트북이 코드가 아니라 '답장'을 만든다(같은 claude_prompt 큐).
   // target 은 @멘션(누구에게). 둘 다 노트북 lib/chat.js 가 읽는다. 모르는 값은 싣지 않는다.
   if (isObj(p) && String(p.kind || '').toLowerCase() === 'chat') out.kind = 'chat';
+  // 2026-11-27 — 🔔 승인 요청. 레이 님(포털) 앞으로만 가고, 레이 님이 결정할 때까지 PENDING 으로 남는다(승인함에 모인다).
+  //  실행 오더가 아니므로 mode 는 늘 ask, 대상은 늘 portal. 제목·위험 종류·관련 오더·기한은 선택.
+  const isApproval = isObj(p) && String(p.kind || '').toLowerCase() === 'approval';
+  if (isApproval) {
+    out.mode = 'ask';
+    out.kind = 'approval';
+    out.target = 'portal';
+    const firstLine = prompt.split(/\r?\n/)[0].replace(/\s+/g, ' ').trim();
+    out.title = clip(String(p.title == null ? '' : p.title).replace(/\s+/g, ' ').trim() || firstLine, QQ_APPROVAL_TITLE_MAX);
+    const risk = String(p.risk == null ? '' : p.risk).replace(/\s+/g, ' ').trim();
+    if (risk) out.risk = clip(risk, 20);
+    const ref = String(p.ref == null ? '' : p.ref).trim();
+    if (ref && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,59}$/.test(ref)) out.ref = ref;
+    const due = String(p.due == null ? '' : p.due).trim();
+    if (due) out.due = clip(due, 40);
+  }
   // 2026-11-27 — 'notebook' 도 그대로 싣는다(예전에는 기본값이라며 지웠다).
   //  노트북은 kind='chat' 이면 target==='notebook' 인 줄만 집어 가므로(hub-agent CommandQueue.gs
   //  cqForNotebook_ · lib/targets.js), 여기서 지우면 @노트북 대화·🌿어사이드가 점유되지 않고
-  //  PENDING 으로 남는다. 비-chat 오더는 target 이 비어 있어 동작이 같다.
-  const target = qqTargetOf_(p) || qqMentionOf_(prompt);
+  //  PENDING 으로 남는다. 비-chat 오더는 target 이 비어 있어 동작이 같다. (승인 요청은 늘 portal)
+  const target = isApproval ? 'portal' : (qqTargetOf_(p) || qqMentionOf_(prompt));
   if (target) out.target = target;
   // 답장 추적(2026-11-25 v27) — 어느 오더에 대한 답장인지(선택). 비서끼리 중복 답장을 막는다.
   const replyTo = String((isObj(p) && p.reply_to) || '').trim();
@@ -2380,7 +2411,8 @@ var QQ_REPORT_RULE = '끝나면 회의실에 한 줄 보고를 남겨 주세요 
   '[운영 규칙] ①reply_to 를 달아 답하면 그 원글이 자동으로 닫혀요(@전체 말 제외) — 일을 끝낸 뒤 한 번만 답하세요. ' +
   '②"확인했어요·수신 완료"처럼 내용 없는 답장은 보내지 마세요(이미 닫힌 말에 감사·확인 답장도 금지 — 비서끼리 무한 왕복). 확인만 하고 싶으면 이모지로: POST queue_react {as,id,emoji:"👀"} (👀 접수 · 🔧 진행 중 · ✅ 완료 · 🙅 내 일 아님 — ✅·🙅 은 내 앞 말을 닫아요). ' +
   '③주기 확인 비서는 매 주기 GET queue_inbox?as=<내 id> 한 번만 읽고, count 가 0 이면 아무 말도 하지 마세요("확인했습니다·변경 없음" 같은 현황 글도 보내지 마세요 — 침묵이 정답). ' +
-  '④오래 걸리는 일은 queue_claim 으로 집지 마세요 — 20분 넘게 신호가 없으면 노트북 워커가 "응답 없음"으로 격리해요. 🔧 반응만 남기고, 끝나면 reply_to 로 답하세요.';
+  '④오래 걸리는 일은 queue_claim 으로 집지 마세요 — 20분 넘게 신호가 없으면 노트북 워커가 "응답 없음"으로 격리해요. 🔧 반응만 남기고, 끝나면 reply_to 로 답하세요. ' +
+  '⑤레이 님 승인이 필요한 일(돈·결제·외부 발행·계정·로그인·삭제·개인정보·배포)은 회의실에만 queue_enqueue {type:"claude_prompt", payload:{kind:"approval", title:"<한 줄>", prompt:"<무엇을·왜·안 하면 어떻게>", risk:"<돈|외부 발행|…>"}} 로 요청하세요 — 텔레그램·슬랙·카톡 등 다른 앱으로 보내지 마세요. 결정(✅ 승인·⏸ 보류·🚫 거절)은 reply_to 답장으로 가고, 승인 전에는 실행하지 마세요.';
 function qqStripWorkerNote_(s) {
   return String(s == null ? '' : s).replace(QQ_WORKER_NOTE_RE, '').trim();
 }
@@ -2389,7 +2421,7 @@ function qqWithWorkerNote_(type, payload) {
   var p;
   try { p = qqParse_(payload); } catch (err) { return payload; }
   if (!p || typeof p !== 'object' || Array.isArray(p)) return payload;
-  if (String(p.kind || '').toLowerCase() === 'chat') return payload;
+  if (String(p.kind || '').toLowerCase() === 'chat' || String(p.kind || '').toLowerCase() === 'approval') return payload;
   var prompt = String(p.prompt || '');
   if (!prompt || prompt.indexOf('[워커 규칙]') !== -1) return payload;
   if (prompt.length + QQ_WORKER_NOTE.length > QQ_MAX_PAYLOAD) return payload;
@@ -2842,6 +2874,135 @@ function qqDeliverMark_(ctx, me, ids, rmap) {
   } catch (err) { /* 진단용 — 실패해도 받은편지함 응답에는 영향 없다 */ }
 }
 // ═══════════════════════════════════════════════════════════════
+// 🔔 승인함 — approval_list · approval_decide (2026-11-27, 사용자 "승인 필요한 것만 딱딱 볼 수 있게")
+//
+//  왜: 비서들이 승인이 필요한 일을 가끔 자기 앱(텔레그램·슬랙 등)으로 보내 관리가 흩어졌다.
+//      → 승인은 회의실의 `kind:'approval'` 하나로 받고, 레이 님이 결정할 것만 한곳에 모은다.
+//  모으는 것(최근 400행)
+//   ① request   — 비서가 kind:'approval' 로 낸 승인 요청 중 PENDING(아직 결정 안 함)
+//   ② order     — 실행 승인 대기(WAITING_APPROVAL: 파일 수정·영상 렌더 등) — 결정은 기존 queue_decide 와 같은 길
+//   ③ suggested — kind 는 대화인데 본문이 승인을 묻는 말(정규식) + 48시간 안 + 아직 결정·답장 안 함.
+//                 비서가 형식을 몰라 대화로 물은 것을 놓치지 않으려는 '보조' 갈래다(확실하지 않다고 표시한다).
+//  결정(approval_decide {id, decision:'approve'|'hold'|'reject', note?})
+//   · request: 승인 → DONE · 거절 → REJECTED · 보류 → PENDING 유지(승인함에 '보류'로 남는다). approval_by/at/note 에 기록.
+//   · order  : queue_decide 로 넘긴다(보류는 없음 — 15분 안에 승인하지 않으면 만료).
+//   · suggested: 상태는 그대로, approval_by/at/note 만 기록(승인함에서 빠진다).
+//   · 어느 경우든 요청한 비서에게 결과를 reply_to 답장으로 보낸다(웹훅 비서는 바로 깨어나고 폴링 비서는 받은편지함에서 본다).
+// ═══════════════════════════════════════════════════════════════
+const QQ_APPROVAL_TITLE_MAX = 80;
+const QQ_APPROVAL_HINT_RE = /(승인|허락|결재|컨펌)[^\n]{0,6}(요청|부탁|필요|해\s*주|주시|받아야|받고)|(진행|발행|결제|구매|삭제|배포|등록|업로드|전송)\s*해도\s*(될까요|되나요|괜찮을까요|괜찮나요)|(결정|선택)\s*(해|을|를)?\s*주세요/;
+const QQ_DECISIONS = { approve: '✅ 승인', hold: '⏸ 보류', reject: '🚫 거절' };
+/** 시트 줄의 결정 — approval_note 머리의 표시로 읽는다('approve'|'hold'|'reject'|'') */
+function qqDecisionOf_(r) {
+  const note = String((r && r.approval_note) == null ? '' : r.approval_note);
+  const by = String((r && r.approval_by) == null ? '' : r.approval_by).trim().toLowerCase();
+  if (by !== 'portal') return '';
+  if (note.indexOf(QQ_DECISIONS.approve) === 0) return 'approve';
+  if (note.indexOf(QQ_DECISIONS.hold) === 0) return 'hold';
+  if (note.indexOf(QQ_DECISIONS.reject) === 0) return 'reject';
+  return '';
+}
+function approvalList(body) {
+  const ctx = qqOpen_();
+  const rows = qqRows_(ctx, QQ_SCAN_ROWS);
+  const nowMs = Date.now();
+  const portalReplied = {};                              // 레이 님이 이미 답장한 원글
+  rows.forEach(function (r) {
+    if (qqLow_(r.source) !== 'portal') return;
+    const m = QQ_REPLY_JSON_RE.exec(String(r.payload == null ? '' : r.payload));
+    if (m) portalReplied[m[1]] = true;
+  });
+  const items = [];
+  const count = { request: 0, order: 0, suggested: 0, held: 0 };
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
+    const raw = String(r.payload == null ? '' : r.payload);
+    let kind = '';
+    if (st === 'WAITING_APPROVAL') kind = 'order';
+    else if (st === 'PENDING' && /"kind"\s*:\s*"approval"/.test(raw)) kind = 'request';
+    else if (/"kind"\s*:\s*"chat"/.test(raw) && /"target"\s*:\s*"portal"/.test(raw)) {
+      const src = qqLow_(r.source);
+      if (!qqIsAiId_(src) || qqDecisionOf_(r) || portalReplied[String(r.id)]) continue;
+      if (nowMs - (Date.parse(String(r.created_at || '')) || 0) > 48 * 3600000) continue;
+      const p0 = qqParse_(r.payload);
+      if (!QQ_APPROVAL_HINT_RE.test(String(p0.prompt == null ? '' : p0.prompt))) continue;
+      kind = 'suggested';
+    }
+    if (!kind) continue;
+    const it = qqItem_(r);
+    it.approval_kind = kind;
+    if (kind === 'request' && qqDecisionOf_(r) === 'hold') { it.held = true; count.held++; }
+    count[kind]++;
+    items.push(it);
+  }
+  // 보류는 맨 뒤로(아직 볼 것 먼저) — 안에서는 최신순
+  items.sort(function (a, b) { return (a.held ? 1 : 0) - (b.held ? 1 : 0); });
+  return { ok: true, at: qqNow_(), count: count.request + count.order + count.suggested, counts: count, items: items.slice(0, 40),
+    version: SERVER_VERSION };
+}
+function approvalDecide(body) {
+  const id = clip((body && body.id) || '', 60).trim();
+  if (!id) throw qqErr_('bad_request', '오더 id 가 없어요.');
+  const decision = String((body && body.decision) || '').trim().toLowerCase();
+  if (!QQ_DECISIONS[decision]) throw qqErr_('bad_request', '결정은 approve · hold · reject 중 하나예요.');
+  const note = clip(String((body && body.note) || '').replace(/\s+/g, ' ').trim(), 300);
+  // 실행 승인 대기는 기존 길(해시·만료·감사 로그)을 그대로 쓴다
+  let first = null;
+  try { first = qqFindRow_(qqOpen_(), id); } catch (err) { first = null; }
+  if (!first) throw qqErr_('not_found', '그 항목을 찾지 못했어요.');
+  if (String(first.status || '').trim().toUpperCase() === 'WAITING_APPROVAL') {
+    if (decision === 'hold') throw qqErr_('bad_request', '실행 승인은 보류할 수 없어요 — 15분 안에 승인하지 않으면 만료돼요.');
+    const d = queueDecide({ id: id, decision: decision, note: note });
+    return { ok: true, id: id, decision: decision, kind: 'order', changed: !!(d && d.changed), status: d && d.status };
+  }
+  let requester = '', title = '', kind = '', changed = false, status = '';
+  const nowIso = qqNow_();
+  const res = qqLock_(function () {
+    const ctx = qqOpen_();
+    const r = qqFindRow_(ctx, id);
+    if (!r) throw qqErr_('not_found', '그 항목을 찾지 못했어요.');
+    const st = String(r.status == null ? '' : r.status).trim().toUpperCase();
+    const p = qqParse_(r.payload);
+    const isReq = qqLow_(p.kind) === 'approval';
+    const isChatToMe = qqLow_(p.kind) === 'chat' && qqLow_(p.target) === 'portal';
+    if (!isReq && !isChatToMe) throw qqErr_('bad_request', '승인 요청이 아니에요.');
+    requester = qqIsAiId_(qqLow_(r.source)) ? qqLow_(r.source) : '';
+    title = String(p.title || '').trim() || String(p.prompt || '').split(/\r?\n/)[0].slice(0, 60);
+    kind = isReq ? 'request' : 'suggested';
+    const prev = qqDecisionOf_(r);
+    if (prev && prev !== 'hold') return { ok: true, id: id, changed: false, status: st, decision: prev, reason: '이미 결정한 항목이에요.' };
+    if (isReq && st !== 'PENDING') return { ok: true, id: id, changed: false, status: st, reason: '이미 끝난 요청이에요.' };
+    const mark = QQ_DECISIONS[decision] + (note ? ' — ' + note : '');
+    const patch = { approval_by: 'portal', approval_at: nowIso, approval_note: mark };
+    if (isReq && decision === 'approve') { patch.status = 'DONE'; patch.finished_at = nowIso; patch.result = mark; patch.exit_code = 0; }
+    if (isReq && decision === 'reject') { patch.status = 'REJECTED'; patch.finished_at = nowIso; patch.error = mark; }
+    qqUpdateRow_(ctx, r.__row, patch);
+    qqAudit_(ctx, { id: id, type: String(r.type || ''), workspace: String(r.workspace || ''), risk: String(r.risk_level || ''),
+      decision: decision, by: 'portal', channel: 'approval', note: note, payloadHash: '', source: String(r.source || '') });
+    changed = true;
+    status = patch.status || st;
+    return null;
+  });
+  if (res) return res;
+  // 요청한 비서에게 결과를 답장으로 — 실패해도 결정은 이미 기록됐다
+  let replyId = '';
+  if (requester) {
+    const ws = String(first.workspace || '').trim() || (qqWorkspaces_()[0] || '');
+    const text = '@' + requester + ' [레이 님 결정] ' + QQ_DECISIONS[decision] + ' — ' + title + (note ? '\n메모: ' + note : '') +
+      (decision === 'approve' ? '\n진행하고, 끝나면 reply_to 로 결과를 한 번 남겨 주세요.'
+        : decision === 'hold' ? '\n아직 진행하지 마세요. 필요한 정보가 있으면 이 말에 reply_to 로 답해 주세요.'
+        : '\n진행하지 마세요.');
+    try {
+      const e = queueEnqueue({ type: 'claude_prompt', workspace: ws, source: 'portal', client_id: 'portal',
+        payload: { kind: 'chat', target: requester, reply_to: id, prompt: text } });
+      replyId = e && e.item ? e.item.id : '';
+    } catch (err) { replyId = ''; }
+  }
+  return { ok: true, id: id, decision: decision, kind: kind, changed: changed, status: status, reply_id: replyId, requester: requester };
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 🧹 묵은 대화 정리 — queue_sweep (2026-11-26, 사용자 "정리해줘")
 //
 //  쌓인 PENDING 대화를 안전한 두 갈래로만 닫는다. **기본은 미리보기**(apply:true 일 때만 쓴다).
@@ -3148,6 +3309,9 @@ function queueEnqueue(body) {
   const spec = QQ_TYPES[type];
   if (!spec) throw qqErr_('type', '이 오더함에서는 보낼 수 없는 오더예요.');
   let workspace = String((body && body.workspace) || '').trim();
+  // 2026-11-27 — 승인 요청(kind:'approval')은 실행할 곳이 없다. 작업 위치를 안 줘도 기본 위치로 받는다.
+  const bodyKind = String((body && ((isObj(body.payload) && body.payload.kind) || body.kind)) || '').trim().toLowerCase();
+  if (!workspace && bodyKind === 'approval') workspace = qqWorkspaces_()[0] || '';
   if (spec.needsWorkspace && !workspace) throw qqErr_('workspace', '작업 위치를 골라주세요.');
   if (workspace) qqCheckWorkspace_(workspace);
   else workspace = '';

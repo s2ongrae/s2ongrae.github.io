@@ -137,8 +137,8 @@ input,textarea{font:inherit;color:inherit}
 .lw-chip.wait{background:rgba(183,121,31,.16);color:#8A5A12}
 .lw-chip.pend{background:rgba(90,100,114,.12);color:#46505E}
 .lw-el{margin-left:auto;color:var(--hint);font-weight:700}
-.live-as{display:flex; gap:5px; overflow-x:auto; scrollbar-width:none; padding-bottom:1px; -webkit-overflow-scrolling:touch}
-.live-as::-webkit-scrollbar{display:none}
+/* 2026-11-27 — 숨은 가로 스크롤 때문에 비서 칩이 잘려 보였다 → 줄바꿈 */
+.live-as{display:flex; flex-wrap:wrap; gap:5px; padding-bottom:1px}
 .live-a{flex:0 0 auto; display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px;
   border:1px solid var(--line); background:var(--card2); font-size:10px; font-weight:800; color:var(--sub); white-space:nowrap}
 .live-a .la-s{border-radius:999px;padding:0 5px;background:var(--bg2);color:var(--sub);font-size:9.5px}
@@ -455,8 +455,16 @@ input,textarea{font:inherit;color:inherit}
 }
 .srch:focus{border-color:var(--gold-d); box-shadow:0 0 0 3px rgba(242,193,74,.16)}
 .srch::placeholder{color:var(--hint)}
-.fchips{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding-bottom:1px; align-items:center}
-.fchips::-webkit-scrollbar{display:none}
+.fchips{display:flex; flex-wrap:wrap; gap:6px; row-gap:6px; padding-bottom:1px; align-items:center}
+.fbr{flex:0 0 100%; height:0}   /* '상태' 줄과 '비서' 줄을 나눈다 */
+/* 🔔 승인 대기 배너 */
+.apprb{display:block; margin:8px 12px 0; padding:10px 12px; border-radius:12px; background:#FFF7E6; border:1px solid #F5D9A4;
+  color:#7A4B00; text-decoration:none; font-size:12.5px; line-height:1.45}
+.apprb[hidden]{display:none}
+.apprb b{font-weight:800}
+.apprb .apprb-go{float:right; font-weight:700; font-size:11.5px}
+.apprb ul{margin:6px 0 0; padding-left:16px}
+.apprb li{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .fh{flex:0 0 auto; font-size:10px; font-weight:800; color:var(--hint); letter-spacing:.02em}
 .fchip{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:3px; padding:3px 9px; border-radius:999px;

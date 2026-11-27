@@ -1861,6 +1861,97 @@ console.log('\n23) 🩹 어제 실측 회귀 3건 — TIMEOUT_REVIEW 닫기 · �
   S.props.QUEUE_SHEET_ID = 'SHEETidReact2101';
 }
 
+console.log('\n24) 🔔 승인함 — kind:approval · approval_list · approval_decide (2026-11-27)');
+{
+  const KA = S.props.SECRET_KEY;
+  const SA = 'SHEETidAppr2401';
+  const HEADA = ['id','created_at','source','type','workspace','payload','status','attempts','claimed_at','claimed_by',
+    'finished_at','duration_ms','exit_code','result','error','detail','risk_level','approval_expires_at',
+    'approval_by','approval_at','approval_note','approval_hash'];
+  const now = S.sb.Date.now();
+  const iso = ms => new Date(ms).toISOString();
+  const mkA = (id, hoursAgo, source, payload, status, extra) => {
+    const row = new Array(HEADA.length).fill('');
+    row[HEADA.indexOf('id')] = id; row[HEADA.indexOf('created_at')] = iso(now - hoursAgo * 3600000);
+    row[HEADA.indexOf('source')] = source; row[HEADA.indexOf('type')] = 'claude_prompt'; row[HEADA.indexOf('workspace')] = 'gaegyebu';
+    row[HEADA.indexOf('payload')] = JSON.stringify(payload); row[HEADA.indexOf('status')] = status || 'PENDING';
+    Object.keys(extra || {}).forEach(k => { const i = HEADA.indexOf(k); if (i >= 0) row[i] = extra[k]; });
+    return row;
+  };
+  const chat = (target, prompt, x) => Object.assign({ prompt, mode: 'ask', kind: 'chat', target }, x || {});
+  S.addSheet(SA, { 'Command_Queue': [HEADA.slice(0),
+    mkA('Q-a1', 3, 'vooy2', chat('portal', '묘한살림 상품명 3안 정리했어요. 1안으로 진행해도 될까요?')),          // 승인 묻는 대화 → suggested
+    mkA('Q-a2', 3, 'pi1', chat('portal', '오늘 블로그 통계 정리 끝났어요.'), 'DONE'),                           // 그냥 보고 → 안 모음
+    mkA('Q-a3', 60, 'pi2', chat('portal', '스토어 배포 승인 요청드립니다')),                                     // 48시간 넘음 → 안 모음
+    mkA('Q-a4', 2, 'portal', { prompt: '포털 코드 고쳐', mode: 'edit' }, 'WAITING_APPROVAL',
+      { risk_level: 'HIGH', approval_expires_at: iso(now + 10 * 60000) }),                                    // 실행 승인 대기 → order
+    mkA('Q-a5', 2, 'cue', chat('portal', '결제 승인 부탁드려요')),                                               // suggested 인데 레이 님이 답장함 → 빠짐
+    mkA('Q-a6', 1, 'portal', chat('cue', '그건 하지 마', { reply_to: 'Q-a5' }), 'PENDING')
+  ] });
+  S.props.QUEUE_SHEET_ID = SA;
+  const rowA = id => S.books[SA]['Command_Queue'].find(r => r[0] === id) || [];
+  const colA = (id, k) => rowA(id)[HEADA.indexOf(k)];
+  const list = () => post({ action: 'approval_list', key: KA });
+
+  // ① 비서의 승인 요청 — kind:'approval'
+  const req = post({ action: 'queue_enqueue', key: KA, type: 'claude_prompt', source: 'keyring2',
+    payload: { kind: 'approval', target: 'cue', title: '네이버 블로그 임시저장 글 2건 수정', prompt: '임시저장 2건을 2줄 호흡 구어체로 고칩니다(발행은 안 함).\n안 하면 이번 주 업로드가 밀려요.', risk: '외부 계정', ref: 'Q-a2', due: '오늘 18시' } });
+  ok(req.ok === true && req.item.kind === 'approval' && req.item.target === 'portal' && req.item.status === 'PENDING', '승인 요청은 대상을 portal 로 고정하고 PENDING 으로 남는다(결정 전까지)');
+  ok(req.item.workspace !== '' && req.item.needs_decision === true, '작업 위치를 안 줘도 받고, needs_decision=true');
+  ok(req.item.approval && req.item.approval.request === true && req.item.approval.title === '네이버 블로그 임시저장 글 2건 수정' && req.item.approval.risk === '외부 계정' && req.item.approval.ref === 'Q-a2' && req.item.approval.due === '오늘 18시', '제목·위험 종류·관련 오더·기한이 실린다');
+  ok(String(req.item.summary).indexOf('[워커 규칙]') < 0 && /발행은 안 함/.test(req.item.summary), '워커 규칙 문구를 붙이지 않고 본문 그대로');
+  const reqNoTitle = post({ action: 'queue_enqueue', key: KA, type: 'claude_prompt', workspace: 'gaegyebu', source: 'vooy',
+    payload: { kind: 'approval', prompt: '쿠팡 광고비 3만원 결제 승인 부탁드려요\n효과 측정은 7일' } });
+  ok(reqNoTitle.ok === true && reqNoTitle.item.approval.title === '쿠팡 광고비 3만원 결제 승인 부탁드려요', '제목이 없으면 본문 첫 줄');
+  ok(/kind:"approval"|kind:\\"approval\\"|approval/.test(req.report_rule || '') && /다른 앱/.test(req.report_rule || ''), 'report_rule 에 승인은 회의실로만 규칙이 있다');
+  // 노트북·비서가 집어 가지 않는다
+  const clA = post({ action: 'queue_claim', key: KA, as: 'keyring2' });
+  ok(clA.ok === true && (!clA.item || clA.item.id !== req.item.id), '승인 요청은 비서가 집어 가지 않는다(요청한 비서도 — 대상은 portal)');
+
+  // ② 승인함 — request · order · suggested
+  let L = list();
+  const ids = L.items.map(x => x.id);
+  ok(L.ok === true && L.counts.request === 2 && L.counts.order === 1 && L.counts.suggested === 1 && L.count === 4, '승인함: 요청 2 · 실행 승인 1 · 승인 묻는 대화 1');
+  ok(ids.indexOf('Q-a1') >= 0 && ids.indexOf('Q-a4') >= 0 && ids.indexOf(req.item.id) >= 0, '세 갈래가 다 모인다');
+  ok(ids.indexOf('Q-a2') < 0 && ids.indexOf('Q-a3') < 0 && ids.indexOf('Q-a5') < 0, '그냥 보고·48시간 지난 말·이미 답장한 말은 안 모은다');
+  ok(L.items.find(x => x.id === 'Q-a1').approval_kind === 'suggested' && L.items.find(x => x.id === 'Q-a4').approval_kind === 'order', '갈래 표시(approval_kind)');
+  const gl = JSON.parse(S.sb.doGet({ parameter: { action: 'approval_list', key: KA } }).getContent());
+  ok(gl.ok === true && gl.count === L.count, 'GET approval_list 도 읽힌다');
+  ok(post({ action: 'approval_list' }).error === 'unauthorized', '키 없으면 거절');
+
+  // ③ 결정 — 승인 → DONE + 요청한 비서에게 답장
+  const n0 = S.books[SA]['Command_Queue'].length;
+  let d = post({ action: 'approval_decide', key: KA, id: req.item.id, decision: 'approve', note: '발행은 절대 금지' });
+  ok(d.ok === true && d.changed === true && d.status === 'DONE' && d.requester === 'keyring2' && !!d.reply_id, '승인 → DONE · 요청한 키투에게 답장');
+  ok(colA(req.item.id, 'approval_by') === 'portal' && /^✅ 승인 — 발행은 절대 금지/.test(colA(req.item.id, 'approval_note')) && !!colA(req.item.id, 'approval_at'), '결정 기록(approval_by·at·note)');
+  const reply = rowA(d.reply_id); const rp = JSON.parse(reply[HEADA.indexOf('payload')] || '{}');
+  ok(S.books[SA]['Command_Queue'].length === n0 + 1 && reply[HEADA.indexOf('source')] === 'portal' && rp.target === 'keyring2' && rp.reply_to === req.item.id && /✅ 승인/.test(rp.prompt) && /발행은 절대 금지/.test(rp.prompt), '답장: portal → 키투 · reply_to=요청 · 결정과 메모');
+  ok(post({ action: 'approval_decide', key: KA, id: req.item.id, decision: 'reject' }).changed === false, '이미 결정한 요청은 다시 바꾸지 않는다');
+  // 보류 → PENDING 유지, 승인함에 '보류'로 남는다(맨 뒤)
+  d = post({ action: 'approval_decide', key: KA, id: reqNoTitle.item.id, decision: 'hold', note: '다음 주에' });
+  ok(d.ok === true && colA(reqNoTitle.item.id, 'status') === 'PENDING' && /^⏸ 보류/.test(colA(reqNoTitle.item.id, 'approval_note')), '보류 → 상태는 PENDING 그대로, 기록만');
+  L = list();
+  const held = L.items.find(x => x.id === reqNoTitle.item.id);
+  ok(held && held.held === true && L.items[L.items.length - 1].id === reqNoTitle.item.id && L.counts.held === 1, '보류한 요청은 승인함 맨 뒤에 보류로 남는다');
+  d = post({ action: 'approval_decide', key: KA, id: reqNoTitle.item.id, decision: 'reject', note: '예산 없음' });
+  ok(d.changed === true && colA(reqNoTitle.item.id, 'status') === 'REJECTED' && /^🚫 거절 — 예산 없음/.test(colA(reqNoTitle.item.id, 'error')), '보류했던 요청도 나중에 거절할 수 있다 → REJECTED');
+  // 승인 묻는 대화 — 상태는 그대로, 기록만 하고 승인함에서 빠진다
+  d = post({ action: 'approval_decide', key: KA, id: 'Q-a1', decision: 'approve' });
+  ok(d.ok === true && d.kind === 'suggested' && colA('Q-a1', 'status') === 'PENDING' && /^✅ 승인/.test(colA('Q-a1', 'approval_note')), '대화형 승인 질문도 결정할 수 있다(상태는 그대로)');
+  // 실행 승인 대기 — 기존 queue_decide 길로
+  ok(post({ action: 'approval_decide', key: KA, id: 'Q-a4', decision: 'hold' }).ok === false, '실행 승인은 보류할 수 없다');
+  d = post({ action: 'approval_decide', key: KA, id: 'Q-a4', decision: 'approve' });
+  ok(d.ok === true && d.kind === 'order' && colA('Q-a4', 'status') === 'PENDING', '실행 승인은 queue_decide 와 같은 길로 PENDING(노트북 실행 차례)');
+  L = list();
+  ok(L.count === 0 && L.items.length === 0, '결정하고 나면 승인함이 빈다');
+  // 입력 검사
+  ok(post({ action: 'approval_decide', key: KA, id: 'Q-a2', decision: 'maybe' }).ok === false, '모르는 결정은 거절');
+  ok(post({ action: 'approval_decide', key: KA, id: 'Q-a6', decision: 'approve' }).ok === false, '승인 요청이 아닌 말(레이 님이 비서에게 보낸 말)은 결정할 수 없다');
+  ok(post({ action: 'approval_decide', key: KA, id: 'Q-none', decision: 'approve' }).ok === false, '없는 id 는 거절');
+  ok(post({ action: 'approval_decide', id: 'Q-a2', decision: 'approve' }).error === 'unauthorized', '키 없이는 결정 못 한다');
+  S.props.QUEUE_SHEET_ID = 'SHEETidReact2101';
+}
+
 console.log('\n10) 🔔 외부 비서 웹훅 (등록 · 발사 조건 · 무한루프 방지)');
 {
   const K4 = S.props.SECRET_KEY;

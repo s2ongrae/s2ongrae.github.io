@@ -149,7 +149,7 @@ function coreTests() {
     'roomReportState', 'roomLateMin', 'roomReportChip', 'roomThreadRoot', 'roomThreadItems', 'roomThreadCount',
     'roomQuoteText', 'roomShort', 'roomQuoteAuthor', 'roomSearchHit', 'roomAgentHit', 'roomVisible',
     'ROOM_REP', 'ROOM_LATE_MIN', 'ROOM_REPORT_MIN',
-    'ROOM_RX_RANK', 'ROOM_RX_TXT', 'ROOM_RX_CLS', 'roomReactTop', 'roomReactHtml'];
+    'ROOM_RX_RANK', 'ROOM_RX_TXT', 'ROOM_RX_CLS', 'roomReactTop', 'roomReactHtml', 'roomIsChat', 'roomApprovalChip', 'roomApprovalBanner'];
   const mod = { exports: {} };
   try {
     new Function('module', 'exports', m[1] + '\nmodule.exports = {' + names.join(',') + '};')(mod, mod.exports);
@@ -456,6 +456,23 @@ function coreTests() {
     ok(!/onclick=/.test(html), '인라인 onclick 없음(동작은 app.js 가 붙임)');
     ok(/data-go=/.test(js) && /jumpToMsg/.test(js), '일 칩을 누르면 그 말로 이동');
     ok(/ROOM_LIVE_MAX/.test(js) && /live-more/.test(js) && /\.live-more/.test(css), '줄은 3개까지 — 나머지는 "+N건 더"');
+  }
+
+  console.log('N-4) 🔔 승인 요청 표시 · 승인 대기 배너 (2026-11-27)');
+  {
+    ok(C.roomIsChat({kind: 'approval'}) === true && C.roomIsChat({kind: 'chat'}) === true && C.roomIsChat({kind: ''}) === false, '승인 요청도 대화처럼 그린다');
+    ok(C.roomApprovalChip({kind: 'approval'}).t === '🔔 승인 요청 · 결정 대기', '결정 전 표시');
+    ok(C.roomApprovalChip({kind: 'approval', approval: {decision: 'approve'}}).t === '✅ 승인됨' && C.roomApprovalChip({kind: 'chat', approval: {decision: 'reject'}}).t === '🚫 거절됨', '결정 뒤 표시(대화형 질문도)');
+    ok(C.roomApprovalChip({kind: 'chat'}) === null, '보통 대화에는 표시 없음');
+    const b = C.roomApprovalBanner({count: 2, items: [
+      {source: 'keyring2', approval_kind: 'request', approval: {title: '블로그 임시저장 수정 <b>2건</b>'}},
+      {source: 'portal', approval_kind: 'order', summary: '포털 코드 고쳐\n둘째 줄'},
+      {source: 'vooy', approval_kind: 'request', held: true, approval: {title: '보류한 것'}}]});
+    ok(/승인 대기 2건/.test(b) && /포털 승인함에서 결정/.test(b), '배너: 건수와 포털로 가는 안내');
+    ok(/키투 · 블로그 임시저장 수정/.test(b) && /실행 승인 · 포털 코드 고쳐/.test(b) && !/보류한 것/.test(b), '위 3건 제목 — 보류는 빼고, 실행 승인은 그렇게 표시');
+    ok(!/<b>2건<\/b>/.test(b) && /&lt;b&gt;2건/.test(b), '제목은 이스케이프한다');
+    ok(C.roomApprovalBanner({count: 0, items: []}) === '' && C.roomApprovalBanner(null) === '', '없으면 아무것도 안 그린다(배너 숨김)');
+    ok(/id="apprb"/.test(html) && /href="\.\.\/#approval-card"/.test(html) && /loadApprovals\(\)/.test(js), '앱 배너 자리와 포털 승인함 링크 · 불러오기 연결');
   }
 
   console.log('N-3) 👀 이모지 반응 칩 — 포털과 같은 규칙 (2026-11-26)');
