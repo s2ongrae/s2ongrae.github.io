@@ -481,6 +481,82 @@ console.log('9) 🤖 오더함 (queue_list · queue_enqueue · queue_decide)');
   ok(fp({pace: 'turbo'}).code === 'bad_request' && fp({blur_darken: -0.9}).code === 'bad_request' && fp({blur_darken: 0.2}).code === 'bad_request' && fp({blur_radius: 99}).code === 'bad_request', '템포·블러 범위 검사');
   ok(JSON.stringify(fpay(fp({captions: [[0, 2, '장면', 'scene']]})).captions) === JSON.stringify([[0, 2, '장면']]), '모르는 비트는 버리고 문장만 보낸다(구버전 허브 호환)');
 
+  // ⑤-2g 🎵 뮤직비디오(MV) 모드 — 2026-11-27: 이 큐가 payload 를 고정 키(inputs 1~8)로 다시 만들어
+  //  MV 오더(mode·images·mv)가 거절되거나 조용히 사라지던 문제. 계약은 허브 gas/Orders.gs hubRenderMvPayload_ ·
+  //  노트북 lib/render.js validateMv 와 같다(사진만이면 3장 이상 · 영상 컷이 있으면 사진 0장부터 · 둘 다 없으면 거절).
+  const mvPost = patch => post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: Object.assign({content_id: 'C-100', brand: 'daejeon_youth', mode: 'mv'}, patch)});
+  const mvPay = r => JSON.parse(String(col(qrows().find(x => x[0] === (r.item && r.item.id)), 'payload')));
+  const mvOk = r => r.ok === true;
+
+  // ① 사진 전용 — 사진 3장이면 영상 컷 없이 된다
+  const mvA = mvPost({images: ['사진 01.jpg', '사진 02.png', '사진 03.webp'], mv: {audio: '내 노래.mp3'}});
+  const mvAp = mvOk(mvA) ? mvPay(mvA) : {};
+  ok(mvA.ok === true && mvA.item.status === 'WAITING_APPROVAL' && mvA.item.risk_level === 'HIGH', 'MV 오더도 늘 승인 대기(HIGH)', mvA);
+  ok(mvAp.mode === 'mv' && mvAp.profile === 'captions' && JSON.stringify(mvAp.images) === JSON.stringify(['사진 01.jpg', '사진 02.png', '사진 03.webp']) && mvAp.inputs === undefined, '사진 전용 MV: mode·images 가 payload 까지 가고 inputs 키는 만들지 않는다', mvAp);
+  ok(mvAp.mv.audio === '내 노래.mp3' && mvAp.mv.density === 'normal_4beat' && mvAp.mv.effects === 'pulse' && mvAp.mv.mood === 'pop' && mvAp.mv.lyric_mode === 'mine' && mvAp.mv.bpm_hint === 0 && mvAp.mv.length_sec === 0 && mvAp.mv.lines === 0, 'mv 기본값이 허브 계약대로 채워진다(보내지 않은 칸도 노트북이 읽는 모양 그대로)', mvAp.mv);
+  ok(col(qrows().find(x => x[0] === mvA.item.id), 'approval_hash') === hashOf(mvAp), '승인 해시가 MV payload 까지 묶는다');
+
+  // ② 사진 + 영상 컷 혼합 — 영상 컷이 있으면 사진 0장부터
+  const mvB = mvPost({images: ['표지.jpg'], inputs: ['첫 컷.mp4', 'b.mov'],
+    mv: {audio: 'song.m4a', density: 'FAST_2BEAT', bpm_hint: 128.46, length_sec: 61.7, effects: 'none', mood: 'rock', lyric_mode: 'mine', lyrics: '첫 줄\r\n둘째 줄\n\n  셋째 줄  '}});
+  const mvBp = mvOk(mvB) ? mvPay(mvB) : {mv: {}};
+  ok(mvB.ok === true && mvBp.images.length === 1 && JSON.stringify(mvBp.inputs) === JSON.stringify(['첫 컷.mp4', 'b.mov']), '사진 1장 + 영상 컷 2개를 함께 싣는다(예전엔 MV 자체가 거절됨)', mvBp);
+  ok(mvBp.mv.density === 'fast_2beat' && mvBp.mv.bpm_hint === 128.5 && mvBp.mv.length_sec === 62 && mvBp.mv.effects === 'none' && mvBp.mv.mood === 'rock', 'mv 값은 소문자·BPM 0.1 단위·길이 정수 초로 다듬어 싣는다', mvBp.mv);
+  ok(mvBp.mv.lyrics === '첫 줄\n둘째 줄\n\n  셋째 줄' && mvBp.mv.lines === 3, '가사는 줄바꿈만 남기고 다듬고, 줄 수(lines)를 함께 싣는다', mvBp.mv);
+  ok(col(qrows().find(x => x[0] === mvB.item.id), 'approval_hash') === hashOf(mvBp), '승인 해시가 영상 컷·가사까지 묶는다');
+
+  // ③ 영상 컷 단독(사진 0장) — 앨범아트 없이 컷으로만
+  const mvC = mvPost({inputs: ['a.mp4'], mv: {audio: 'song.wav', lyric_mode: 'none', lyrics: '가사'}});
+  const mvCp = mvOk(mvC) ? mvPay(mvC) : {mv: {}};
+  ok(mvC.ok === true && Array.isArray(mvCp.images) && mvCp.images.length === 0 && mvCp.inputs.length === 1, '영상 컷 단독(사진 0장)도 접수된다 — images 는 빈 배열', mvCp);
+  ok(mvCp.mv.lyric_mode === 'none' && mvCp.mv.lyrics === '' && mvCp.mv.lines === 0, 'lyric_mode=none 이면 가사를 비운다(허브·노트북과 같은 뜻)');
+
+  // ④ 거절 케이스 — 둘 다 부족·음원 없음·값 오류
+  ok(mvPost({images: ['a.jpg', 'b.jpg'], mv: {audio: 's.mp3'}}).code === 'bad_request', '사진 2장만(영상 컷 없음)은 거절 — 3장 이상 필요');
+  ok(mvPost({mv: {audio: 's.mp3'}}).code === 'bad_request' && mvPost({images: [], inputs: [], mv: {audio: 's.mp3'}}).code === 'bad_request', '사진도 영상 컷도 없으면 거절');
+  ok(mvPost({mode: 'pic', inputs: ['a.mp4']}).code === 'bad_request', '모르는 mode 는 거절(조용히 일반 영상으로 보내지 않는다)');
+  ok(mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg']}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: '내 노래.mp3'}).code === 'bad_request', '음원(mv.audio)이 없으면 거절');
+  ok(mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: '../s.mp3'}}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.aac'}}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: './s.mp3'}}).code === 'bad_request', '음원은 mp3·m4a·wav 파일 이름만(경로·다른 확장자 거절)');
+  ok(mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', density: 'x'}}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', effects: 'shake'}}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', mood: 'trot'}}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', lyric_mode: 'auto'}}).code === 'bad_request', 'density·effects·mood·lyric_mode 는 정해진 값만');
+  ok(mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', bpm_hint: 301}}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', bpm_hint: 'x'}}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', length_sec: 601}}).code === 'bad_request', '박자 힌트 0~300 · 길이 0~600초');
+  ok(mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', lyrics: '가'.repeat(8001)}}).code === 'bad_request', '가사는 8,000자까지');
+  ok(mvPost({images: Array.from({length: 26}, (_, i) => 'p' + i + '.jpg'), mv: {audio: 's.mp3'}}).code === 'bad_request', '사진은 25장까지');
+  ok(mvPost({inputs: Array.from({length: 9}, (_, i) => 'v' + i + '.mp4'), mv: {audio: 's.mp3'}}).code === 'bad_request', '영상 컷은 8개까지');
+  ok(mvPost({images: ['a.jpg', 'A.JPG', 'c.jpg'], mv: {audio: 's.mp3'}}).code === 'bad_request' && mvPost({inputs: ['a.mp4', 'A.MP4'], mv: {audio: 's.mp3'}}).code === 'bad_request', '같은 사진·같은 영상이 두 번이면 거절(대소문자 무시 — 노트북도 막는다)');
+  ok(mvPost({images: ['a.gif', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3'}}).code === 'bad_request' && mvPost({images: ['../a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3'}}).code === 'bad_request' && mvPost({images: ['inbox/a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3'}}).code === 'bad_request' && mvPost({inputs: ['a.txt'], mv: {audio: 's.mp3'}}).code === 'bad_request', '사진·영상 컷은 이름만(경로·다른 확장자 거절)');
+  ok(mvPost({images: 'a.jpg', mv: {audio: 's.mp3'}}).code === 'bad_request' && mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3'}, payload_source: 'ftp'}).code === 'bad_request', 'images 가 배열이 아니거나 모르는 payload_source 는 거절');
+
+  // ⑤ 긴 가사 — 큐 4,000자 한도를 넘기지 않게 가사만 빼고 payload_source:drive(허브와 같은 규칙)
+  const longLy = Array.from({length: 60}, (_, i) => '가' + '나'.repeat(43) + ' ' + i).join('\n');
+  const mvD = mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3', lyrics: longLy}});
+  const mvDp = mvOk(mvD) ? mvPay(mvD) : {mv: {}};
+  ok(longLy.length > 2000 && longLy.length < 8000, '시험용 가사는 2,000~8,000자 사이', longLy.length);
+  ok(mvD.ok === true && mvDp.mv.lyrics === undefined && mvDp.mv.lines === 60 && mvDp.payload_source === 'drive', '2,000자가 넘는 가사는 큐에 싣지 않고 payload_source:drive 로 넘긴다(노트북이 카드에서 읽는다)', mvDp);
+  const mvE = mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3'}, payload_source: 'drive'});
+  ok(mvE.ok === true && mvPay(mvE).payload_source === 'drive', '허브가 정한 payload_source:drive 를 그대로 넘긴다');
+  ok(mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3'}, payload_source: 'inline'}).ok === true && mvPay(mvPost({images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3'}, payload_source: 'inline'})).payload_source === undefined, 'inline 은 기본값이라 키를 만들지 않는다');
+  ok(mvPost({mode: 'MV', images: ['a.jpg', 'b.jpg', 'c.jpg'], mv: {audio: 's.mp3'}}).ok === true, '대문자 MV 도 받아준다');
+
+  // ⑥ 일반 모드 회귀 — mode 가 없으면 예전 그대로(inputs 1~8 필수 · images·mode 키 없음)
+  const plainMv = post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: {content_id: 'C-110', brand: 'daejeon_youth', inputs: ['a.mp4'], images: ['p.jpg']}});
+  const plainP = mvOk(plainMv) ? mvPay(plainMv) : {};
+  ok(plainMv.ok === true && plainP.mode === undefined && plainP.images === undefined && JSON.stringify(plainP.inputs) === JSON.stringify(['a.mp4']), 'mode 없는 일반 오더는 예전 그대로 — images·mode 키를 만들지 않는다', plainP);
+  ok(post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: {content_id: 'C-111', brand: 'daejeon_youth', images: ['a.jpg', 'b.jpg', 'c.jpg']}}).code === 'bad_request', 'mode 없이 사진만 보내면 예전처럼 거절(일반 영상 규칙 그대로)');
+
+  // ⑦ 왕복 항등 — 허브 hubRenderMvPayload_ 가 내놓은 payload 를 그대로 다시 넣어도 한 글자도 안 바뀌는지
+  //  (키 순서까지 같다: 허브도 images 다음에 mv 를 놓고 inputs 를 마지막에 붙인다).
+  const hubMv = {content_id: 'CH-20261127-ab12', brand: 'daejeon_youth', profile: 'captions', mode: 'mv',
+    images: ['사진01.jpg', '사진02.jpg', '사진03.jpg'],
+    mv: {audio: '내 노래.mp3', density: 'normal_4beat', bpm_hint: 128, effects: 'pulse', mood: 'pop', length_sec: 0, lyric_mode: 'mine', lines: 2, lyrics: '첫 줄\n둘째 줄'}};
+  hubMv.inputs = ['첫 컷.mp4', 'b.mov'];
+  const hubBack = post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: hubMv});
+  ok(hubBack.ok === true && JSON.stringify(mvPay(hubBack)) === JSON.stringify(hubMv), '허브가 만든 MV payload(영상 컷 혼합)는 큐를 지나도 그대로 — 왕복 항등', mvPay(hubBack));
+  const hubPhoto = {content_id: 'CH-20261127-cd34', brand: 'ppiyak_kimmary', profile: 'captions', mode: 'mv',
+    images: ['a.jpg', 'b.jpg', 'c.jpg'],
+    mv: {audio: 'song.mp3', density: 'normal_4beat', bpm_hint: 0, effects: 'pulse', mood: 'pop', length_sec: 0, lyric_mode: 'none', lines: 0, lyrics: ''}};
+  const hubPhotoBack = post({action: 'queue_enqueue', key: K3, type: 'content_render', workspace: 'content-hub', payload: hubPhoto});
+  ok(hubPhotoBack.ok === true && JSON.stringify(mvPay(hubPhotoBack)) === JSON.stringify(hubPhoto), '허브가 만든 사진 전용 MV payload 도 그대로(lyrics 빈 문자열·inputs 칸 없음까지 같다)', mvPay(hubPhotoBack));
+
   // ⑤-2 AI 엔진 — payload.engine 이 워커까지 가도록 그대로 싣는다
   const engQ = post({action: 'queue_enqueue', key: K3, type: 'claude_prompt', workspace: 'gaegyebu', payload: {prompt: '제미나이로 요약', mode: 'ask', engine: 'agy'}});
   ok(engQ.ok === true, '엔진을 붙인 오더도 접수');

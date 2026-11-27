@@ -1878,15 +1878,25 @@ function qqPayloadOf_(type, p) {
 /**
  * 영상 렌더(content_render) payload 검증 — 노트북 lib/render.js validate() 와 같은 규칙.
  * 경로는 받지 않는다: content_id 와 파일 '이름'만(위치는 노트북 .env 가 정한다).
+ * 2026-11-27 — mode:'mv'(뮤직비디오)는 계약이 달라서 앞에서 따로 맡긴다(qqRenderMvPayloadOf_).
  */
 const QQ_RENDER_BRANDS = ['daejeon_youth', 'ppiyak_kimmary'];
 const QQ_RENDER_PROFILES = ['captions', 'bgm'];
+const QQ_RENDER_MODE_MV = 'mv';
 function qqRenderPayloadOf_(p) {
   const o = isObj(p) ? p : {};
   const contentId = String(o.content_id == null ? '' : o.content_id).trim();
   if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/.test(contentId)) throw qqErr_('bad_request', 'content_id 는 영숫자·_·- 만, 40자 이내여야 해요.');
   const brand = String(o.brand == null ? '' : o.brand).trim();
   if (QQ_RENDER_BRANDS.indexOf(brand) < 0) throw qqErr_('bad_request', '트랙(brand)이 올바르지 않아요.');
+  // 뮤직비디오 모드(2026-11-27) — 허브 gas/Orders.gs hubRenderPayload_ 와 같은 순서로(단계보다 먼저) 갈래를 탄다.
+  //  모르는 mode 는 조용히 버리지 않고 거절한다 — 버리면 아래 MV 칸(mode·images·mv)이 사라진 채로
+  //  'inputs 1~8 필수'에 걸려 엉뚱한 이유로 막히거나, 사진만 남은 오더가 렌더로 새어 나간다.
+  const mode = String(o.mode == null ? '' : o.mode).trim().toLowerCase();
+  if (mode) {
+    if (mode !== QQ_RENDER_MODE_MV) throw qqErr_('bad_request', 'mode 는 mv 하나예요(일반 영상은 비워 두세요).');
+    return qqRenderMvPayloadOf_(o, contentId, brand);
+  }
   // 2·3단계(2026-11-20): 자막 초안(transcribe) · 마무리(finish)는 클린 마스터를 이어받으므로 원본 이름이 없다.
   // 이 함수가 payload 를 고정 키로 다시 만들기 때문에 여기서 싣지 않으면 옵션이 조용히 사라진다(컷이 그랬다).
   const stage = o.stage == null || o.stage === '' ? '' : String(o.stage);
@@ -1919,6 +1929,107 @@ function qqRenderPayloadOf_(p) {
   qqRenderFrameLockOf_(o, out);
   qqRenderMotionOf_(o, out);
   qqRenderPaceOf_(o, out);
+  return JSON.stringify(out);
+}
+/* ── 🎵 뮤직비디오 모드 payload (2026-11-27) ─────────────────────────────────────────
+ * 계약은 허브 content-hub PR #28 의 gas/Orders.gs hubRenderMvPayload_ · 노트북 lib/render.js validateMv 와 같다.
+ *  일반 영상과 달리 사진(images)과 영상 컷(inputs 0~8)을 함께 받고, mv{음원·박자·가사·효과}를 보존한다.
+ *  이 큐가 payload 를 고정 키로 다시 만들기 때문에 여기서 갈래를 만들지 않으면 MV 오더는
+ *  'inputs 1~8 필수'에서 거절되거나 mode·images·mv 가 조용히 사라진다(mode 만 남으면 노트북이 사진 0장으로 거절).
+ *  · 사진만이면 3장 이상 · 영상 컷이 1~8개 있으면 사진 0장부터 · 둘 다 없으면 거절.
+ *  · 곡 파일 자체는 큐로 오지 않는다 — 허브 _bgm 보관함의 '이름'만 실린다.
+ */
+const QQ_RENDER_MAX_IMAGES = 25;
+const QQ_RENDER_MV_MIN_IMAGES = 3;
+const QQ_RENDER_IMAGE_RE = /^[A-Za-z0-9가-힣][A-Za-z0-9가-힣._ -]{0,79}\.(jpe?g|png|webp)$/i;
+const QQ_RENDER_MV_DENSITIES = ['fast_2beat', 'normal_4beat', 'slow_1bar'];
+const QQ_RENDER_MV_EFFECTS = ['pulse', 'none'];
+const QQ_RENDER_MV_MOODS = ['pop', 'ballad', 'comic', 'rock'];
+const QQ_RENDER_MV_LYRIC_MODES = ['mine', 'none'];
+const QQ_RENDER_MV_MAX_LYRICS = 8000;      // 허브·노트북과 같은 가사 상한
+const QQ_RENDER_MV_INLINE_LYRICS = 2000;   // 큐에 실어 보내는 가사 상한 — 넘으면 payload_source:'drive'
+const QQ_RENDER_MV_PAYLOAD_CHARS = 3500;   // 큐 한도 4,000자 — 넘으면 가사를 빼고 노트북이 카드에서 읽는다
+const QQ_RENDER_MV_AUDIO_RE = /^[A-Za-z0-9가-힣][A-Za-z0-9가-힣._ -]{0,79}\.(mp3|m4a|wav)$/i;
+/**
+ * MV 사진·영상 컷 이름 목록 검사 — 허브 hubRenderImages_·hubRenderInputs_ · 노트북 validateMv 와 같은 규칙.
+ * 이름만(폴더·경로 금지) · 정해진 확장자 · 개수 상한 · 같은 이름 두 번은 거절(대소문자 무시 — 노트북도 그렇게 막는다).
+ */
+function qqRenderMvNamesOf_(raw, label, re, max, hint) {
+  if (raw === undefined || raw === null || raw === '') return [];
+  if (!Array.isArray(raw)) throw qqErr_('bad_request', label + ' 는 파일 이름 목록(배열)이어야 해요.');
+  if (raw.length > max) throw qqErr_('bad_request', label + ' 는 ' + max + '개까지예요(지금 ' + raw.length + '개).');
+  const out = [];
+  raw.forEach(function (v) {
+    const n = String(v == null ? '' : v);
+    if (!re.test(n) || n.indexOf('..') >= 0 || n.charAt(0) === '.') {
+      throw qqErr_('bad_request', label + ' 에는 ' + hint + '만 넣을 수 있어요(폴더·경로 금지): ' + clip(n, 40));
+    }
+    const k = n.toLowerCase();
+    if (out.some(function (x) { return x.toLowerCase() === k; })) throw qqErr_('bad_request', label + ' 에 같은 파일이 두 번 들어 있어요: ' + clip(n, 40));
+    out.push(n);
+  });
+  return out;
+}
+function qqRenderMvPayloadOf_(o, contentId, brand) {
+  const images = qqRenderMvNamesOf_(o.images, '사진(images)', QQ_RENDER_IMAGE_RE, QQ_RENDER_MAX_IMAGES, '사진 파일 이름(jpg·jpeg·png·webp)');
+  const inputs = qqRenderMvNamesOf_(o.inputs, '영상 컷(inputs)', /^[A-Za-z0-9가-힣][A-Za-z0-9가-힣._ -]{0,79}\.(mp4|mov|m4v)$/i, 8, '영상 파일 이름(mp4·mov·m4v)');
+  // 같은 이름이 사진·영상 양쪽에 오면 거절 — 서로 다른 파일이 같은 자리를 차지하는 것 방지(허브·노트북과 같은 규칙).
+  images.forEach(function (n) {
+    const k = n.toLowerCase();
+    if (inputs.some(function (v) { return v.toLowerCase() === k; })) throw qqErr_('bad_request', '같은 파일이 사진·영상 양쪽에 있어요: ' + clip(n, 40));
+  });
+  if (!inputs.length && images.length < QQ_RENDER_MV_MIN_IMAGES) {
+    throw qqErr_('bad_request', '뮤직비디오는 사진 ' + QQ_RENDER_MV_MIN_IMAGES + '장 이상 또는 영상 컷 1개 이상이 필요해요(지금 사진 ' + images.length + '장·영상 ' + inputs.length + '개).');
+  }
+  const mvIn = isObj(o.mv) ? o.mv : {};
+  const audio = String(mvIn.audio == null ? '' : mvIn.audio).trim();
+  if (!audio) throw qqErr_('bad_request', '뮤직비디오에는 음원(mv.audio) 이름이 있어야 해요(허브 _bgm 보관함 파일 이름).');
+  if (!QQ_RENDER_MV_AUDIO_RE.test(audio) || audio.indexOf('..') >= 0) {
+    throw qqErr_('bad_request', '뮤직비디오 음원(mv.audio)은 보관함의 파일 이름(mp3·m4a·wav, 폴더·경로 금지)이어야 해요.');
+  }
+  const pick = function (v, list, dflt, label) {
+    const s = v === undefined || v === null || v === '' ? dflt : String(v).trim().toLowerCase();
+    if (list.indexOf(s) < 0) throw qqErr_('bad_request', label + ' 는 ' + list.join(' · ') + ' 중 하나여야 해요.');
+    return s;
+  };
+  const density = pick(mvIn.density, QQ_RENDER_MV_DENSITIES, 'normal_4beat', 'mv.density');
+  const effects = pick(mvIn.effects, QQ_RENDER_MV_EFFECTS, 'pulse', 'mv.effects');
+  const mood = pick(mvIn.mood, QQ_RENDER_MV_MOODS, 'pop', 'mv.mood');
+  const lyricMode = pick(mvIn.lyric_mode, QQ_RENDER_MV_LYRIC_MODES, 'mine', 'mv.lyric_mode');
+  let bpmHint = 0;
+  if (mvIn.bpm_hint !== undefined && mvIn.bpm_hint !== null && mvIn.bpm_hint !== '') {
+    bpmHint = Number(mvIn.bpm_hint);
+    if (!isFinite(bpmHint) || bpmHint < 0 || bpmHint > 300) throw qqErr_('bad_request', '박자 힌트(mv.bpm_hint)는 0~300 사이 숫자여야 해요(0=자동).');
+    bpmHint = Math.round(bpmHint * 10) / 10;
+  }
+  let lengthSec = 0;
+  if (mvIn.length_sec !== undefined && mvIn.length_sec !== null && mvIn.length_sec !== '') {
+    lengthSec = Number(mvIn.length_sec);
+    if (!isFinite(lengthSec) || lengthSec < 0 || lengthSec > 600) throw qqErr_('bad_request', '길이(mv.length_sec)는 0~600초여야 해요(0=곡 끝까지).');
+    lengthSec = Math.round(lengthSec);
+  }
+  let lyrics = String(mvIn.lyrics == null ? '' : mvIn.lyrics).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim();
+  if (lyricMode === 'none') lyrics = '';
+  if (lyrics.length > QQ_RENDER_MV_MAX_LYRICS) throw qqErr_('bad_request', '가사가 너무 길어요(' + QQ_RENDER_MV_MAX_LYRICS + '자까지).');
+  const mv = { audio: audio, density: density, bpm_hint: bpmHint, effects: effects, mood: mood,
+    length_sec: lengthSec, lyric_mode: lyricMode,
+    lines: lyrics ? lyrics.split('\n').filter(function (s) { return s.trim(); }).length : 0 };
+  if (lyrics.length <= QQ_RENDER_MV_INLINE_LYRICS) mv.lyrics = lyrics;
+  // 허브 MV 계약 그대로 — 곡 파일 자체는 오지 않고 profile 은 늘 captions(노래가 목소리다).
+  const out = { content_id: contentId, brand: brand, profile: 'captions', mode: QQ_RENDER_MODE_MV, images: images, mv: mv };
+  if (inputs.length) out.inputs = inputs;
+  if (o.payload_source !== undefined && o.payload_source !== null && o.payload_source !== '') {
+    const ps = String(o.payload_source).trim().toLowerCase();
+    if (['inline', 'drive'].indexOf(ps) < 0) throw qqErr_('bad_request', 'payload_source 는 inline · drive 중 하나여야 해요.');
+    if (ps === 'drive') out.payload_source = 'drive';
+  }
+  // 가사가 길면 큐 4,000자 한도에 걸린다 — 그때만 가사를 빼고 payload_source:'drive' 로 노트북이 카드에서 읽게 한다(허브와 같은 규칙).
+  //  가사를 뺐으면 반드시 drive 를 함께 실어야 한다 — 표시 없이 빼면 노트북은 가사가 없는 곡으로 굽는다.
+  if (lyrics.length > QQ_RENDER_MV_INLINE_LYRICS) out.payload_source = 'drive';
+  if (JSON.stringify(out).length > QQ_RENDER_MV_PAYLOAD_CHARS) {
+    delete out.mv.lyrics;
+    out.payload_source = 'drive';
+  }
   return JSON.stringify(out);
 }
 /**
