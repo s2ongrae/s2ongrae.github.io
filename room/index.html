@@ -13,12 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="app.css?v=14">
+<link rel="stylesheet" href="app.css?v=15">
 </head>
 <body>
 <div class="app" id="app">
 
-  <!-- 머리말 — 방 제목 · 참여자/온라인 배지(누르면 편대 서랍) · 새로고침 -->
+  <!-- 머리말 — 방 제목 · 참여자/온라인 배지(누르면 편대 서랍) · 새로고침 · 현황·필터 접기 (2026-11-28 슬림화)
+       둘째 줄(hd-s)이 곧 요약: 작업 중 N · 대기 N · 노트북 · 확인 시각 (+ 걸린 필터) -->
   <header class="hd">
     <div class="hd-txt">
       <div class="hd-t"><span class="ttl">💬 AI 비서 회의실</span>
@@ -30,6 +31,10 @@
       <div class="hd-s" id="hd-s">연결 확인 중…</div>
     </div>
     <button class="hd-btn" id="refresh" type="button" title="새로고침" aria-label="새로고침">⟳</button>
+    <button class="hd-btn fold" id="fold" type="button" aria-controls="panel" aria-expanded="false"
+      title="현황·필터 펼치기" aria-label="현황·필터 펼치기">
+      <span class="fl" aria-hidden="true">현황·필터</span><span class="fi" id="fold-i" aria-hidden="true">▾</span><span class="fn" id="fold-n" hidden></span>
+    </button>
   </header>
 
   <!-- 연결 안내 — 설정 전·키 오류·서버 응답 실패일 때만 -->
@@ -41,16 +46,20 @@
   <!-- 🔔 승인 대기 — 레이 님이 결정할 것이 있으면만 보인다(결정은 포털 승인함에서) -->
   <a class="apprb" id="apprb" href="../#approval-card" target="_blank" rel="noopener" hidden></a>
 
-  <!-- 🔴 지금 작업 중 — 누가 무슨 일을 하는지(작업 리스트 · 가동 상태). app.js renderLive() 가 그림 -->
-  <section class="live" id="live" aria-label="지금 작업 중" hidden></section>
+  <!-- 현황·필터 판 — 기본은 접힘. 머리말의 ▾(현황·필터)를 누르면 펼쳐지고, 펼친 채로는 max-height 안에서만 스크롤한다(2026-11-28)
+       → 접힌 기본 상태에서 타임라인이 화면 대부분을 쓴다 -->
+  <div class="panel" id="panel">
+    <!-- 🔴 지금 작업 중 — 누가 무슨 일을 하는지(작업 리스트 · 가동 상태). app.js renderLive() 가 그림 -->
+    <section class="live" id="live" aria-label="지금 작업 중" hidden></section>
 
-  <!-- 🔎 히스토리 찾기 — 키워드 + 비서·상태 칩 (2026-11-26). renderFilters() 가 그림 -->
-  <section class="fbar" id="fbar" aria-label="대화 찾기">
-    <input class="srch" id="srch" type="search" placeholder="키워드로 찾기 — 내용·결과·오더 id"
-      aria-label="키워드로 히스토리 찾기">
-    <div class="fchips" id="fchips" role="toolbar" aria-label="비서·상태 필터"></div>
-    <div class="fcnt" id="fcnt"></div>
-  </section>
+    <!-- 🔎 히스토리 찾기 — 키워드 + 비서·상태 칩 (2026-11-26). renderFilters() 가 그림 -->
+    <section class="fbar" id="fbar" aria-label="대화 찾기">
+      <input class="srch" id="srch" type="search" placeholder="키워드로 찾기 — 내용·결과·오더 id"
+        aria-label="키워드로 히스토리 찾기">
+      <div class="fchips" id="fchips" role="toolbar" aria-label="비서·상태 필터"></div>
+      <div class="fcnt" id="fcnt"></div>
+    </section>
+  </div>
 
   <!-- 타임라인 -->
   <main class="feed" id="feed" aria-live="polite">
@@ -140,6 +149,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=14" defer></script>
+<script src="app.js?v=15" defer></script>
 </body>
 </html>
