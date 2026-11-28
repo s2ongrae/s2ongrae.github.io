@@ -992,6 +992,8 @@ function roomFilesHtml(it){
   let pinned = true, toastTimer = null;
   /* 🔎 히스토리 필터 · ↩ 답장 · 💬 스레드 (2026-11-26) */
   const F = {who: 'all', st: 'all', q: ''};     // 비서 · 상태 · 키워드
+  const ROOM_FILT_ST = {all: '전체', live: '진행', miss: '보고누락', wait: '승인', done: '끝남'};
+  let FOLD = lsGet('room_fold') === '1';         // 현황·필터 판 — 기본은 접힘(2026-11-28). 한 번 펴 두면 이 기기에서 기억
   let REPLY = null;                              // {id, text, who} — 지금 답장 중인 원문
   let THREAD = '';                               // 펼친 스레드의 첫 말 id
   const SEND_ICON = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20V5M12 5l-6.6 6.6M12 5l6.6 6.6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1031,6 +1033,41 @@ function roomFilesHtml(it){
   }
 
   /* ── 머리말 ── */
+  /** 접힌 채로도 걸린 필터가 보이게 — 짧은 이름으로 */
+  function foldLabel(){
+    const out = [];
+    if(F.q) out.push('"' + roomShort(F.q, 12) + '"');
+    if(F.st !== 'all') out.push(ROOM_FILT_ST[F.st] || F.st);
+    if(F.who !== 'all'){
+      const a = roomAgentById(F.who);
+      out.push(a ? a.name : (F.who === 'portal' ? '레이 님' : F.who));
+    }
+    return out.join(' · ');
+  }
+  function foldCount(){ return (F.q ? 1 : 0) + (F.st !== 'all' ? 1 : 0) + (F.who !== 'all' ? 1 : 0); }
+  /** 현황·필터 판을 접고 편다 — 기본은 접힘(채팅이 화면을 다 쓰게). 고른 상태는 이 기기에 남긴다 */
+  function applyFold(open, save){
+    FOLD = !!open;
+    const app = $('app'), btn = $('fold'), ic = $('fold-i');
+    if(app) app.classList.toggle('fold-open', FOLD);
+    if(btn){
+      btn.classList.toggle('on', FOLD);
+      btn.setAttribute('aria-expanded', FOLD ? 'true' : 'false');
+      const t = FOLD ? '현황·필터 접기' : '현황·필터 펼치기';
+      btn.title = t; btn.setAttribute('aria-label', t);
+    }
+    if(ic) ic.textContent = FOLD ? '▴' : '▾';
+    if(save) lsSet('room_fold', FOLD ? '1' : '0');
+    renderFoldBadge();
+    if(FOLD){
+      renderLive(); renderFilters();
+      const f = $('feed'); if(f && S.painted) f.scrollTop = f.scrollHeight;   // 펼쳐도 마지막 말이 가려지지 않게
+    }
+  }
+  function renderFoldBadge(){
+    const n = foldCount(), el = $('fold-n');
+    if(el){ el.hidden = !n; el.textContent = n ? String(n) : ''; }
+  }
   function renderHead(){
     const sub = $('hd-s'), ppl = $('ppl'), pt = $('ppl-t');
     renderLive();                                    // 🔴 지금 작업 중도 같이 산다(설정 전엔 스스로 숨김)
@@ -1038,19 +1075,26 @@ function roomFilesHtml(it){
     pt.textContent = '👥 ' + ROOM_AGENTS.length + '명' + (online ? ' · 🟢 ' + online : '');
     ppl.dataset.on = online ? '1' : '0';
     ppl.title = '편대 ' + ROOM_AGENTS.length + '명 · 최근 30분 활동 ' + online + '명 — 눌러서 사용량·역할 보기';
-    sub.textContent = '';
-    if(!configured()){ sub.textContent = '⚙️ 서버 연결 전 — 눌러서 설정'; return; }
-    if(S.err){ sub.textContent = '⚠️ ' + S.err; return; }
-    const hb = S.hb && S.hb.heartbeat;
-    const parts = [];
-    if(hb && roomNum(hb.min) !== null) parts.push('노트북 ' + roomAgo(hb.min));
-    else parts.push('노트북 신호 없음');
+    renderFoldBadge();
+    if(!sub) return;
+    // 둘째 줄 = 접힌 뒤에도 남는 요약: 작업 중 · 대기 · 승인 · 걸린 필터 · 노트북 · 확인 시각
+    if(!configured()){ sub.innerHTML = '<span class="b quiet"><i></i>⚙️ 서버 연결 전 — 눌러서 설정</span>'; return; }
+    if(S.err){ sub.innerHTML = '<span class="b bad"><i></i>⚠️ ' + esc(S.err) + '</span>'; return; }
     const c = S.sum || {};
-    if(c.waiting) parts.push('승인 ' + c.waiting);
-    if(c.pending) parts.push('대기 ' + c.pending);
-    if(c.running) parts.push('실행 ' + c.running);
-    if(S.at) parts.push(roomClock(S.at) + ' 확인');
-    sub.textContent = parts.join(' · ');
+    const work = Number(c.running) || 0, wait = Number(c.pending) || 0, appr = Number(c.waiting) || 0;
+    const bits = [];
+    if(work) bits.push('<span class="b work" title="지금 실행 중인 오더"><i></i>작업 중 ' + work + '</span>');
+    if(wait) bits.push('<span class="b wait" title="비서 차례를 기다리는 말"><i></i>대기 ' + wait + '</span>');
+    if(!work && !wait) bits.push('<span class="b quiet"><i></i>도는 일 없음</span>');
+    if(appr) bits.push('<span class="b bad" title="포털에서 결정을 기다리는 승인"><i></i>승인 ' + appr + '</span>');
+    const fl = foldLabel();
+    if(fl) bits.push('<span class="b f" title="지금 걸린 필터 — ▾ 현황·필터에서 바꿔요">🔎 ' + esc(fl) + '</span>');
+    bits.push('<span class="sep" aria-hidden="true"></span>');
+    const hb = S.hb && S.hb.heartbeat;
+    bits.push('<span class="b nb" title="집 노트북 마지막 신호">📡 ' +
+      esc((hb && roomNum(hb.min) !== null) ? '노트북 ' + roomAgo(hb.min) : '노트북 신호 없음') + '</span>');
+    if(S.at) bits.push('<span class="tm">' + esc(roomClock(S.at)) + ' 확인</span>');
+    sub.innerHTML = bits.join('');
   }
   function showStrip(msg, bad){
     const el = $('strip');
@@ -1230,7 +1274,7 @@ function roomFilesHtml(it){
     const box = $('fchips');
     const cnt = $('fcnt');
     if(!box) return;
-    const stC = [['all', '전체'], ['live', '진행'], ['miss', '보고누락'], ['wait', '승인'], ['done', '끝남']];
+    const stC = ['all', 'live', 'miss', 'wait', 'done'].map(k => [k, ROOM_FILT_ST[k]]);
     const who = [{id: 'all', name: '모두'}].concat([ROOM_ME].concat(ROOM_AGENTS));
     const btn = (k, v, on, inner) => '<button type="button" class="fchip' + (on ? ' on' : '') + '" data-fk="' + k + '" data-fv="' + esc(v) + '">' + inner + '</button>';
     box.innerHTML =
@@ -1245,13 +1289,13 @@ function roomFilesHtml(it){
   function setFilter(k, v){
     if(k === 'st') F.st = ['all', 'live', 'miss', 'wait', 'done'].indexOf(v) >= 0 ? v : 'all';
     else if(k === 'who') F.who = (v === 'all' || whoList().some(a => a.id === v)) ? v : 'all';
-    renderFilters(); renderFeed(true);
+    renderFilters(); renderFeed(true); renderHead();
   }
   function whoList(){ return [ROOM_ME].concat(ROOM_AGENTS); }
   function onSearch(){
     const el = $('srch');
     F.q = String((el && el.value) || '').trim();
-    renderFilters(); renderFeed(true);
+    renderFilters(); renderFeed(true); renderHead();
   }
   /* ── ↩ 답장 · 💬 스레드 (2026-11-26) ── */
   function setReply(id){
@@ -1951,6 +1995,7 @@ function roomFilesHtml(it){
   /* ── 이벤트 ── */
   function bind(){
     $('refresh').onclick = () => load('full');
+    if($('fold')) $('fold').onclick = () => applyFold(!FOLD, true);
     $('ppl').onclick = drawerOpen;
     $('drawer-x').onclick = drawerClose;
     $('scrim').onclick = drawerClose;
@@ -2036,6 +2081,7 @@ function roomFilesHtml(it){
       if($('sheet').classList.contains('on')) closeSheet();
       else if($('thread').classList.contains('on')) closeThread();
       else if($('drawer').classList.contains('on')) drawerClose();
+      else if(FOLD) applyFold(false, true);
     });
     document.addEventListener('visibilitychange', () => {
       if(document.hidden) return;
@@ -2048,6 +2094,7 @@ function roomFilesHtml(it){
   }
 
   function init(){
+    applyFold(FOLD, false);          // 현황·필터 판은 기본 접힘 — 채팅이 화면을 다 쓴다(2026-11-28)
     renderChips();
     bind();
     onInput();

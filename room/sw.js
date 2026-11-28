@@ -4,7 +4,7 @@
    · 화면·코드는 **네트워크 먼저(no-store)** — 캐시가 예전 화면을 붙잡지 않게(포털 방침과 같음)
    · Apps Script(다른 주소) 요청은 건드리지 않습니다
    ═══════════════════════════════════════════════════════════ */
-const ROOM_VER = 'room-v6';   // 2026-11-27 — 📎 파일·이미지 공유(화면 자산 v10)
+const ROOM_VER = 'room-v7';   // 2026-11-28 — 상단 고정 슬림화 · 접이식 현황판(화면 자산 v15)
 const ROOM_SHELL = [
   './', './index.html', './app.css', './app.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png'

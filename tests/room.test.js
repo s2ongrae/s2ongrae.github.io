@@ -615,6 +615,46 @@ function coreTests() {
     ok(!/<img[^>]+src=\\s*["']?https?:/i.test(js) && !/cdn\.[a-z]/i.test(css), '바깥 CDN 이미지에 기대지 않는다(첨부는 서버에서 받는다)');
   }
 
+  console.log('P) 📱 상단 고정 슬림화 · 접이식 현황판 (2026-11-28)');
+  {
+    // 레이 님: "회의실 들어가면 위에 사전 캡처해 있던 것 만큼이 고정되어 있어서 채팅이 많이 안 보여"
+    const iHd = html.indexOf('<header class="hd">'), iPanel = html.indexOf('id="panel"'),
+      iLive = html.indexOf('id="live"'), iBar = html.indexOf('id="fbar"'), iFeed = html.indexOf('id="feed"');
+    ok(iHd > -1 && iPanel > iHd, '머리말 다음에 현황·필터 판(#panel)이 온다');
+    ok(iPanel < iLive && iLive < iBar && iBar < iFeed, '#live·#fbar 가 판 안에 있고 그 아래가 타임라인');
+    ok(html.indexOf('id="panel"') < html.indexOf('</div>', iBar), '판이 #fbar 뒤에서 닫힌다');
+    // 헤더 = 제목 + 사람 배지 + 새로고침 + 접기 버튼 (이게 전부)
+    ok(/id="fold"[^>]*aria-controls="panel"/.test(html) && /id="fold"[^>]*aria-expanded="false"/.test(html),
+      '접기 버튼이 판을 가리키고 처음엔 접힘(aria-expanded=false)');
+    ok(/id="fold-i"/.test(html) && /id="fold-n"/.test(html), '접기 버튼에 화살표·필터 수 배지 자리');
+    ok(/현황·필터/.test(html), '버튼 이름이 눈에 보인다(현황·필터)');
+    // 기본은 접힘 — CSS 로도, JS 상태로도
+    ok(/\.panel\{[^}]*display:none/.test(css), '판은 기본이 display:none(접힘)');
+    ok(/\.app\.fold-open \.panel\{display:flex\}/.test(css), '펼치면 flex 로 판이 열린다');
+    ok(/\.panel\{[^}]*max-height:clamp\([^)]*dvh[^)]*\)/.test(css), '펼쳐도 max-height(화면 높이 기준) 로 제한');
+    ok(/\.panel\{[^}]*overflow-y:auto/.test(css), '펼친 판은 안에서만 스크롤(채팅을 다 가리지 않음)');
+    ok(/let FOLD = lsGet\('room_fold'\) === '1'/.test(js), 'JS 기본값도 접힘 — 한 번 편 선택만 기억');
+    ok(/function applyFold\(open, save\)/.test(js) && /classList\.toggle\('fold-open', FOLD\)/.test(js), 'applyFold 가 .fold-open 을 켜고 끈다');
+    ok(/applyFold\(FOLD, false\);/.test(js), 'init 에서 접힘 상태를 화면에 먼저 적용');
+    ok(/\$\('fold'\)\.onclick = /.test(js), '접기 버튼이 연결돼 있다');
+    ok(/lsSet\('room_fold'/.test(js), '고른 상태는 이 기기에 저장');
+    ok(/setAttribute\('aria-expanded', FOLD \? 'true' : 'false'\)/.test(js), '접고 펼 때 aria-expanded 도 같이');
+    // 머리말이 얇다 — 높이·글자 크기 상한
+    const hdH = (css.match(/--hd-h:(\d+)px/) || [])[1];
+    ok(Number(hdH) > 0 && Number(hdH) <= 52, '머리말 최소 높이 ' + hdH + 'px (≤52 — 예전 60px)');
+    ok(/\.hd-s\{[^}]*display:flex[^}]*overflow:hidden/.test(css), '둘째 줄은 한 줄 flex — 넘치면 잘림(여러 줄로 안 늘어남)');
+    // 접힌 채로도 핵심은 보인다: 작업 중 · 대기 · 걸린 필터
+    ok(/작업 중 ' \+ work/.test(js) && /대기 ' \+ wait/.test(js), '머리말 둘째 줄에 작업 중·대기 수');
+    ok(/function foldLabel\(\)/.test(js) && /🔎 '/.test(js), '접힌 채로도 걸린 필터를 배지로(🔎)');
+    ok(/function renderFoldBadge\(\)/.test(js) && /foldCount\(\)/.test(js), '접기 버튼에 걸린 필터 수 배지');
+    ok(/renderHead\(\);\n  \}/.test(js) || /renderFilters\(\); renderFeed\(true\); renderHead\(\)/.test(js),
+      '필터·검색을 바꾸면 머리말 배지도 같이 고침');
+    ok(/else if\(FOLD\) applyFold\(false, true\)/.test(js), 'Esc 로 판을 접을 수 있다');
+    // 멘션 바 — 한 줄 가로 스크롤 유지
+    ok(/\.chips\{[^}]*display:flex/.test(css) && /\.chips\{[^}]*overflow-x:auto/.test(css), '멘션 칩은 한 줄 가로 스크롤');
+    ok(/\.mchip\{[^}]*flex:0 0 auto/.test(css) && /\.mchip\{[^}]*white-space:nowrap/.test(css), '멘션 칩은 줄어들지 않고 옆으로 밀린다');
+  }
+
   console.log('O) 비밀값 하드코딩 없음 (공개 저장소)');
   const all = html + js + css + sw;
   ok(!/AKfycb[0-9A-Za-z_-]{20,}/.test(all), 'Apps Script 주소 없음');
