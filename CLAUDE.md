@@ -315,6 +315,16 @@
 - 폰 홈 화면에 "김성래 포털"(라벨 "성래포털") 앱처럼 추가된다. `manifest.webmanifest`(뿌리) — `start_url`·`scope` 는 `./`, `display: standalone`, `background_color #F0F4FF`·`theme_color #FFFFFF`(헤더가 흰색이라 상태바도 흰색).
 - 아이콘 `icons/icon-192.png`·`icons/icon-512.png`: 남색 그라데이션 + 골드 `P` 모노그램 + 얇은 골드 링. 꽉 찬 배경 + 가운데 글자라 `purpose: any maskable` — 안드로이드가 동그라미·스퀘어클로 잘라도 안전(링 r=374/1024 < 안전 반지름 410). `index.html` head 에 manifest·icon·apple-touch-icon·theme-color·mobile-web-app-capable.
 - **Service Worker 는 일부러 넣지 않는다** — 캐시가 꼬여 예전 화면이 남는 걸 막으려고. 나중에 오프라인 캐시가 필요하면 버전 붙인 SW 를 따로 설계한다(지금은 금지). `tests/pwa.test.js` 가 이 금지와 매니페스트·아이콘 실제 크기를 지킨다.
+- **`id` 는 루리 `/` 로 못박았다(2026-11-28)** — `./` 를 풀면 같은 값이지만, `start_url` 을 나중에 건드려도 설치된 앱의 정체성이 따라 움직이지 않게 한다.
+
+## 📲 두 앱의 설치 충돌 — 포털(`/`)과 회의실(`/room/`) (2026-11-28, 사용자 "설치 눌르려는데 이미 있다고 안 깔리고 포털만 열려")
+
+- **증상**: 폰 Chrome 에서 `https://s2ongrae.github.io/room/` 를 열고 "앱 설치"를 누르면 **"이미 설치됨"** 이 뜨고 **포털 앱만** 열린다.
+- **원인(브라우저 쪽 — 코드 버그 아님)**: 포털 앱의 `scope` 가 뿌리 `./`(=`/`)라 `/room/` 을 **감싼다**(중첩 scope). Chrome 문서가 같은 증상을 그대로 적었다 — web.dev 「Building multiple PWAs on the same domain」: *Installation Promotion: … the browser won't show the install promotional banners … the workaround is to install the inner app manually or **install the inner app first, before the outer app*** · *Link Capturing: The outer app may capture URLs that belong to the inner app*. `manifest.id` 로 정체성은 갈리지만(`/` vs `/room/`) scope 중첩은 남는다.
+- **코드 쪽에서 지킨 것**: 두 매니페스트의 `id` 가 서로 다르고(포털 `/`, 회의실 `/room/`) · 회의실 `start_url`·`scope` 는 `/room/` · 회의실 SW 등록 scope 는 `./`(=`/room/`) · 뿌리에는 SW 가 없다(가로챌 것 없음). `tests/pwa.test.js` **E)절**이 이걸 잠근다.
+- **폰에서 지금 설치하는 길(코드 변경 없이)**: ① Chrome 설정 → 앱 → **'성래포털' 삭제**(대화상자의 *사이트 데이터도 삭제* 는 **체크하지 않는다** — localStorage 의 서버 주소·키가 지워진다) ② `s2ongrae.github.io/room/` 열고 메뉴 → **앱 설치** → "AI 회의실" ③ 다시 `s2ongrae.github.io` 열고 앱 설치 → 포털 재설치. 안쪽 앱을 먼저 깔면 바깥 앱은 문제없이 깔린다.
+- **근본 수정(미적용 — 결정 필요)**: 포털 앱 `scope` 를 `/index.html` 로 좁히면 중첩이 사라져 `/room/` 이 그냥 설치된다. 대신 포털 앱이 `/` 링크를 더는 붙잡지 않고, 매니페스트가 바뀐 뒤 앱을 한 번 열어 WebAPK 업데이트를 받아야 한다. 가장 권장되는 방식은 **별도 origin**(서브도메인·다른 호스팅)에 회의실 앱을 두는 것 — 그러면 충돌이 원천적으로 없다.
+- 참고: Chrome 은 **108(안드로이드)부터 메뉴 설치에 Service Worker 를 요구하지 않는다** — 그래서 뿌리에 SW 가 없어도 포털이 WebAPK 로 설치됐고, 그 scope(`/`)가 문제의 바깥 앱이 됐다.
 
 ## 테스트
 

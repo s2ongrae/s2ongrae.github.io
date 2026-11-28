@@ -35,6 +35,7 @@ console.log('B) manifest.webmanifest — 홈 화면에서 단독 앱으로 열�
   if (man) {
     ok(man.name === 'AI 비서 회의실', 'name = AI 비서 회의실');
     ok(man.short_name === 'AI 회의실', 'short_name = AI 회의실 (홈 라벨이 잘리지 않게)');
+    ok(man.id === '/room/', 'id = /room/ — 설치된 앱의 정체성(포털 앱의 / 와 다른 값이어야 한다)');
     ok(man.start_url === '/room/', 'start_url = /room/');
     ok(man.scope === '/room/', 'scope = /room/');
     ok(man.display === 'standalone', 'display = standalone (주소창 없이)');

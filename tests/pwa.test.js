@@ -26,6 +26,9 @@ let manifest = null;
     ok(manifest.short_name === '성래포털', 'short_name = 성래포털 (홈 화면 라벨이 잘리지 않게 짧게)');
     ok(manifest.start_url === './', 'start_url = ./ (사이트 뿌리)');
     ok(manifest.scope === './', 'scope = ./');
+    // id 는 설치된 앱의 정체성이다. './' 를 풀면 https://s2ongrae.github.io/ 로 같지만,
+    // start_url 을 나중에 건드려도 정체성이 따라 움직이지 않게 뿌리('/')로 못박는다(2026-11-28).
+    ok(manifest.id === '/', 'id = / — 정체성을 뿌리로 못박음(설치된 포털 앱과 같은 값)');
     ok(manifest.display === 'standalone', 'display = standalone (주소창 없이)');
     ok(/^#[0-9A-Fa-f]{6}$/.test(manifest.background_color), 'background_color 는 #RRGGBB');
     ok(/^#[0-9A-Fa-f]{6}$/.test(manifest.theme_color), 'theme_color 는 #RRGGBB');
@@ -71,6 +74,29 @@ console.log('D) Service Worker 는 넣지 않는다 (캐시가 꼬여 예전 화
 {
   ok(!/serviceWorker/.test(html), 'index.html 에 serviceWorker 등록 없음');
   ok(!fs.existsSync(path.join(ROOT, 'sw.js')) && !fs.existsSync(path.join(ROOT, 'service-worker.js')), 'sw.js 파일 없음');
+}
+
+console.log('E) 회의실 앱(/room/)과의 id·scope 충돌 — 두 앱이 같은 앱으로 취급되지 않는지');
+{
+  // 같은 origin 에 앱이 둘이면 Chrome 은 manifest 의 id 로 정체성을 가른다.
+  //  다만 포털 scope('/')가 /room/ 을 **감싸므로**(중첩 scope) 바깥 앱(포털)이 설치된 폰에서는
+  //  안쪽 앱(/room/) 설치 안내가 뜨지 않고 "이미 설치됨 · 포털만 열림"이 된다(web.dev 다중 PWA 문서).
+  //  그건 서버·화면 코드로 고칠 수 없는 브라우저 동작이라, 여기서는 **코드 쪽 원인**(id·scope·SW 가로채기)이
+  //  없는지만 잠근다. 폰 조치(포털 앱 삭제 → /room/ 설치 → 포털 재설치)는 CLAUDE.md 에 적혀 있다.
+  let room = null;
+  try { room = JSON.parse(fs.readFileSync(path.join(ROOT, 'room', 'manifest.webmanifest'), 'utf8')); } catch (e) { ok(false, 'room/manifest.webmanifest 를 읽음: ' + e.message); }
+  ok(!!room, 'room/manifest.webmanifest 가 있음');
+  if (manifest && room) {
+    ok(room.id === '/room/', '회의실 앱 id = /room/');
+    ok(room.id !== manifest.id, '두 앱의 id 가 다름 — 같은 앱으로 합쳐지지 않음');
+    ok(room.start_url === '/room/' && room.scope === '/room/', '회의실 앱 start_url·scope = /room/ (자기 방 안)');
+    ok(manifest.scope === './' && !String(manifest.scope).startsWith('/room'), '포털 scope 는 뿌리(./) — /room/ 을 감싼다(중첩. 브라우저 쪽 알려진 한계)');
+  }
+  const roomSw = fs.existsSync(path.join(ROOT, 'room', 'sw.js')) ? fs.readFileSync(path.join(ROOT, 'room', 'sw.js'), 'utf8') : '';
+  ok(/\/room\//.test(roomSw) && /scopePath/.test(roomSw), '회의실 SW 는 자기 scope(/room/) 밖 요청을 건드리지 않는다');
+  ok(!fs.existsSync(path.join(ROOT, 'sw.js')), '뿌리에 SW 가 없다 — /room/ 요청을 가로챌 것이 없음');
+  ok(/navigator\.serviceWorker\.register\('sw\.js', \{scope: '\.\/'\}\)/.test(fs.readFileSync(path.join(ROOT, 'room', 'app.js'), 'utf8')),
+    '회의실 SW 등록 scope 는 ./ (= /room/)');
 }
 
 console.log(`\nPWA 홈 화면 아이콘 테스트: ${pass}건 통과, ${fail}건 실패`); process.exit(fail ? 1 : 0);
